@@ -8,60 +8,6 @@ import AppKit
 import SwiftTerm
 import DeskworkCore
 
-// MARK: - one live desk
-
-final class DeskSession {
-    let desk: Desk
-    let term: LocalProcessTerminalView
-    private(set) var started = false
-
-    init(desk: Desk) {
-        self.desk = desk
-        term = LocalProcessTerminalView(frame: .zero)
-        term.translatesAutoresizingMaskIntoConstraints = false
-    }
-
-    func startIfNeeded() {
-        guard !started else { return }
-        started = true
-
-        // A CLI can take several seconds to boot. Paint something immediately,
-        // written straight to the view rather than through the pty, so a blank
-        // screen never reads as "nothing happened".
-        term.feed(text: "\u{1b}[2J\u{1b}[H"
-            + "\u{1b}[36m●\u{1b}[0m starting \u{1b}[1m\(desk.name)\u{1b}[0m\r\n"
-            + "\u{1b}[2m  \(desk.launchCommand())\r\n"
-            + "  in \(desk.resolvedCwd)\u{1b}[0m\r\n\r\n")
-
-        var env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
-
-        // Deskwork hands its own environment to every desk, so anything the app
-        // inherited is inherited again by the agent. CLAUDECODE marks "you are
-        // already inside a Claude Code session" and makes a nested one refuse to
-        // start — which happens whenever Deskwork is launched from a terminal
-        // that is itself running an agent. Scrub it rather than depending on how
-        // the app was launched.
-        let poison = ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID",
-                      "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_BRIDGE_SESSION_ID",
-                      "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
-                      "CLAUDE_CODE_SESSION_ATTENDED", "CLAUDE_PID", "CLAUDE_EFFORT"]
-        env.removeAll { entry in poison.contains(where: { entry.hasPrefix($0 + "=") }) }
-
-        // Hooks and desk-scoped behaviour key off this, same as the shell wrapper.
-        env.append("CLAUDE_DESK=\(desk.name)")
-        env.append("DESKWORK=1")
-        term.startProcess(executable: "/bin/zsh", args: ["-l"], environment: env)
-
-        // Land in the desk's directory, then launch its CLI. No `clear` here —
-        // wiping the screen would throw away the only feedback there is.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-            guard let self else { return }
-            let dir = self.desk.resolvedCwd.replacingOccurrences(of: " ", with: "\\ ")
-            self.term.send(txt: "cd \(dir) && \(self.desk.launchCommand())\n")
-        }
-    }
-}
-
 // MARK: - app
 
 final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDelegate, NSSplitViewDelegate {
@@ -172,6 +118,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         installMenu()
+        watchPaneClicks()
         show(DeskConfig.startup(in: desks))
         if firstRun { showWelcome() }
     }
@@ -182,18 +129,19 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let d = desks[i]
         let s = sessions[d.name] ?? {
             let new = DeskSession(desk: d)
-            new.term.processDelegate = self
+            new.processDelegate = self
             sessions[d.name] = new
             return new
         }()
 
-        visible?.term.removeFromSuperview()
-        host.addSubview(s.term)
+        visible?.container.removeFromSuperview()
+        s.container.delegate = self
+        host.addSubview(s.container)
         NSLayoutConstraint.activate([
-            s.term.topAnchor.constraint(equalTo: host.topAnchor),
-            s.term.bottomAnchor.constraint(equalTo: host.bottomAnchor),
-            s.term.leadingAnchor.constraint(equalTo: host.leadingAnchor),
-            s.term.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+            s.container.topAnchor.constraint(equalTo: host.topAnchor),
+            s.container.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+            s.container.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            s.container.trailingAnchor.constraint(equalTo: host.trailingAnchor),
         ])
         s.startIfNeeded()
         visible = s
@@ -203,7 +151,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         tree.setRoot(d.resolvedCwd)
         sidebar.select(i)
         window.title = "Deskwork — \(d.name)"
-        window.makeFirstResponder(s.term)
+        window.makeFirstResponder(s.focusedPane.term)
     }
 
     /// cmd-1..9 jumps between desks.
@@ -242,6 +190,26 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let flip = NSMenuItem(title: "Tree on Top", action: #selector(toggleTreePosition), keyEquivalent: "t")
         flip.target = self
         deskMenu.addItem(flip)
+        deskMenu.addItem(.separator())
+
+        // Splits. cmd-d reads as "divide" in every terminal that has them.
+        let sr = NSMenuItem(title: "Split Right", action: #selector(splitRight), keyEquivalent: "d")
+        sr.target = self
+        deskMenu.addItem(sr)
+        let sd = NSMenuItem(title: "Split Down", action: #selector(splitDown), keyEquivalent: "d")
+        sd.keyEquivalentModifierMask = [.command, .shift]
+        sd.target = self
+        deskMenu.addItem(sd)
+        let cp = NSMenuItem(title: "Close Pane", action: #selector(closePane), keyEquivalent: "w")
+        cp.target = self
+        deskMenu.addItem(cp)
+        let nx = NSMenuItem(title: "Next Pane", action: #selector(nextPane), keyEquivalent: "]")
+        nx.target = self
+        deskMenu.addItem(nx)
+        let pv = NSMenuItem(title: "Previous Pane", action: #selector(prevPane), keyEquivalent: "[")
+        pv.target = self
+        deskMenu.addItem(pv)
+
         deskMenu.addItem(.separator())
         let agentsItem = NSMenuItem(title: "Agents…", action: #selector(openAgents), keyEquivalent: "a")
         agentsItem.keyEquivalentModifierMask = [.command, .shift]
@@ -361,16 +329,20 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 
     func splitView(_ sv: NSSplitView, constrainMinCoordinate p: CGFloat,
                    ofSubviewAt i: Int) -> CGFloat {
-        sv === rail ? p + 80 : p + 170
+        if sv === rail { return p + 80 }
+        if sv === split { return p + 170 }
+        return p + 120          // a pane, which needs far less room than the rail
     }
 
     func splitView(_ sv: NSSplitView, constrainMaxCoordinate p: CGFloat,
                    ofSubviewAt i: Int) -> CGFloat {
-        sv === rail ? p - 120 : p - 320
+        if sv === rail { return p - 120 }
+        if sv === split { return p - 320 }
+        return p - 120
     }
 
     func splitView(_ sv: NSSplitView, shouldAdjustSizeOfSubview view: NSView) -> Bool {
-        // The terminal absorbs resizing; the rail keeps its width.
+        // The terminal absorbs resizing; the rail keeps its width. Panes share.
         sv === split ? view !== rail : true
     }
 
@@ -465,9 +437,85 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         // Let the CLI finish starting before typing at it.
         let delay = sessions[desks[i].name]?.started == true ? 0.3 : 3.0
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.visible?.term.send(txt: command + "\n")
+            self?.visible?.agentTerm.send(txt: command + "\n")
         }
     }
+
+    // MARK: - panes
+
+    @objc func splitRight() { addPane(vertical: true) }
+    @objc func splitDown()  { addPane(vertical: false) }
+
+    /// A desk keeps one axis. The first split chooses it; a later split in the
+    /// other direction joins the existing one rather than nesting, and says so
+    /// once instead of silently doing something else than the menu promised.
+    func addPane(vertical: Bool) {
+        guard let s = visible else { return }
+        if s.panes.count > 1 && s.isVertical != vertical && !warnedAboutAxis {
+            warnedAboutAxis = true
+            let a = NSAlert()
+            a.messageText = "This desk is already split \(s.isVertical ? "into columns" : "into rows")"
+            a.informativeText = "Panes in a desk share one axis, so this one joins the "
+                + "existing split instead of nesting inside a pane.\n\n"
+                + "Nested splits are on the roadmap if people want them."
+            a.addButton(withTitle: "OK")
+            a.runModal()
+        }
+        guard s.split(vertical: vertical) != nil else {
+            NSSound.beep(); return          // four panes is the ceiling
+        }
+        window.makeFirstResponder(s.focusedPane.term)
+    }
+    var warnedAboutAxis = false
+
+    /// Closing a pane kills its process. For a shell that costs nothing; for the
+    /// agent it throws away a session that may have been running for hours, so
+    /// that one asks.
+    @objc func closePane() {
+        // cmd-w closes the innermost thing, the way every terminal does it: the
+        // pane if there is more than one, otherwise the window. Beeping here
+        // instead would quietly take cmd-w away from closing the window at all.
+        guard let s = visible, s.panes.count > 1 else {
+            window.performClose(nil); return
+        }
+        if s.focusedPane.isAgent {
+            let a = NSAlert()
+            a.messageText = "Close the agent pane?"
+            a.informativeText = "This is \(s.desk.name)'s own session, not a shell. "
+                + "Closing it ends the agent and loses its context. The other panes stay."
+            a.addButton(withTitle: "Close Agent")
+            a.addButton(withTitle: "Cancel")
+            a.buttons.first?.hasDestructiveAction = true
+            guard a.runModal() == .alertFirstButtonReturn else { return }
+        }
+        _ = s.closeFocused()
+        window.makeFirstResponder(s.focusedPane.term)
+    }
+
+    @objc func nextPane() { cyclePane(1) }
+    @objc func prevPane() { cyclePane(-1) }
+    func cyclePane(_ d: Int) {
+        guard let s = visible, s.panes.count > 1 else { return }
+        s.cycleFocus(d)
+        window.makeFirstResponder(s.focusedPane.term)
+    }
+
+    /// Clicking a pane focuses it. SwiftTerm takes first responder itself, so
+    /// this only has to keep the ring in step with where the keystrokes go.
+    func watchPaneClicks() {
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] ev in
+            guard let self, let s = self.visible, s.panes.count > 1,
+                  ev.window === self.window else { return ev }
+            let pt = ev.locationInWindow
+            for (i, p) in s.panes.enumerated()
+            where p.box.superview != nil
+                && p.box.convert(p.box.bounds, to: nil).contains(pt) {
+                s.focus(i); break
+            }
+            return ev
+        }
+    }
+    var clickMonitor: Any?
 
     var meterPanel: MeterPanel?
     @objc func openMeter() {
@@ -569,10 +617,21 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
     func processTerminated(source: TerminalView, exitCode: Int32?) {
-        // A desk exiting is not the app exiting. Mark it dead and leave the rest alone.
-        if let name = sessions.first(where: { $0.value.term === source })?.key {
-            sessions.removeValue(forKey: name)
+        // A desk exiting is not the app exiting, and a PANE exiting is not the
+        // desk exiting. Typing `exit` in a shell pane should close that pane and
+        // leave the agent next to it untouched.
+        guard let entry = sessions.first(where: { s in
+            s.value.panes.contains(where: { $0.term === source })
+        }) else { return }
+
+        if entry.value.panes.count > 1 {
+            entry.value.drop(term: source)
+            if entry.value === visible {
+                window.makeFirstResponder(entry.value.focusedPane.term)
+            }
+            return
         }
+        sessions.removeValue(forKey: entry.key)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ a: NSApplication) -> Bool { true }
