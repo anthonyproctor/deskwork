@@ -116,6 +116,25 @@ command = "~/bin/desk notes"
 cwd     = "~/notes"
 ```
 
+## Look
+
+Gruvbox Dark Hard, JetBrains Mono at 14, ligatures off, block cursor, and real padding between the text and the frame. Deskwork exists because a terminal was not good enough, so this is not a cosmetic concern — it is most of the product.
+
+The unfocused pane dims rather than relying on the focus ring alone: the eye finds the bright pane without hunting for a border.
+
+Override any of it in `desks.toml`:
+
+```toml
+[theme]
+font      = "SF Mono"
+size      = 13
+palette   = "nord"        # gruvbox-dark-hard | gruvbox-light | nord | solarized-dark
+padding_x = 12
+padding_y = 10
+```
+
+A font that is not installed falls back to the next one that is, and an unrecognised palette falls back to the default. Neither ever produces an empty pane.
+
 ## Keys
 
 | | |

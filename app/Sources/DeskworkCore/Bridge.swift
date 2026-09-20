@@ -191,8 +191,25 @@ public struct Mailbox {
                 DispatchQueue.main.async { completion(.failure(BridgeError(message: "could not start \(rt.bin): \(error)"))) }
                 return
             }
-            let d = out.fileHandleForReading.readDataToEndOfFile()
-            let e = err.fileHandleForReading.readDataToEndOfFile()
+            // Drain BOTH pipes at once. Reading stdout to EOF and stderr
+            // afterwards deadlocks whenever the child fills the 64KB stderr
+            // buffer: it blocks on write, this blocks on read, and both sit at
+            // 0% CPU indefinitely looking like a slow model.
+            var d = Data(), e = Data()
+            let pipes = DispatchGroup()
+            let sink = DispatchQueue(label: "deskwork.bridge.drain", attributes: .concurrent)
+            pipes.enter()
+            sink.async { d = out.fileHandleForReading.readDataToEndOfFile(); pipes.leave() }
+            pipes.enter()
+            sink.async { e = err.fileHandleForReading.readDataToEndOfFile(); pipes.leave() }
+            if pipes.wait(timeout: .now() + Fanout.sliceTimeout) == .timedOut {
+                p.terminate()
+                _ = pipes.wait(timeout: .now() + 5)
+                let note = "gave up after \(Int(Fanout.sliceTimeout / 60)) minutes."
+                self.append(note, who: rt.name, to: path)
+                DispatchQueue.main.async { completion(.failure(BridgeError(message: note))) }
+                return
+            }
             p.waitUntilExit()
             var reply = ""
             if let f = finalFile, let only = try? String(contentsOfFile: f, encoding: .utf8),

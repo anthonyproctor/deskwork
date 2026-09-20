@@ -33,6 +33,21 @@ final class FanoutSheet: NSWindowController {
     private let spinner = NSProgressIndicator()
     private let progress = NSTextField(labelWithString: "")
 
+    // Live state for the run. All N processes launch at once, so every slice is
+    // "running" from the first moment and the only thing that changes for
+    // minutes is the clock — which is exactly why there has to BE a clock. A
+    // spinner that never moves is indistinguishable from a hang.
+    private enum SliceState { case waiting, running, done, failed }
+    private var state: [String: SliceState] = [:]
+    private var startedAt: [String: Date] = [:]
+    private var finishedAt: [String: Date] = [:]
+    private var ticker: Timer?
+    private var mergeRow: NSTextField?
+    private var mergeStarted: Date?
+    /// Live handle on the running processes. Cancel used to close the window
+    /// and leave them running invisibly, which is worse than no button at all.
+    private var live: FanoutCancel?
+
     /// Directories that are never worth a slice: build output, dependencies and
     /// version control. Sending an agent into `node_modules` costs a full
     /// invocation to be told there is nothing there.
@@ -48,7 +63,7 @@ final class FanoutSheet: NSWindowController {
         self.box = box
         self.fromName = from
         self.question = question
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 520),
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 580),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: w)
         self.onDone = onDone
@@ -131,7 +146,7 @@ final class FanoutSheet: NSWindowController {
         runBtn.target = self
         runBtn.action = #selector(run)
 
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(close))
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelRun))
         cancel.bezelStyle = .rounded
         cancel.keyEquivalent = "\u{1b}"
 
@@ -229,6 +244,67 @@ final class FanoutSheet: NSWindowController {
         reloadList()
     }
 
+    /// Repaint every row's title with where that slice is and how long it has
+    /// been there. Called once a second, and again on every state change.
+    private func redrawStatuses() {
+        for (d, r) in rows {
+            let st = state[d] ?? .waiting
+            let glyph: String
+            var clock = ""
+            switch st {
+            case .waiting: glyph = "○"
+            case .running:
+                glyph = "◐"
+                if let s = startedAt[d] { clock = "  " + Self.elapsed(since: s) }
+            case .done:
+                glyph = "✓"
+                if let s = startedAt[d], let f = finishedAt[d] {
+                    clock = "  " + Self.elapsed(since: s, to: f)
+                }
+            case .failed: glyph = "✗"
+            }
+            r.title = "\(glyph)  \(d)\(clock)"
+            r.contentTintColor = st == .failed ? .systemRed
+                : (st == .done ? .systemGreen : nil)
+        }
+
+        // The merge is the longest single step and used to look exactly like
+        // nothing happening, because every slice was already ticked off.
+        if let started = mergeStarted {
+            if mergeRow == nil {
+                let t = NSTextField(labelWithString: "")
+                t.font = .systemFont(ofSize: 12)
+                listStack.addArrangedSubview(t)
+                mergeRow = t
+            }
+            mergeRow?.stringValue = "◐  merge — reconciling the answers  "
+                + Self.elapsed(since: started)
+        }
+    }
+
+    private static func elapsed(since: Date, to: Date = Date()) -> String {
+        let s = Int(to.timeIntervalSince(since))
+        return s < 60 ? "\(s)s" : String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    /// Stop everything this run started, then close. Closing the window alone
+    /// leaves N headless agents running with nothing tracking them.
+    @objc private func cancelRun() {
+        live?.cancel()
+        live = nil
+        ticker?.invalidate(); ticker = nil
+        spinner.stopAnimation(nil)
+        close()
+    }
+
+    /// Closing the sheet by any route — the red button, escape — must also stop
+    /// the run, for the same reason.
+    override func close() {
+        live?.cancel(); live = nil
+        ticker?.invalidate(); ticker = nil
+        super.close()
+    }
+
     @objc private func selectAll_() { for r in rows { r.check.state = .on }; recount() }
     @objc private func selectNone() { for r in rows { r.check.state = .off }; recount() }
 
@@ -261,14 +337,36 @@ final class FanoutSheet: NSWindowController {
         spinner.startAnimation(nil)
         progress.stringValue = "0/\(slices.count)"
 
-        box.fanout(from: fromName, to: rt, question: question, slices: slices,
+        // Every slice is launched at once, so they all start running now.
+        let now = Date()
+        for d in dirs { state[d] = .running; startedAt[d] = now }
+        for r in rows { r.check.isEnabled = false }
+        ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.redrawStatuses()
+        }
+        redrawStatuses()
+
+        live = box.fanout(from: fromName, to: rt, question: question, slices: slices,
                    topic: "review",
                    onProgress: { [weak self] done, total, label in
-                       self?.progress.stringValue = "\(done)/\(total) · \(label)"
+                       guard let self else { return }
+                       // A slice that produced nothing is recorded as failed by
+                       // the caller; here we only know it finished. The merge
+                       // reports the real count.
+                       self.state[label] = .done
+                       self.finishedAt[label] = Date()
+                       self.progress.stringValue = "\(done)/\(total)"
+                       self.redrawStatuses()
+                   },
+                   onMerge: { [weak self] in
+                       guard let self else { return }
+                       self.mergeStarted = Date()
+                       self.redrawStatuses()
                    },
                    completion: { [weak self] result in
                        guard let self else { return }
                        self.spinner.stopAnimation(nil)
+                       self.ticker?.invalidate(); self.ticker = nil
                        switch result {
                        case .success(let (_, merged, dir)):
                            self.close()

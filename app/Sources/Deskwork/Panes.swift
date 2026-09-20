@@ -31,6 +31,7 @@ final class Pane {
         self.isAgent = isAgent
         term = LocalProcessTerminalView(frame: .zero)
         term.translatesAutoresizingMaskIntoConstraints = false
+        Theme.apply(to: term)
         box = PaneBox(term: term)
     }
 
@@ -89,30 +90,49 @@ final class Pane {
 /// The ring only appears once a desk has more than one pane. A border around a
 /// single pane is noise — there is nowhere else the keystrokes could go.
 final class PaneBox: NSView {
-    private let inset: CGFloat = 2
-    var showsFocus = false { didSet { if showsFocus != oldValue { needsDisplay = true } } }
-    var focused = false { didSet { if focused != oldValue { needsDisplay = true } } }
+    private let ring: CGFloat = 2
+    var showsFocus = false { didSet { if showsFocus != oldValue { restyle() } } }
+    var focused = true { didSet { if focused != oldValue { restyle() } } }
+    private weak var term: NSView?
 
     init(term: NSView) {
         super.init(frame: .zero)
+        self.term = term
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
         addSubview(term)
+
+        // Text butting against the frame is the first thing that makes a
+        // terminal feel cheap, and the box rather than the terminal owns the
+        // gap so the terminal's own background still fills it.
+        let cfg = DeskConfig.themeSettings()
+        let x = CGFloat(cfg.padX), y = CGFloat(cfg.padY)
         NSLayoutConstraint.activate([
-            term.topAnchor.constraint(equalTo: topAnchor, constant: inset),
-            term.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset),
-            term.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
-            term.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+            term.topAnchor.constraint(equalTo: topAnchor, constant: y),
+            term.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -y),
+            term.leadingAnchor.constraint(equalTo: leadingAnchor, constant: x),
+            term.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -x),
         ])
+        layer?.backgroundColor = Theme.current().palette.background.cgColor
     }
     required init?(coder: NSCoder) { nil }
 
+    /// Dim the unfocused pane rather than only ringing the focused one. Ghostty
+    /// does this (`unfocused-split-opacity`) and it reads faster: the eye finds
+    /// the bright pane without looking for a border.
+    private func restyle() {
+        alphaValue = (showsFocus && !focused) ? 0.72 : 1.0
+        needsDisplay = true
+    }
+
     override func draw(_ dirty: NSRect) {
+        Theme.current().palette.background.setFill()
+        bounds.fill()
         guard showsFocus, focused else { return }
-        let r = bounds.insetBy(dx: inset / 2, dy: inset / 2)
-        NSColor.controlAccentColor.withAlphaComponent(0.9).setStroke()
+        let r = bounds.insetBy(dx: ring / 2, dy: ring / 2)
+        NSColor.controlAccentColor.withAlphaComponent(0.8).setStroke()
         let p = NSBezierPath(roundedRect: r, xRadius: 4, yRadius: 4)
-        p.lineWidth = inset
+        p.lineWidth = ring
         p.stroke()
     }
 }

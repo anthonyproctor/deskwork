@@ -134,6 +134,11 @@ public enum Fanout {
         return FanoutBudget(verdict: .ok, slices: slices, vendor: vendor)
     }
 
+    /// How long one slice may run before it is killed. Generous, because a
+    /// large directory genuinely takes minutes, but finite — an unbounded slice
+    /// hangs the whole run and reports nothing.
+    public static var sliceTimeout: TimeInterval = 600
+
     static func pct(_ d: Double) -> String { String(format: "%.0f%%", d) }
     static func shortDate(_ t: Double) -> String {
         let f = DateFormatter(); f.dateFormat = "EEE h:mm a"
@@ -155,6 +160,43 @@ public struct Slice {
     public init(label: String, cwd: String) {
         self.label = label
         self.cwd = cwd
+    }
+}
+
+/// A live run, so it can actually be stopped.
+///
+/// The sheet had a Cancel button that closed the window and nothing else. The
+/// processes carried on in the background, invisible, spending tokens, with no
+/// way left to reach them — which is worse than having no button, because the
+/// button says the work stopped.
+public final class FanoutCancel {
+    private let lock = NSLock()
+    private var procs: [Process] = []
+    private(set) var cancelled = false
+
+    public init() {}
+
+    func add(_ p: Process) {
+        lock.lock(); defer { lock.unlock() }
+        // Cancelled between launch and registration: kill it immediately rather
+        // than leaving an orphan nothing is tracking.
+        if cancelled { p.terminate(); return }
+        procs.append(p)
+    }
+
+    /// Kill everything this run started. Safe to call twice.
+    public func cancel() {
+        lock.lock()
+        cancelled = true
+        let live = procs
+        procs.removeAll()
+        lock.unlock()
+        for p in live where p.isRunning { p.terminate() }
+    }
+
+    public var isCancelled: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return cancelled
     }
 }
 
@@ -191,15 +233,17 @@ extension Mailbox {
                        slices: [Slice],
                        topic: String,
                        onProgress: @escaping (Int, Int, String) -> Void = { _, _, _ in },
-                       completion: @escaping (Result<(results: [FanoutResult], merged: String, dir: String), BridgeError>) -> Void) {
+                       onMerge: @escaping () -> Void = {},
+                       completion: @escaping (Result<(results: [FanoutResult], merged: String, dir: String), BridgeError>) -> Void) -> FanoutCancel {
 
+        let cancel = FanoutCancel()
         guard !slices.isEmpty else {
             completion(.failure(BridgeError(message: "nothing to fan out across")))
-            return
+            return cancel
         }
         guard DeskConfig.which(rt.bin) != nil else {
             completion(.failure(BridgeError(message: "\(rt.bin) is not on PATH")))
-            return
+            return cancel
         }
 
         let runDir = fanoutDir(topic: topic)
@@ -258,7 +302,8 @@ extension Mailbox {
             """
 
             runOne(rt: rt, prompt: framed, cwd: slice.cwd, thread: path,
-                   heading: "\(rt.name) · \(slice.label)", ask: question, from: from) { reply, failed in
+                   heading: "\(rt.name) · \(slice.label)", ask: question, from: from,
+                   register: { cancel.add($0) }) { reply, failed in
                 lock.lock()
                 results.append(FanoutResult(label: slice.label, reply: reply,
                                             path: path, failed: failed))
@@ -273,6 +318,16 @@ extension Mailbox {
         group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
             let ordered = slices.compactMap { s in results.first { $0.label == s.label } }
             let good = ordered.filter { !$0.failed }
+
+            // Cancelled: do not spend one more invocation merging answers
+            // nobody is waiting for.
+            if cancel.isCancelled {
+                DispatchQueue.main.async {
+                    completion(.failure(BridgeError(
+                        message: "cancelled. Whatever finished is in \(runDir)")))
+                }
+                return
+            }
 
             guard !good.isEmpty else {
                 DispatchQueue.main.async {
@@ -316,11 +371,13 @@ extension Mailbox {
 
             try? ("# Merge\n\nReconciling \(good.count) of \(ordered.count) slices.\n")
                 .write(toFile: mergePath, atomically: true, encoding: .utf8)
+            DispatchQueue.main.async { onMerge() }
 
             // The merge reads nothing but the answers it was handed, so it runs
             // in the mailbox directory rather than anywhere near the source.
             self.runOne(rt: rt, prompt: mergePrompt, cwd: self.dir, thread: mergePath,
-                        heading: "\(rt.name) · merge", ask: question, from: from) { merged, failed in
+                        heading: "\(rt.name) · merge", ask: question, from: from,
+                        register: { cancel.add($0) }) { merged, failed in
                 DispatchQueue.main.async {
                     if failed {
                         completion(.failure(BridgeError(
@@ -331,6 +388,7 @@ extension Mailbox {
                 }
             }
         }
+        return cancel
     }
 
     /// One headless invocation, appended to its own thread. Shares the
@@ -338,6 +396,8 @@ extension Mailbox {
     /// enforces it, and the cwd is the privacy boundary.
     private func runOne(rt: Bridge.Runtime, prompt: String, cwd: String, thread: String,
                         heading: String, ask: String, from: String,
+                        timeout: TimeInterval = Fanout.sliceTimeout,
+                        register: ((Process) -> Void)? = nil,
                         done: @escaping (String, Bool) -> Void) {
         guard let bin = DeskConfig.which(rt.bin) else { done("\(rt.bin) is not on PATH", true); return }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -357,8 +417,33 @@ extension Mailbox {
                 self.append("could not start \(rt.bin): \(error)", who: heading, to: thread)
                 done("could not start \(rt.bin): \(error)", true); return
             }
-            let d = out.fileHandleForReading.readDataToEndOfFile()
-            let e = err.fileHandleForReading.readDataToEndOfFile()
+            register?(p)
+
+            // Drain BOTH pipes concurrently. Reading stdout to EOF first and
+            // stderr afterwards deadlocks: a child that fills the 64KB stderr
+            // buffer blocks on write while the parent blocks on read, and both
+            // sit at 0% CPU forever. That is not hypothetical — it hung a live
+            // run for sixteen minutes and looked exactly like a slow model.
+            var d = Data(), e = Data()
+            let pipes = DispatchGroup()
+            let sink = DispatchQueue(label: "deskwork.fanout.drain", attributes: .concurrent)
+            pipes.enter()
+            sink.async { d = out.fileHandleForReading.readDataToEndOfFile(); pipes.leave() }
+            pipes.enter()
+            sink.async { e = err.fileHandleForReading.readDataToEndOfFile(); pipes.leave() }
+
+            // An upper bound, because a slice with no ceiling can hang the whole
+            // run and nothing downstream ever reports it.
+            if pipes.wait(timeout: .now() + timeout) == .timedOut {
+                p.terminate()
+                _ = pipes.wait(timeout: .now() + 5)
+                let mins = Int(timeout / 60)
+                let note = "gave up after \(mins) minutes. The process was killed; "
+                    + "nothing was written."
+                self.append(note, who: heading, to: thread)
+                done(note, true)
+                return
+            }
             p.waitUntilExit()
 
             var reply = ""

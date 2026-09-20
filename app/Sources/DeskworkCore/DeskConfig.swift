@@ -159,6 +159,45 @@ public enum DeskConfig {
 
     public static func load() -> [Desk] { load(path: path) }
 
+    /// Look of the terminal, from an optional `[theme]` table in desks.toml.
+    ///
+    /// Separate from the desk list on purpose: a desk describes work, a theme
+    /// describes the window, and merging them would mean a per-desk theme,
+    /// which sounds appealing and means every desk switch repaints.
+    public struct ThemeSettings {
+        public var font: String?
+        public var size: Int?
+        public var palette: String?
+        /// Space between the terminal and the edge of its pane. Ghostty's
+        /// defaults, because text butting against the frame is the first thing
+        /// that makes a terminal feel cheap.
+        public var padX: Int = 12
+        public var padY: Int = 10
+    }
+
+    public static func themeSettings(path: String = DeskConfig.path) -> ThemeSettings {
+        var t = ThemeSettings()
+        guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return t }
+        var inTheme = false
+        for line in raw.components(separatedBy: .newlines) {
+            let l = TomlText.stripComment(line).trimmingCharacters(in: .whitespaces)
+            if l.hasPrefix("[") { inTheme = (l == "[theme]"); continue }
+            guard inTheme, let eq = l.firstIndex(of: "=") else { continue }
+            let k = l[l.startIndex..<eq].trimmingCharacters(in: .whitespaces)
+            let v = TomlText.unescape(String(l[l.index(after: eq)...])
+                .trimmingCharacters(in: .whitespaces))
+            switch k {
+            case "font":    t.font = v.isEmpty ? nil : v
+            case "size":    t.size = Int(v)
+            case "palette": t.palette = v.isEmpty ? nil : v
+            case "padding_x", "padx": t.padX = Int(v) ?? t.padX
+            case "padding_y", "pady": t.padY = Int(v) ?? t.padY
+            default: break
+            }
+        }
+        return t
+    }
+
     /// Path is injectable so the parser can be tested without touching the
     /// user's real config.
     public static func load(path: String) -> [Desk] {
