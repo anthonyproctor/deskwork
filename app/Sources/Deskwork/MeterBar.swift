@@ -9,6 +9,8 @@ final class MeterBar: NSView {
     private var lastScan = Date.distantPast
     private var timer: Timer?
     var onClick: (() -> Void)?
+    /// Which desk is on screen. Context belongs to it, not to the vendor.
+    var currentDesk: String? { didSet { if currentDesk != oldValue { lastScan = .distantPast; refresh() } } }
 
     override func mouseDown(with e: NSEvent) { onClick?() }
 
@@ -88,6 +90,17 @@ final class MeterBar: NSView {
             if limits.contains(where: { $0.vendor == v }) { continue }
             var s = "\(v) \(fmt(b.tokens))"
             if let usd = b.usd { s += String(format: " $%.0f", usd) }
+            segs.append(s)
+        }
+
+        // The visible desk's own context and spend, which is per session.
+        if let d = currentDesk, let st = DeskState.load(d) {
+            var s = d
+            if let m = st.model { s += " " + m.replacingOccurrences(of: "Claude ", with: "")
+                                            .replacingOccurrences(of: " (1M context)", with: "") }
+            if let e = st.effort { s += "·" + e }
+            if let c = st.ctxPct { s += String(format: "  ctx %.0f%%", c) }
+            if let u = st.usd, u > 0 { s += String(format: "  $%.2f", u) }
             segs.append(s)
         }
 

@@ -185,6 +185,23 @@ enum Limits {
           at: now
         }' > "$out.tmp" 2>/dev/null && mv "$out.tmp" "$out" 2>/dev/null
 
+        # Context window is per SESSION, not per vendor, so it is keyed by the
+        # desk name Claude Code reports. Each desk writes its own file and they
+        # stop overwriting one another.
+        name=$(printf '%s' "$input" | jq -r '.session_name // .agent.name // empty' 2>/dev/null)
+        if [ -n "$name" ]; then
+          sdir="$HOME/.local/share/deskwork/sessions"
+          mkdir -p "$sdir"
+          printf '%s' "$input" | jq -c '{
+            desk:   (.session_name // .agent.name),
+            ctxPct: (.context_window.used_percentage // null),
+            model:  (.model.display_name // null),
+            effort: (.effort.level // null),
+            usd:    (.cost.total_cost_usd // null),
+            at: now
+          }' > "$sdir/$name.json.tmp" 2>/dev/null && mv "$sdir/$name.json.tmp" "$sdir/$name.json" 2>/dev/null
+        fi
+
         WRAPPED=\(wrapped.isEmpty ? "\"\"" : "\"\(wrapped)\"")
         if [ -n "$WRAPPED" ]; then
           printf '%s' "$input" | eval "$WRAPPED"
@@ -204,5 +221,28 @@ enum Limits {
         return wrapped.isEmpty
             ? "Installed. Limits appear after your next Claude message."
             : "Installed, chaining to your existing statusline. Limits appear after your next Claude message."
+    }
+}
+
+
+/// Per-desk state, written by the same recorder. Context is a property of a
+/// session, so it is keyed by desk rather than by vendor.
+struct DeskState: Codable {
+    var desk: String
+    var ctxPct: Double?
+    var model: String?
+    var effort: String?
+    var usd: Double?
+    var at: Double = 0
+
+    static var dir: String { NSString(string: "~/.local/share/deskwork/sessions").expandingTildeInPath }
+
+    static func load(_ desk: String) -> DeskState? {
+        let p = (dir as NSString).appendingPathComponent("\(desk).json")
+        guard let d = FileManager.default.contents(atPath: p),
+              let s = try? JSONDecoder().decode(DeskState.self, from: d) else { return nil }
+        // Context moves fast and only while the desk is working, so an old
+        // reading is genuinely misleading here — unlike weekly quota.
+        return Date().timeIntervalSince1970 - s.at < 900 ? s : nil
     }
 }

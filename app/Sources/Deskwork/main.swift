@@ -168,6 +168,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         ])
         s.startIfNeeded()
         visible = s
+        meter.currentDesk = d.name
         tree.setRoot(d.resolvedCwd)
         sidebar.select(i)
         window.title = "Deskwork — \(d.name)"

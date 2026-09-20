@@ -19,13 +19,22 @@ final class MeterPanel: NSWindowController {
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 20, right: 20)
         // An NSStackView used as a documentView has no size of its own. Without
         // these it lays out at zero and the window renders blank.
+        // AppKit lays out from the bottom unless the documentView is flipped,
+        // which is why the content sat at the foot of an empty window.
+        let doc = FlippedView()
+        doc.translatesAutoresizingMaskIntoConstraints = false
         stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.documentView = stack
+        doc.addSubview(stack)
+        scroll.documentView = doc
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
-            stack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            doc.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
+            doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            doc.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            stack.topAnchor.constraint(equalTo: doc.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: doc.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
         ])
         w.contentView = scroll
         w.center()
@@ -49,6 +58,16 @@ final class MeterPanel: NSWindowController {
         return "\(n)"
     }
     /// A bar drawn in text keeps this readable in both themes with no colour tricks.
+    /// Swift-native padding. String(format: "%-8s", ...) needs a C string and
+    /// silently emits garbage when handed a Swift String — that is where the
+    /// `¯ÊH˘` in the first build came from.
+    private func pad(_ s: String, _ n: Int) -> String {
+        s.count >= n ? s : s + String(repeating: " ", count: n - s.count)
+    }
+    private func lpad(_ s: String, _ n: Int) -> String {
+        s.count >= n ? s : String(repeating: " ", count: n - s.count) + s
+    }
+
     private func bar(_ pct: Double, width: Int = 34) -> String {
         let f = max(0, min(width, Int((pct / 100.0 * Double(width)).rounded())))
         return String(repeating: "█", count: f) + String(repeating: "░", count: width - f)
@@ -66,18 +85,21 @@ final class MeterPanel: NSWindowController {
             stack.addArrangedSubview(mono("no live quota — turn it on in Settings"))
         }
         for l in limits.sorted(by: { ($0.liveWeekPct ?? 0) > ($1.liveWeekPct ?? 0) }) {
-            var line = String(format: "%-8s", (l.vendor as NSString).utf8String!)
+            var line = pad(l.vendor, 9)
             if let w = l.liveWeekPct {
                 line += "week  \(bar(w))  " + String(format: "%5.1f%%", w)
                 if let r = l.weekResetsAt {
                     line += "  resets " + df.string(from: Date(timeIntervalSince1970: r)).lowercased()
                 }
             }
+            if l.liveWeekPct == nil && l.liveFiveHourPct == nil {
+                line += "no live window — reading is from a cycle that has reset"
+            }
             if let p = l.planType { line += "   (\(p))" }
             if let a = l.ageLabel { line += "   \(a)" }
             stack.addArrangedSubview(mono(line, 12, .medium))
             if let h = l.liveFiveHourPct {
-                var s = String(format: "%-8s", "") + "5h    \(bar(h))  " + String(format: "%5.1f%%", h)
+                var s = pad("", 9) + "5h    \(bar(h))  " + lpad(String(format: "%.1f%%", h), 6)
                 if let r = l.fiveHourResetsAt {
                     let m = Int(max(0, Date(timeIntervalSince1970: r).timeIntervalSinceNow) / 60)
                     s += "  \(m / 60)h\(String(format: "%02d", m % 60))m"
@@ -111,9 +133,8 @@ final class MeterPanel: NSWindowController {
         stack.addArrangedSubview(caps("THIS WEEK, SINCE \(df.string(from: since).uppercased())"))
         for (v, b) in report.byVendor.sorted(by: { $0.value.tokens > $1.value.tokens }) {
             let share = total > 0 ? Double(b.tokens) / Double(total) * 100 : 0
-            var s = String(format: "%-8s %10s tokens  %s %5.1f%%",
-                           (v as NSString).utf8String!, (fmt(b.tokens) as NSString).utf8String!,
-                           (bar(share, width: 20) as NSString).utf8String!, share)
+            var s = pad(v, 9) + lpad(fmt(b.tokens), 9) + " tokens  "
+                  + bar(share, width: 20) + lpad(String(format: "%.1f%%", share), 7)
             if let usd = b.usd { s += String(format: "   $%.0f", usd) }
             stack.addArrangedSubview(mono(s))
         }
@@ -126,9 +147,9 @@ final class MeterPanel: NSWindowController {
             let deskTotal = report.byDesk.values.reduce(0) { $0 + $1.tokens }
             for (d, b) in report.byDesk.sorted(by: { $0.value.tokens > $1.value.tokens }).prefix(15) {
                 let share = deskTotal > 0 ? Double(b.tokens) / Double(deskTotal) * 100 : 0
-                var s = String(format: "%-14s %9s  %s %5.1f%%  %5d calls",
-                               (d as NSString).utf8String!, (fmt(b.tokens) as NSString).utf8String!,
-                               (bar(share, width: 18) as NSString).utf8String!, share, b.calls)
+                var s = pad(d, 15) + lpad(fmt(b.tokens), 9) + "  "
+                      + bar(share, width: 18) + lpad(String(format: "%.1f%%", share), 7)
+                      + lpad("\(b.calls)", 7) + " calls"
                 if let usd = b.usd { s += String(format: "  $%.0f", usd) }
                 stack.addArrangedSubview(mono(s))
             }
@@ -147,10 +168,8 @@ final class MeterPanel: NSWindowController {
             let width = max(1, Int(Double(t) / Double(peak) * 44))
             let breakdown = byV.sorted { $0.value > $1.value }
                 .map { "\($0.key) \(fmt($0.value))" }.joined(separator: " · ")
-            stack.addArrangedSubview(mono(String(format: "%-7s %-46s %@",
-                (label as NSString).utf8String!,
-                (String(repeating: "▇", count: width) as NSString).utf8String!,
-                breakdown)))
+            stack.addArrangedSubview(mono(
+                pad(label, 8) + pad(String(repeating: "▇", count: width), 46) + " " + breakdown))
         }
 
         let foot = NSTextField(wrappingLabelWithString:
@@ -163,4 +182,11 @@ final class MeterPanel: NSWindowController {
         stack.addArrangedSubview(caps(""))
         stack.addArrangedSubview(foot)
     }
+}
+
+
+/// AppKit's default coordinate system puts the origin at the bottom left, so an
+/// unflipped documentView stacks its content upward from the foot of the window.
+final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
