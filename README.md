@@ -4,6 +4,8 @@
 
 macOS · Swift · early, but it runs
 
+[![build and test](https://github.com/anthonyproctor/deskwork/actions/workflows/ci.yml/badge.svg)](https://github.com/anthonyproctor/deskwork/actions/workflows/ci.yml)
+
 ---
 
 ## The idea
