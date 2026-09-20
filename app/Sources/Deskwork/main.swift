@@ -57,6 +57,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     let host = NSView()
     let reader = ReaderView()
     let split = NSSplitView()
+    let meter = MeterBar()
     var desks: [Desk] = []
     var sessions: [String: DeskSession] = [:]
     var visible: DeskSession?
@@ -105,7 +106,21 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         split.dividerStyle = .thin
         split.addArrangedSubview(rail)
         split.addArrangedSubview(host)
-        window.contentView = split
+        // Meter along the bottom, under both panes.
+        let outer = NSView()
+        split.translatesAutoresizingMaskIntoConstraints = false
+        meter.translatesAutoresizingMaskIntoConstraints = false
+        outer.addSubview(split); outer.addSubview(meter)
+        NSLayoutConstraint.activate([
+            split.topAnchor.constraint(equalTo: outer.topAnchor),
+            split.leadingAnchor.constraint(equalTo: outer.leadingAnchor),
+            split.trailingAnchor.constraint(equalTo: outer.trailingAnchor),
+            meter.topAnchor.constraint(equalTo: split.bottomAnchor),
+            meter.leadingAnchor.constraint(equalTo: outer.leadingAnchor),
+            meter.trailingAnchor.constraint(equalTo: outer.trailingAnchor),
+            meter.bottomAnchor.constraint(equalTo: outer.bottomAnchor),
+        ])
+        window.contentView = outer
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let w = self.window.contentView?.bounds.width ?? frame.width

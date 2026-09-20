@@ -22,6 +22,8 @@ Deskwork calls one of those a **desk**, and makes the desk the unit.
 
 **A folder tree and a reader.** Agents write, you read. The reader opens PDFs, images and text. Being read-only is what keeps it about a hundred lines instead of an editor — and why opening a PDF is trivial here.
 
+**A meter that spans vendors.** Deskwork reads what the CLIs already write to disk — Claude's transcripts and Codex's `token_usage_record` files — so the strip along the bottom shows where the week is actually going, and says so when one vendor is carrying all of it.
+
 **A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
 
 ## Requirements
@@ -99,7 +101,7 @@ Threads land in `~/.local/share/deskwork/mail/`. If you already have a handoff s
 
 It runs and it is useful. It is also early.
 
-Working: desks, groups, the folder tree, the reader, the bridge, settings, first run.
+Working: desks, groups, the folder tree, the reader, the bridge, the cross-vendor meter, settings, first run.
 
 Not built yet:
 
@@ -107,7 +109,8 @@ Not built yet:
 - No syntax highlighting.
 - Desks die when the app quits; they do not outlive it.
 - One terminal per desk, no splits.
-- **No meter pane.** The design's most distinctive idea — one budget view across vendors, routing the next job to whoever has capacity left — is specified in [DESIGN.md](DESIGN.md) and not implemented.
+- The meter is a summary strip, not a full pane. No per-desk breakdown or history chart yet.
+- Vendor plan limits are not shown, only consumption. Neither CLI writes its remaining quota to disk.
 
 ## Reading
 
