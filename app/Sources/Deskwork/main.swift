@@ -162,13 +162,14 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onToggleGroup = { [weak self] g in self?.toggleGroup(g) }
         sidebar.onRenameGroup = { [weak self] g in self?.renameGroup(g) }
         sidebar.onRemoveDesk = { [weak self] i in self?.removeDesk(i) }
+        sidebar.onMakeDefault = { [weak self] i in self?.makeDefault(i) }
         sidebar.onRevealAgent = { [weak self] i in self?.revealAgent(i) }
         sidebar.onSelect = { [weak self] i in self?.show(i) }
 
         window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         installMenu()
-        show(0)
+        show(DeskConfig.startup(in: desks))
         if firstRun { showWelcome() }
     }
 
@@ -345,6 +346,21 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     @objc func refreshTree() { tree.refresh() }
     @objc func undoMove() { tree.undoLastMove() }
 
+    /// One default per runtime. Marking a desk clears the flag on its siblings
+    /// but leaves other runtimes alone, so a Claude home and a Codex home can
+    /// both exist.
+    func makeDefault(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        let rt = desks[i].runtime
+        for j in desks.indices where desks[j].runtime == rt { desks[j].isDefault = false }
+        desks[i].isDefault = true
+        DeskConfig.write(desks)
+        sidebar.build(desks: desks)
+        if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) {
+            sidebar.select(j)
+        }
+    }
+
     /// The cross-vendor bridge: drive the mailbox rather than invent a protocol.
     var settings: SettingsWindow?
     var welcome: WelcomeWindow?
@@ -394,9 +410,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// Open a desk for this runtime and type a command into it. Used to hand
     /// agent creation back to the vendor instead of rebuilding it here.
     func runInDesk(runtime: String, command: String) {
-        let idx = desks.firstIndex { $0.runtime == runtime && $0.command == nil }
-            ?? desks.firstIndex { $0.name == "hub" }
-            ?? desks.firstIndex { $0.runtime == runtime }
+        let idx = DeskConfig.general(for: runtime, in: desks)
         guard let i = idx else {
             let a = NSAlert()
             a.messageText = "No \(runtime) desk to run that in"

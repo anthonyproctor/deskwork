@@ -10,6 +10,7 @@ final class SidebarView: NSView {
     var onRenameGroup: ((String) -> Void)?
     var onRemoveDesk: ((Int) -> Void)?
     var onRevealAgent: ((Int) -> Void)?
+    var onMakeDefault: ((Int) -> Void)?
 
     private var buttons: [Int: NSButton] = [:]
     private var selected = -1
@@ -50,7 +51,11 @@ final class SidebarView: NSView {
                                                  width: w - (g == nil ? 22 : 32), height: 22))
                 b.onRemove = { [weak self] in self?.onRemoveDesk?(i) }
                 b.onReveal = d.agent == nil ? nil : { [weak self] in self?.onRevealAgent?(i) }
+                b.onMakeDefault = d.isDefault ? nil : { [weak self] in self?.onMakeDefault?(i) }
+                b.runtimeName = d.runtime
+                b.isDefaultDesk = d.isDefault
                 b.title = d.name
+                b.deskRuntime = d.runtime
                 b.target = self; b.action = #selector(tapped(_:))
                 b.tag = i
                 b.bezelStyle = .inline
@@ -76,10 +81,29 @@ final class SidebarView: NSView {
         selected = i
         for (j, b) in buttons {
             let on = j == i
-            b.contentTintColor = on ? .controlAccentColor : .secondaryLabelColor
-            b.font = .monospacedSystemFont(ofSize: 13, weight: on ? .bold : .regular)
-            let bare = b.title.replacingOccurrences(of: "● ", with: "").replacingOccurrences(of: "○ ", with: "")
-            b.title = (on ? "● " : "○ ") + bare
+            let rt = (b as? DeskButton)?.deskRuntime ?? "shell"
+            let bare = b.title
+                .replacingOccurrences(of: "● ", with: "").replacingOccurrences(of: "○ ", with: "")
+                .components(separatedBy: "  ").first ?? b.title
+
+            // Vendor is an attribute of a desk, not a place to file it. Showing
+            // it inline means groups can stay about PURPOSE — money, work,
+            // school — instead of becoming a list of logos.
+            let title = NSMutableAttributedString(
+                string: (on ? "● " : "○ ") + bare,
+                attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 13, weight: on ? .bold : .regular),
+                    .foregroundColor: on ? NSColor.controlAccentColor : NSColor.secondaryLabelColor,
+                ])
+            if rt != "shell" {
+                title.append(NSAttributedString(
+                    string: "  " + rt,
+                    attributes: [
+                        .font: NSFont.monospacedSystemFont(ofSize: 9.5, weight: .regular),
+                        .foregroundColor: NSColor.tertiaryLabelColor,
+                    ]))
+            }
+            b.attributedTitle = title
         }
     }
 }
@@ -122,6 +146,10 @@ final class GroupHeader: NSView {
 final class DeskButton: NSButton {
     var onRemove: (() -> Void)?
     var onReveal: (() -> Void)?
+    var onMakeDefault: (() -> Void)?
+    var runtimeName: String = ""
+    var isDefaultDesk = false
+    var deskRuntime: String = "shell"
 
     override func rightMouseDown(with e: NSEvent) {
         let m = NSMenu()
@@ -131,6 +159,13 @@ final class DeskButton: NSButton {
             m.addItem(r)
             m.addItem(.separator())
         }
+        if let _ = onMakeDefault {
+            let g = NSMenuItem(title: "Use as the \(runtimeName) home",
+                               action: #selector(makeDefault), keyEquivalent: "")
+            g.target = self
+            m.addItem(g)
+            m.addItem(.separator())
+        }
         let d = NSMenuItem(title: "Remove Desk…", action: #selector(remove), keyEquivalent: "")
         d.target = self
         m.addItem(d)
@@ -138,4 +173,5 @@ final class DeskButton: NSButton {
     }
     @objc private func remove() { onRemove?() }
     @objc private func reveal() { onReveal?() }
+    @objc private func makeDefault() { onMakeDefault?() }
 }

@@ -4,13 +4,18 @@ import Foundation
 public struct Desk {
     public init(name: String, agent: String? = nil, runtime: String = "claude",
                 model: String? = nil, cwd: String? = nil, command: String? = nil,
-                group: String? = nil) {
+                group: String? = nil, isDefault: Bool = false) {
         self.name = name; self.agent = agent; self.runtime = runtime
         self.model = model; self.cwd = cwd; self.command = command; self.group = group
+        self.isDefault = isDefault
     }
 
     public var name: String
     public var agent: String?
+    /// "shell" means no vendor — a plain terminal. A desk that runs a `command`
+    /// without saying which vendor is shell by default, because Deskwork
+    /// genuinely does not know what is behind the script. Guessing claude there
+    /// would let a bare zsh prompt be picked as the Claude home.
     public var runtime: String = "claude"
     public var model: String?
     public var cwd: String?
@@ -18,6 +23,11 @@ public struct Desk {
     /// Desks are not a flat list. `study` belongs under `school` next to `mba`.
     /// Ungrouped desks sit at the top, above the first group header.
     public var group: String?
+    /// The general-purpose desk for its runtime: what opens on launch, and
+    /// where Deskwork routes work that belongs to the vendor rather than to a
+    /// particular agent. One per runtime, not one overall — somebody running
+    /// Claude and Codex wants a home for each.
+    public var isDefault: Bool = false
 
     /// argv for the login shell. Deskwork never reimplements an agent — it
     /// launches the vendor's own CLI so that CLI's config, hooks, memory and
@@ -25,6 +35,8 @@ public struct Desk {
     public func launchCommand() -> String {
         if let c = command, !c.isEmpty { return c }
         switch runtime {
+        case "shell":
+            return command ?? "exec $SHELL -l"
         case "claude":
             var parts = ["claude"]
             if let a = agent, !a.isEmpty { parts += ["--agent", a] }
@@ -114,10 +126,35 @@ public enum DeskConfig {
         return nil
     }
 
+    /// The general desk for a runtime: explicitly marked, else the first plain
+    /// desk of that runtime, else nothing. No magic names.
+    public static func general(for runtime: String, in desks: [Desk]) -> Int? {
+        guard runtime != "shell" else { return nil }   // a shell is nobody's home
+        return desks.firstIndex { $0.isDefault && $0.runtime == runtime }
+            ?? desks.firstIndex { $0.runtime == runtime && $0.agent == nil }
+            ?? desks.firstIndex { $0.runtime == runtime }
+    }
+
+    /// What opens on launch.
+    public static func startup(in desks: [Desk]) -> Int {
+        desks.firstIndex(where: \.isDefault) ?? 0
+    }
+
     public static func load() -> [Desk] {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
         var desks: [Desk] = []
         var current: Desk?
+        var explicitRuntime = false
+
+        func finish() {
+            guard var d = current else { return }
+            // No vendor declared and a command to run: we do not know what is
+            // behind it, so it is a shell as far as routing is concerned.
+            if !explicitRuntime, d.command != nil { d.runtime = "shell" }
+            desks.append(d)
+            current = nil
+            explicitRuntime = false
+        }
 
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
             var line = String(rawLine)
@@ -126,7 +163,7 @@ public enum DeskConfig {
             if line.isEmpty { continue }
 
             if line.hasPrefix("[") {
-                if let d = current { desks.append(d); current = nil }
+                finish()
                 let header = line.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
                 let parts = header.split(separator: ".").map(String.init)
                 if parts.count == 2, parts[0] == "desk" { current = Desk(name: parts[1]) }
@@ -140,15 +177,18 @@ public enum DeskConfig {
 
             switch key {
             case "agent":   current?.agent = val
-            case "runtime": current?.runtime = val
+            case "runtime":
+                current?.runtime = val
+                explicitRuntime = true
             case "model":   current?.model = val
             case "cwd":     current?.cwd = val
             case "command": current?.command = val
             case "group":   current?.group = val
+            case "default": current?.isDefault = (val == "true")
             default: break
             }
         }
-        if let d = current { desks.append(d) }
+        finish()
         return desks
     }
 
@@ -159,8 +199,12 @@ public enum DeskConfig {
         for d in desks {
             out += "\n[desk.\(d.name)]\n"
             if let g = d.group { out += "group = \"\(g)\"\n" }
-            if let c = d.command { out += "command = \"\(c)\"\n" }
-            else {
+            if d.isDefault { out += "default = true\n" }
+            if let c = d.command {
+                out += "command = \"\(c)\"\n"
+                // Only worth writing when it says something the command does not.
+                if d.runtime != "shell" { out += "runtime = \"\(d.runtime)\"\n" }
+            } else {
                 out += "runtime = \"\(d.runtime)\"\n"
                 if let a = d.agent { out += "agent = \"\(a)\"\n" }
             }
