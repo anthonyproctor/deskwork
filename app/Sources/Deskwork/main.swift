@@ -64,7 +64,7 @@ final class DeskSession {
 
 // MARK: - app
 
-final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDelegate {
+final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDelegate, NSSplitViewDelegate {
     var window: NSWindow!
     let sidebar = SidebarView()
     let tree = FileTreeView()
@@ -111,12 +111,14 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         deskScroll.automaticallyAdjustsContentInsets = false
 
         rail = NSSplitView()
+        rail.delegate = self
         rail.isVertical = false          // stacked, so the divider is horizontal
         rail.dividerStyle = .thin
         applyRailOrder()
         rail.wantsLayer = true
         rail.layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
 
+        split.delegate = self
         split.isVertical = true
         split.dividerStyle = .thin
         split.addArrangedSubview(rail)
@@ -143,7 +145,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             _ = w
             self.split.setPosition(240, ofDividerAt: 0)
             // Desks get a third of the rail, the tree keeps the rest.
-            self.rail.setPosition(min(self.sidebar.contentHeight, h * 0.45), ofDividerAt: 0)
+            let want = self.ui.treeOnTop ? h * 0.5 : min(self.sidebar.contentHeight, h * 0.45)
+            self.rail.setPosition(max(120, min(want, h - 120)), ofDividerAt: 0)
         }
 
         tree.onOpen = { [weak self] url in self?.openReader(url) }
@@ -346,6 +349,27 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     @objc func refreshTree() { tree.refresh() }
     @objc func undoMove() { tree.undoLastMove() }
 
+    // MARK: - NSSplitViewDelegate
+    //
+    // Floors on every pane. Without these the rail divider could be dragged —
+    // or land, on a short window — such that the desk list had zero height and
+    // no way back, which is exactly what happened with the tree on top.
+
+    func splitView(_ sv: NSSplitView, constrainMinCoordinate p: CGFloat,
+                   ofSubviewAt i: Int) -> CGFloat {
+        sv === rail ? p + 80 : p + 170
+    }
+
+    func splitView(_ sv: NSSplitView, constrainMaxCoordinate p: CGFloat,
+                   ofSubviewAt i: Int) -> CGFloat {
+        sv === rail ? p - 120 : p - 320
+    }
+
+    func splitView(_ sv: NSSplitView, shouldAdjustSizeOfSubview view: NSView) -> Bool {
+        // The terminal absorbs resizing; the rail keeps its width.
+        sv === split ? view !== rail : true
+    }
+
     /// One default per runtime. Marking a desk clears the flag on its siblings
     /// but leaves other runtimes alone, so a Claude home and a Codex home can
     /// both exist.
@@ -456,7 +480,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         ui.treeOnTop.toggle(); ui.save()
         applyRailOrder()
         let h = window.contentView?.bounds.height ?? 800
-        rail.setPosition(ui.treeOnTop ? h * 0.55 : min(sidebar.contentHeight, h * 0.45), ofDividerAt: 0)
+        let want = ui.treeOnTop ? h * 0.5 : min(sidebar.contentHeight, h * 0.45)
+        rail.setPosition(max(120, min(want, h - 120)), ofDividerAt: 0)
     }
 
     func toggleGroup(_ g: String) {
