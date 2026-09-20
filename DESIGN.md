@@ -243,9 +243,10 @@ the rest does not rescue it.
   is Swift, PDFKit is free, and ACP is plain JSON-RPC over stdio so no binding
   matters. Rust would buy cross-platform nobody needs and cost the entire GUI
   layer. Revisit only if this ever has to leave macOS.
-- **Can SwiftTerm keep up?** CoreText, not GPU. The whole project exists because a
-  slow terminal drove the author out of VS Code, so this is the one unknown that
-  can invalidate the design. Measure it first.
+- ~~**Can SwiftTerm keep up?**~~ **ANSWERED 2026-09-19: yes.** 200k lines in 0.23s
+  steady state, against Terminal.app's 0.27s. CoreText is not the bottleneck.
+  Measurement and caveats in `spikes/terminal-throughput/RESULT.md`. Still worth
+  a second pass with realistic coloured/TUI output before M3.
 - **Does a desk need to be one process?** Splitting a desk across panes is
   appealing and may fight the runtime's own session model.
 - **How much ACP, how much pty?** Terminal-only is honest and simple but gives the
