@@ -223,7 +223,7 @@ in a day, useful immediately, proves the data contract the meter pane will consu
 *Done, in a form, before this document existed.*
 
 **M1 — desk switcher.** Launch, list, resume and retire desks from one window. A
-terminal grid over libghostty. No reader yet. At this point it replaces the tab
+terminal grid over SwiftTerm. No reader yet. At this point it replaces the tab
 sprawl, which is most of the daily benefit.
 
 **M2 — meter pane.** Live weekly and five-hour windows, per-desk history, cache
