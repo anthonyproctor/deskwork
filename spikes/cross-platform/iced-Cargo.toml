@@ -1,0 +1,13 @@
+[package]
+name = "rust-terminal-iced-spike"
+version = "0.1.0"
+edition = "2021"
+
+# Second attempt at a cross-platform terminal widget. gpui-terminal failed
+# because gpui needs the Metal shader compiler, which ships only with full
+# Xcode. iced renders through wgpu, which compiles shaders at runtime, so this
+# should build with Command Line Tools alone.
+[dependencies]
+iced = { version = "0.14.0", features = ["advanced", "tokio"] }
+iced_term = "0.8.0"
+tokio = { version = "1", features = ["rt-multi-thread"] }
