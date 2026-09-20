@@ -15,7 +15,11 @@ let package = Package(
         .executable(name: "deskwork-test", targets: ["DeskworkTests"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm", branch: "main")
+        // Pinned, not tracking main. CI failed on its first run because main had
+        // moved to a Swift tools version newer than the runner's — a build that
+        // breaks with no change on our side is not a dependency, it is a
+        // liability.
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.5.0")
     ],
     targets: [
         // No platform UI dependency of any kind.

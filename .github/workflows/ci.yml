@@ -14,6 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The first CI run failed because the runner shipped Swift 6.1 while a
+      # dependency needed 6.2. Select the newest toolchain the image has rather
+      # than depending on whichever is default this month.
+      - name: select the newest available toolchain
+        run: |
+          ls /Applications | grep -i '^Xcode' || true
+          latest=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$latest" ]; then sudo xcode-select -s "$latest/Contents/Developer"; fi
+
       - name: toolchain
         run: |
           swift --version
