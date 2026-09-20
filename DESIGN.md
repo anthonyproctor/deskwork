@@ -72,7 +72,7 @@ refactoring or a debugger. Dropping those removes most of the cost of building a
 IDE, and it is what makes a PDF viewer trivial to include — something Zed still
 does not have after years of requests.
 
-**Not a terminal emulator.** libghostty handles that.
+**Not a terminal emulator.** SwiftTerm handles that today, libghostty later.
 
 **Not an agent runtime.** Agents are subprocesses. We drive them, we do not
 reimplement them.
@@ -88,7 +88,7 @@ upstream the extension rather than forking the idea.
 │             │                              │               │
 │ ● money     │  terminal ── the desk's own  │  diff / file  │
 │ ○ market    │  CLI, unmodified, in a real  │  / PDF /      │
-│ ● career    │  pty via libghostty          │  image        │
+│ ● career    │  pty            │  image        │
 │ ○ health    │                              │               │
 │             │                              │               │
 │  FILES      │                              │               │
