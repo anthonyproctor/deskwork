@@ -44,11 +44,27 @@ Nothing starts until you click a desk.
 
 `cmd-1` … `cmd-9` jump between the first nine desks.
 
-## What M1 does not do yet
+## Panes
 
-- No file tree
-- No reader pane, so no diffs and no PDFs
+Three, all resizable:
+
+- **Left rail** — desks on top, the visible desk's folder tree beneath.
+- **Centre** — that desk's terminal, running the vendor's real CLI.
+- **Right** — the reader. Click a file in the tree to open it.
+
+The reader handles **PDFs** (PDFKit), images, and anything decodable as text. It
+refuses binaries rather than spraying them at you. It is deliberately read-only:
+agents write, you read, and that is what keeps this a few hundred lines instead
+of an editor.
+
+`cmd-r` refreshes the tree after an agent writes something.
+
+## What it does not do yet
+
+- No syntax highlighting in the reader, and no diff view
 - Desks die when the app quits; they do not outlive it
 - One terminal per desk, no splits
+- No meter pane — the statusline in each desk covers it for now
+- No cross-vendor router
 
 See [../DESIGN.md](../DESIGN.md) for where this is going.

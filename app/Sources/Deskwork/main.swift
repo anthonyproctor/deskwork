@@ -99,7 +99,10 @@ final class SidebarView: NSView {
 final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDelegate {
     var window: NSWindow!
     let sidebar = SidebarView()
+    let tree = FileTreeView()
     let host = NSView()
+    let reader = ReaderView()
+    let split = NSSplitView()
     var desks: [Desk] = []
     var sessions: [String: DeskSession] = [:]
     var visible: DeskSession?
@@ -117,23 +120,38 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         window.title = "Deskwork"
         window.titlebarAppearsTransparent = true
 
-        let root = NSView(frame: frame)
+        // Left rail: desks on top, the visible desk's folder tree beneath.
+        let rail = NSView()
         sidebar.translatesAutoresizingMaskIntoConstraints = false
-        host.translatesAutoresizingMaskIntoConstraints = false
-        sidebar.wantsLayer = true
-        sidebar.layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
-        root.addSubview(sidebar); root.addSubview(host)
+        tree.translatesAutoresizingMaskIntoConstraints = false
+        rail.wantsLayer = true
+        rail.layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
+        rail.addSubview(sidebar); rail.addSubview(tree)
+        let deskRailHeight = CGFloat(34 + desks.count * 26)
         NSLayoutConstraint.activate([
-            sidebar.topAnchor.constraint(equalTo: root.topAnchor),
-            sidebar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            sidebar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            sidebar.widthAnchor.constraint(equalToConstant: 190),
-            host.topAnchor.constraint(equalTo: root.topAnchor),
-            host.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            host.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor),
-            host.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            sidebar.topAnchor.constraint(equalTo: rail.topAnchor),
+            sidebar.leadingAnchor.constraint(equalTo: rail.leadingAnchor),
+            sidebar.trailingAnchor.constraint(equalTo: rail.trailingAnchor),
+            sidebar.heightAnchor.constraint(equalToConstant: deskRailHeight),
+            tree.topAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: 6),
+            tree.leadingAnchor.constraint(equalTo: rail.leadingAnchor),
+            tree.trailingAnchor.constraint(equalTo: rail.trailingAnchor),
+            tree.bottomAnchor.constraint(equalTo: rail.bottomAnchor),
         ])
-        window.contentView = root
+
+        split.isVertical = true
+        split.dividerStyle = .thin
+        split.addArrangedSubview(rail)
+        split.addArrangedSubview(host)
+        split.addArrangedSubview(reader)
+        window.contentView = split
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.split.setPosition(210, ofDividerAt: 0)
+            self.split.setPosition(210 + 640, ofDividerAt: 1)
+        }
+
+        tree.onOpen = { [weak self] url in self?.reader.open(url) }
 
         sidebar.build(desks: desks)
         sidebar.onSelect = { [weak self] i in self?.show(i) }
@@ -165,6 +183,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         ])
         s.startIfNeeded()
         visible = s
+        tree.setRoot(d.resolvedCwd)
         sidebar.select(i)
         window.title = "Deskwork — \(d.name)"
         window.makeFirstResponder(s.term)
@@ -185,11 +204,16 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             it.tag = i; it.target = self
             deskMenu.addItem(it)
         }
+        deskMenu.addItem(.separator())
+        let refresh = NSMenuItem(title: "Refresh Files", action: #selector(refreshTree), keyEquivalent: "r")
+        refresh.target = self
+        deskMenu.addItem(refresh)
         deskItem.submenu = deskMenu
         NSApp.mainMenu = main
     }
 
     @objc func jump(_ sender: NSMenuItem) { show(sender.tag) }
+    @objc func refreshTree() { tree.refresh() }
 
     // LocalProcessTerminalViewDelegate
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
