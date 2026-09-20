@@ -1,4 +1,5 @@
 import AppKit
+import DeskworkCore
 
 /// Settings, so nobody has to hand-edit TOML to use this.
 ///

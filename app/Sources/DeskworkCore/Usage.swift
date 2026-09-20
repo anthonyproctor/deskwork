@@ -17,19 +17,21 @@ import Foundation
 ///  2. Report TOKENS, not invented dollars. Claude's per-model prices are known
 ///     and worth showing. Frontier model pricing on the other side is not
 ///     something this tool should guess at, so it does not.
-enum Usage {
+public enum Usage {
 
-    struct Bucket {
-        var tokens: Int = 0
-        var usd: Double? = nil        // nil where pricing is not known
-        var calls: Int = 0
+    public struct Bucket {
+        public init() {}
+        public var tokens: Int = 0
+        public var usd: Double? = nil        // nil where pricing is not known
+        public var calls: Int = 0
     }
 
-    struct Report {
-        var byVendor: [String: Bucket] = [:]
-        var byDesk: [String: Bucket] = [:]      // Claude only: desks come from session titles
-        var byDay: [String: [String: Int]] = [:] // day -> vendor -> tokens
-        var generated = Date()
+    public struct Report {
+        public init() {}
+        public var byVendor: [String: Bucket] = [:]
+        public var byDesk: [String: Bucket] = [:]      // Claude only: desks come from session titles
+        public var byDay: [String: [String: Int]] = [:] // day -> vendor -> tokens
+        public var generated = Date()
     }
 
     // Claude list prices, $ per 1M (input, output). Cache write 1.25x in, read 0.10x in.
@@ -53,7 +55,7 @@ enum Usage {
 
     /// Anthropic's weekly window resets Saturday. Codex has its own cadence, but
     /// one shared boundary keeps the comparison honest.
-    static func weekStart() -> Date {
+    public static func weekStart() -> Date {
         let now = Date()
         let cal = Calendar.current
         var c = cal.dateComponents([.year, .month, .day, .weekday], from: now)
@@ -65,7 +67,7 @@ enum Usage {
         return start
     }
 
-    static func scan(since: Date) -> Report {
+    public static func scan(since: Date) -> Report {
         var r = Report()
         scanClaude(since: since, into: &r)
         scanCodex(since: since, into: &r)
@@ -153,7 +155,7 @@ enum Usage {
     }
 
     /// The router call: who has room, stated only when the gap is real.
-    static func routerHint(_ r: Report) -> String? {
+    public static func routerHint(_ r: Report) -> String? {
         let v = r.byVendor.filter { $0.value.tokens > 0 }
         guard v.count >= 2 else { return nil }
         let sorted = v.sorted { $0.value.tokens > $1.value.tokens }

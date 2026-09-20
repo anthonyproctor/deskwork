@@ -1,4 +1,5 @@
 import AppKit
+import DeskworkCore
 
 /// Read the thread, write the next message, get an answer from the other vendor.
 final class MailboxPanel: NSWindowController {

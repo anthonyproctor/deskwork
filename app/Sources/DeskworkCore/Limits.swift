@@ -17,51 +17,51 @@ import Foundation
 ///   Anyone  drop `~/.local/share/deskwork/limits/<vendor>.json` with the same
 ///           shape and it appears. That is the extension point — a vendor
 ///           Deskwork has never heard of needs no code change here.
-struct VendorLimits: Codable {
-    var vendor: String
-    var weekPct: Double?
-    var weekResetsAt: Double?
-    var fiveHourPct: Double?
-    var fiveHourResetsAt: Double?
-    var planType: String?
-    var at: Double = 0
+public struct VendorLimits: Codable {
+    public var vendor: String
+    public var weekPct: Double?
+    public var weekResetsAt: Double?
+    public var fiveHourPct: Double?
+    public var fiveHourResetsAt: Double?
+    public var planType: String?
+    public var at: Double = 0
 
-    var age: TimeInterval { Date().timeIntervalSince1970 - at }
+    public var age: TimeInterval { Date().timeIntervalSince1970 - at }
 
     /// A vendor you have not touched in hours is precisely the one with room,
     /// so an old reading is still worth showing — the weekly number barely
     /// moves while you are idle. A day is the point where it stops being
     /// trustworthy. Show the age instead of hiding the number.
-    var isUsable: Bool { age < 86_400 }
-    var isStale: Bool { age > 1_200 }
+    public var isUsable: Bool { age < 86_400 }
+    public var isStale: Bool { age > 1_200 }
 
     /// A window whose reset time has passed has rolled over; its percentage is
     /// meaningless now. Drop those rather than report a number from last cycle.
-    var liveWeekPct: Double? {
+    public var liveWeekPct: Double? {
         guard let r = weekResetsAt, r > Date().timeIntervalSince1970 else { return nil }
         return weekPct
     }
-    var liveFiveHourPct: Double? {
+    public var liveFiveHourPct: Double? {
         guard let r = fiveHourResetsAt, r > Date().timeIntervalSince1970 else { return nil }
         return fiveHourPct
     }
 
-    var ageLabel: String? {
+    public var ageLabel: String? {
         guard isStale else { return nil }
         let m = Int(age / 60)
         return m < 120 ? "\(m)m ago" : "\(m / 60)h ago"
     }
 }
 
-enum Limits {
-    static var dir: String { NSString(string: "~/.local/share/deskwork/limits").expandingTildeInPath }
-    static var recorderPath: String {
+public enum Limits {
+    public static var dir: String { NSString(string: "~/.local/share/deskwork/limits").expandingTildeInPath }
+    public static var recorderPath: String {
         NSString(string: "~/.config/deskwork/statusline-recorder.sh").expandingTildeInPath
     }
 
     /// Every vendor we can currently see, freshest wins, stale dropped.
     /// A number that has moved is worse than no number.
-    static func all() -> [VendorLimits] {
+    public static func all() -> [VendorLimits] {
         var out: [VendorLimits] = []
         if let c = fromDroppedFile("claude") ?? legacyClaudeFile() { out.append(c) }
         if let x = fromCodexRollouts() { out.append(x) }
@@ -106,7 +106,10 @@ enum Limits {
         let root = NSString(string: "~/.codex/sessions").expandingTildeInPath
         guard let e = FileManager.default.enumerator(atPath: root) else { return nil }
         var newest: (Date, String)? = nil
-        let cutoff = Date().addingTimeInterval(-6 * 3600)
+        // Match isUsable (24h). A 6h file cutoff silently discarded readings
+        // that the freshness rule would have accepted, so an idle vendor
+        // vanished for the wrong reason.
+        let cutoff = Date().addingTimeInterval(-86_400)
         for case let rel as String in e where rel.hasSuffix(".jsonl") {
             let p = (root as NSString).appendingPathComponent(rel)
             guard let a = try? FileManager.default.attributesOfItem(atPath: p),
@@ -146,7 +149,7 @@ enum Limits {
 
     // MARK: - the Claude recorder
 
-    static var recorderInstalled: Bool {
+    public static var recorderInstalled: Bool {
         guard let d = FileManager.default.contents(atPath:
                 NSString(string: "~/.claude/settings.json").expandingTildeInPath),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
@@ -156,7 +159,7 @@ enum Limits {
     }
 
     @discardableResult
-    static func installRecorder() -> String {
+    public static func installRecorder() -> String {
         let settings = NSString(string: "~/.claude/settings.json").expandingTildeInPath
         guard let data = FileManager.default.contents(atPath: settings),
               var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -227,17 +230,17 @@ enum Limits {
 
 /// Per-desk state, written by the same recorder. Context is a property of a
 /// session, so it is keyed by desk rather than by vendor.
-struct DeskState: Codable {
-    var desk: String
-    var ctxPct: Double?
-    var model: String?
-    var effort: String?
-    var usd: Double?
-    var at: Double = 0
+public struct DeskState: Codable {
+    public var desk: String
+    public var ctxPct: Double?
+    public var model: String?
+    public var effort: String?
+    public var usd: Double?
+    public var at: Double = 0
 
-    static var dir: String { NSString(string: "~/.local/share/deskwork/sessions").expandingTildeInPath }
+    public static var dir: String { NSString(string: "~/.local/share/deskwork/sessions").expandingTildeInPath }
 
-    static func load(_ desk: String) -> DeskState? {
+    public static func load(_ desk: String) -> DeskState? {
         let p = (dir as NSString).appendingPathComponent("\(desk).json")
         guard let d = FileManager.default.contents(atPath: p),
               let s = try? JSONDecoder().decode(DeskState.self, from: d) else { return nil }

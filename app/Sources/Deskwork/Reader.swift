@@ -1,6 +1,7 @@
 import AppKit
 import PDFKit
 import QuickLookUI
+import DeskworkCore
 
 /// Read-only viewer. Deskwork is run-first: agents write, you read. That is what
 /// lets this be a few hundred lines instead of an editor, and it is why PDFs are

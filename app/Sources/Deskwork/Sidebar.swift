@@ -1,28 +1,5 @@
 import AppKit
-
-/// Small bits of window state that should survive a restart.
-struct UIState: Codable {
-    var collapsed: [String] = []
-    var treeOnTop: Bool = false
-    var seenWelcome: Bool = false
-
-    static var path: String { NSString(string: "~/.config/deskwork/ui.json").expandingTildeInPath }
-
-    static func load() -> UIState {
-        guard let d = FileManager.default.contents(atPath: path),
-              let s = try? JSONDecoder().decode(UIState.self, from: d) else { return UIState() }
-        return s
-    }
-    static func markSeenWelcome() {
-        var s = UIState.load(); s.seenWelcome = true; s.save()
-    }
-
-    func save() {
-        let dir = (UIState.path as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        try? JSONEncoder().encode(self).write(to: URL(fileURLWithPath: UIState.path))
-    }
-}
+import DeskworkCore
 
 /// The desk rail. Groups are collapsible and renameable; ungrouped desks sit on
 /// top. Reports its own content height so the scroll view never clips the last

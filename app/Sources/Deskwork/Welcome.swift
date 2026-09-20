@@ -1,4 +1,5 @@
 import AppKit
+import DeskworkCore
 
 /// What a stranger sees the first time they open Deskwork.
 ///

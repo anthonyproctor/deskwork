@@ -1,6 +1,9 @@
-import AppKit
+import Foundation
 
-struct BridgeError: Error { let message: String }
+public struct BridgeError: Error {
+    public let message: String
+    public init(message: String) { self.message = message }
+}
 
 /// Cross-vendor handoff — a MAILBOX, not a protocol.
 ///
@@ -22,23 +25,23 @@ struct BridgeError: Error { let message: String }
 /// (`ask-claude.sh` driving a pair of markdown files). Deskwork generalises it
 /// to arbitrary runtime pairs and ships it built in, so a new user needs
 /// nothing but the CLIs they already have.
-enum Bridge {
+public enum Bridge {
 
-    struct Runtime {
-        let name: String
-        let bin: String
+    public struct Runtime {
+        public let name: String
+        public let bin: String
         /// argv for a headless, read-only answer. `out` is a file the runtime
         /// may write its FINAL message to; without it some CLIs return their
         /// entire working transcript, which buries the answer.
-        let argv: (String, String?) -> [String]
+        public let argv: (String, String?) -> [String]
         /// Whether read-only is ENFORCED by a vendor flag or merely requested in
         /// the prompt. Shown in the UI; never overstated.
-        let readOnlyEnforced: Bool
+        public let readOnlyEnforced: Bool
         /// True if the CLI can write just its final message to a file.
-        let hasFinalMessageFlag: Bool
+        public let hasFinalMessageFlag: Bool
     }
 
-    static let known: [Runtime] = [
+    public static let known: [Runtime] = [
         Runtime(name: "claude", bin: "claude",
                 argv: { p, _ in ["-p", p, "--permission-mode", "plan"] },
                 readOnlyEnforced: true, hasFinalMessageFlag: false),
@@ -57,11 +60,11 @@ enum Bridge {
                 argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false),
     ]
 
-    static func available() -> [Runtime] { known.filter { DeskConfig.which($0.bin) != nil } }
-    static func runtime(named n: String) -> Runtime? { known.first { $0.name == n } }
+    public static func available() -> [Runtime] { known.filter { DeskConfig.which($0.bin) != nil } }
+    public static func runtime(named n: String) -> Runtime? { known.first { $0.name == n } }
 
     /// Wraps the thread so the responder knows it is reviewing, not driving.
-    static func framePrompt(thread: String, ask: String, enforced: Bool) -> String {
+    public static func framePrompt(thread: String, ask: String, enforced: Bool) -> String {
         var p = """
         You are taking part in an agent-to-agent review. Another AI agent is asking you \
         to look at something in this workspace and answer.
@@ -81,23 +84,23 @@ enum Bridge {
 }
 
 /// One append-only thread between two runtimes.
-struct Mailbox {
-    var dir: String
+public struct Mailbox {
+    public var dir: String
     /// Optional: an existing runner script (a user who already built one).
-    var runner: String?
+    public var runner: String?
     /// The directory the RESPONDER runs in. This is a privacy boundary, not a
     /// convenience: read-only blocks writes, not reads, so the other vendor can
     /// read every file under this path. Defaults to the desk's own cwd; set
     /// `scope` in bridge.toml to narrow it.
-    var scope: String?
-    var legacyOutbound: String?
-    var legacyInbound: String?
+    public var scope: String?
+    public var legacyOutbound: String?
+    public var legacyInbound: String?
 
-    static let configPath = NSString(string: "~/.config/deskwork/bridge.toml").expandingTildeInPath
-    static let defaultDir = NSString(string: "~/.local/share/deskwork/mail").expandingTildeInPath
+    public static let configPath = NSString(string: "~/.config/deskwork/bridge.toml").expandingTildeInPath
+    public static let defaultDir = NSString(string: "~/.local/share/deskwork/mail").expandingTildeInPath
 
     /// Always returns a usable mailbox. No config means the built-in one.
-    static func load() -> Mailbox {
+    public static func load() -> Mailbox {
         guard let text = try? String(contentsOfFile: configPath, encoding: .utf8) else {
             return Mailbox(dir: defaultDir)
         }
@@ -118,18 +121,18 @@ struct Mailbox {
                        legacyInbound: kv["inbound"])
     }
 
-    var usesLegacyRunner: Bool { runner != nil && legacyOutbound != nil }
+    public var usesLegacyRunner: Bool { runner != nil && legacyOutbound != nil }
 
-    func threadPath(_ a: String, _ b: String) -> String {
+    public func threadPath(_ a: String, _ b: String) -> String {
         if let o = legacyInbound { return (dir as NSString).appendingPathComponent(o) }
         let pair = [a, b].sorted().joined(separator: "-")
         return (dir as NSString).appendingPathComponent("thread-\(pair).md")
     }
 
-    func read(_ path: String) -> String { (try? String(contentsOfFile: path, encoding: .utf8)) ?? "" }
+    public func read(_ path: String) -> String { (try? String(contentsOfFile: path, encoding: .utf8)) ?? "" }
 
     /// Append, never replace.
-    func append(_ text: String, who: String, to path: String) {
+    public func append(_ text: String, who: String, to path: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm zzz"
         let block = "\n\n---\n\n## \(who) · \(f.string(from: Date()))\n\n\(text)\n"
@@ -142,9 +145,9 @@ struct Mailbox {
 
     /// Ask `to` to answer, with the whole thread as context. Appends the reply.
     /// Where the responder will actually be able to read.
-    func effectiveScope(deskCwd: String) -> String { scope ?? deskCwd }
+    public func effectiveScope(deskCwd: String) -> String { scope ?? deskCwd }
 
-    func ask(from: String, to rt: Bridge.Runtime, message: String, cwd deskCwd: String,
+    public func ask(from: String, to rt: Bridge.Runtime, message: String, cwd deskCwd: String,
              completion: @escaping (Result<String, BridgeError>) -> Void) {
         let cwd = effectiveScope(deskCwd: deskCwd)
         let path = threadPath(from, rt.name)
@@ -193,7 +196,7 @@ struct Mailbox {
     }
 
     /// Hand off to a user's own runner script instead.
-    func runRunner(completion: @escaping (String) -> Void) {
+    public func runRunner(completion: @escaping (String) -> Void) {
         guard let runner else { completion("no runner configured"); return }
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process()

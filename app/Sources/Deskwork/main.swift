@@ -6,6 +6,7 @@
 
 import AppKit
 import SwiftTerm
+import DeskworkCore
 
 // MARK: - one live desk
 

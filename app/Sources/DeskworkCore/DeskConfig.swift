@@ -1,21 +1,28 @@
 import Foundation
 
 /// One persistent specialist. Sessions are disposable; this is not.
-struct Desk {
-    var name: String
-    var agent: String?
-    var runtime: String = "claude"
-    var model: String?
-    var cwd: String?
-    var command: String?     // escape hatch: run this verbatim instead
+public struct Desk {
+    public init(name: String, agent: String? = nil, runtime: String = "claude",
+                model: String? = nil, cwd: String? = nil, command: String? = nil,
+                group: String? = nil) {
+        self.name = name; self.agent = agent; self.runtime = runtime
+        self.model = model; self.cwd = cwd; self.command = command; self.group = group
+    }
+
+    public var name: String
+    public var agent: String?
+    public var runtime: String = "claude"
+    public var model: String?
+    public var cwd: String?
+    public var command: String?     // escape hatch: run this verbatim instead
     /// Desks are not a flat list. `study` belongs under `school` next to `mba`.
     /// Ungrouped desks sit at the top, above the first group header.
-    var group: String?
+    public var group: String?
 
     /// argv for the login shell. Deskwork never reimplements an agent — it
     /// launches the vendor's own CLI so that CLI's config, hooks, memory and
     /// model pins all apply untouched.
-    func launchCommand() -> String {
+    public func launchCommand() -> String {
         if let c = command, !c.isEmpty { return c }
         switch runtime {
         case "claude":
@@ -30,21 +37,21 @@ struct Desk {
         }
     }
 
-    var resolvedCwd: String {
+    public var resolvedCwd: String {
         (cwd.map { NSString(string: $0).expandingTildeInPath }) ?? FileManager.default.homeDirectoryForCurrentUser.path
     }
 }
 
 /// Just enough TOML for `[desk.<name>]` tables of `key = "value"`. A real parser
 /// is a dependency we do not need yet, and the config shape is deliberately flat.
-enum DeskConfig {
-    static var path: String {
+public enum DeskConfig {
+    public static var path: String {
         NSString(string: "~/.config/deskwork/desks.toml").expandingTildeInPath
     }
 
     /// First run: leave a working config on disk rather than an empty window.
     /// Only desks whose CLI is actually installed get written.
-    static func writeStarter() {
+    public static func writeStarter() {
         let dir = (path as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         guard !FileManager.default.fileExists(atPath: path) else { return }
@@ -88,7 +95,7 @@ enum DeskConfig {
     }
 
     /// Is this CLI on PATH? Used so the starter config only lists real runtimes.
-    static func which(_ bin: String) -> String? {
+    public static func which(_ bin: String) -> String? {
         let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")
             .split(separator: ":").map(String.init)
             + [NSString(string: "~/.local/bin").expandingTildeInPath, "/opt/homebrew/bin", "/usr/local/bin"]
@@ -99,7 +106,7 @@ enum DeskConfig {
         return nil
     }
 
-    static func load() -> [Desk] {
+    public static func load() -> [Desk] {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
         var desks: [Desk] = []
         var current: Desk?

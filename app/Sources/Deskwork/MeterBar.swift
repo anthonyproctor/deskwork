@@ -1,4 +1,5 @@
 import AppKit
+import DeskworkCore
 
 /// The meter: a strip along the bottom of the window showing where the week is
 /// going, across vendors. Scanning happens off the main thread and is throttled,
