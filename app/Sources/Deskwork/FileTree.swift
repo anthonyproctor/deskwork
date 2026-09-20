@@ -69,6 +69,9 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         ])
     }
     required init?(coder: NSCoder) { fatalError() }
+    /// NSResponder.init() is inherited and does NOT route through init(frame:),
+    /// so a bare FileTreeView() would skip all setup and render an empty pane.
+    convenience init() { self.init(frame: .zero) }
 
     func setRoot(_ path: String) {
         root = FileNode(url: URL(fileURLWithPath: path))

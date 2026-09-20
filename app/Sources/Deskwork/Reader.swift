@@ -33,6 +33,9 @@ final class ReaderView: NSView {
         showPlaceholder()
     }
     required init?(coder: NSCoder) { fatalError() }
+    /// NSResponder.init() is inherited and does NOT route through init(frame:),
+    /// so a bare ReaderView() would skip all setup and render an empty pane.
+    convenience init() { self.init(frame: .zero) }
 
     private func swap(to v: NSView) {
         current?.removeFromSuperview()

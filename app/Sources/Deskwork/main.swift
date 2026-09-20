@@ -113,47 +113,53 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             desks = [Desk(name: "shell", command: "echo 'No desks configured.'; echo 'Create \\(DeskConfig.path)'; exec zsh -l")]
         }
 
-        let frame = NSRect(x: 0, y: 0, width: 1240, height: 780)
+        // Size to the screen so the resize corner is always reachable. The window
+        // was opening taller than the display, which made it look unresizable.
+        let vis = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
+        let frame = NSRect(x: 0, y: 0,
+                           width: min(1240, vis.width - 40),
+                           height: min(820, vis.height - 40))
         window = NSWindow(contentRect: frame,
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Deskwork"
         window.titlebarAppearsTransparent = true
 
-        // Left rail: desks on top, the visible desk's folder tree beneath.
-        let rail = NSView()
-        sidebar.translatesAutoresizingMaskIntoConstraints = false
-        tree.translatesAutoresizingMaskIntoConstraints = false
+        // Left rail: desks on top, folder tree beneath, with a DRAGGABLE divider.
+        // A fixed desk height starved the tree once the list got long.
+        let deskScroll = NSScrollView()
+        deskScroll.documentView = sidebar
+        deskScroll.hasVerticalScroller = true
+        deskScroll.drawsBackground = false
+        deskScroll.automaticallyAdjustsContentInsets = false
+
+        let rail = NSSplitView()
+        rail.isVertical = false          // stacked, so the divider is horizontal
+        rail.dividerStyle = .thin
+        rail.addArrangedSubview(deskScroll)
+        rail.addArrangedSubview(tree)
         rail.wantsLayer = true
         rail.layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
-        rail.addSubview(sidebar); rail.addSubview(tree)
-        let deskRailHeight = CGFloat(34 + desks.count * 26)
-        NSLayoutConstraint.activate([
-            sidebar.topAnchor.constraint(equalTo: rail.topAnchor),
-            sidebar.leadingAnchor.constraint(equalTo: rail.leadingAnchor),
-            sidebar.trailingAnchor.constraint(equalTo: rail.trailingAnchor),
-            sidebar.heightAnchor.constraint(equalToConstant: deskRailHeight),
-            tree.topAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: 6),
-            tree.leadingAnchor.constraint(equalTo: rail.leadingAnchor),
-            tree.trailingAnchor.constraint(equalTo: rail.trailingAnchor),
-            tree.bottomAnchor.constraint(equalTo: rail.bottomAnchor),
-        ])
 
         split.isVertical = true
         split.dividerStyle = .thin
         split.addArrangedSubview(rail)
         split.addArrangedSubview(host)
-        split.addArrangedSubview(reader)
         window.contentView = split
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.split.setPosition(210, ofDividerAt: 0)
-            self.split.setPosition(210 + 640, ofDividerAt: 1)
+            let w = self.window.contentView?.bounds.width ?? frame.width
+            let h = self.window.contentView?.bounds.height ?? frame.height
+            _ = w
+            self.split.setPosition(240, ofDividerAt: 0)
+            // Desks get a third of the rail, the tree keeps the rest.
+            rail.setPosition(min(CGFloat(40 + self.desks.count * 26), h * 0.38), ofDividerAt: 0)
         }
 
-        tree.onOpen = { [weak self] url in self?.reader.open(url) }
+        tree.onOpen = { [weak self] url in self?.openReader(url) }
 
         sidebar.build(desks: desks)
+        sidebar.frame = NSRect(x: 0, y: 0, width: 200, height: CGFloat(40 + desks.count * 26))
         sidebar.onSelect = { [weak self] i in self?.show(i) }
 
         window.center(); window.makeKeyAndOrderFront(nil)
@@ -214,6 +220,23 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 
     @objc func jump(_ sender: NSMenuItem) { show(sender.tag) }
     @objc func refreshTree() { tree.refresh() }
+
+    /// Files open in their own window. Keeps the main layout to two panes and
+    /// means you can leave a PDF up beside the desk that is working on it.
+    var readerWindow: NSWindow?
+    func openReader(_ url: URL) {
+        if readerWindow == nil {
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 860),
+                             styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                             backing: .buffered, defer: false)
+            w.contentView = reader
+            w.isReleasedWhenClosed = false
+            readerWindow = w
+        }
+        readerWindow?.title = url.lastPathComponent
+        reader.open(url)
+        readerWindow?.makeKeyAndOrderFront(nil)
+    }
 
     // LocalProcessTerminalViewDelegate
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
