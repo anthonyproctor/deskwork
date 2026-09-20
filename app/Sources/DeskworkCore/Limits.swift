@@ -26,6 +26,14 @@ public struct VendorLimits: Codable {
     public var planType: String?
     public var at: Double = 0
 
+    public init(vendor: String, weekPct: Double? = nil, weekResetsAt: Double? = nil,
+                fiveHourPct: Double? = nil, fiveHourResetsAt: Double? = nil,
+                planType: String? = nil, at: Double = 0) {
+        self.vendor = vendor; self.weekPct = weekPct; self.weekResetsAt = weekResetsAt
+        self.fiveHourPct = fiveHourPct; self.fiveHourResetsAt = fiveHourResetsAt
+        self.planType = planType; self.at = at
+    }
+
     public var age: TimeInterval { Date().timeIntervalSince1970 - at }
 
     /// A vendor you have not touched in hours is precisely the one with room,

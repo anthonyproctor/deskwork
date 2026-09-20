@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "DeskworkCore", targets: ["DeskworkCore"]),
         .executable(name: "Deskwork", targets: ["Deskwork"]),
         .executable(name: "deskwork-cli", targets: ["DeskworkCLI"]),
+        .executable(name: "deskwork-test", targets: ["DeskworkTests"]),
     ],
     dependencies: [
         .package(url: "https://github.com/migueldeicaza/SwiftTerm", branch: "main")
@@ -24,5 +25,10 @@ let package = Package(
         // Proves the core is genuinely headless, and gives a front end in any
         // language something to shell out to.
         .executableTarget(name: "DeskworkCLI", dependencies: ["DeskworkCore"]),
+        // Plain executable, not XCTest. XCTest ships with Xcode, and the whole
+        // point of this project building on Command Line Tools alone is that a
+        // contributor needs no 15GB download — tests that break that promise
+        // are worse than tests that are slightly less ergonomic.
+        .executableTarget(name: "DeskworkTests", dependencies: ["DeskworkCore"]),
     ]
 )

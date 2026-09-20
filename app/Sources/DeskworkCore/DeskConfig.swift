@@ -157,7 +157,11 @@ public enum DeskConfig {
         return "shell"
     }
 
-    public static func load() -> [Desk] {
+    public static func load() -> [Desk] { load(path: path) }
+
+    /// Path is injectable so the parser can be tested without touching the
+    /// user's real config.
+    public static func load(path: String) -> [Desk] {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
         var desks: [Desk] = []
         var current: Desk?
@@ -175,7 +179,7 @@ public enum DeskConfig {
 
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
             var line = String(rawLine)
-            if let hash = line.firstIndex(of: "#") { line = String(line[line.startIndex..<hash]) }
+            line = TomlText.stripComment(line)
             line = line.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
 
@@ -190,7 +194,14 @@ public enum DeskConfig {
             guard current != nil, let eq = line.firstIndex(of: "=") else { continue }
             let key = String(line[line.startIndex..<eq]).trimmingCharacters(in: .whitespaces)
             var val = String(line[line.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
-            val = val.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            // Strip ONE surrounding pair of quotes, then undo escaping.
+            // trimmingCharacters removed every leading and trailing quote,
+            // which mangles a value that legitimately ends in one.
+            if val.count >= 2,
+               (val.hasPrefix("\"") && val.hasSuffix("\"")) || (val.hasPrefix("'") && val.hasSuffix("'")) {
+                let inner = String(val.dropFirst().dropLast())
+                val = val.hasPrefix("\"") ? TomlText.unescape(inner) : inner
+            }
 
             switch key {
             case "agent":   current?.agent = val
@@ -218,21 +229,24 @@ public enum DeskConfig {
 
     /// Write desks back out. The file stays the source of truth, so anything
     /// written here must be something a human can also edit by hand.
-    public static func write(_ desks: [Desk]) {
+    public static func write(_ desks: [Desk]) { write(desks, to: path) }
+
+    /// Path injectable so the write -> load round trip can be tested.
+    public static func write(_ desks: [Desk], to path: String) {
         var out = "# Deskwork desks. Written by Deskwork; safe to edit by hand.\n"
         for d in desks {
             out += "\n[desk.\(d.name)]\n"
-            if let g = d.group { out += "group = \"\(g)\"\n" }
+            if let g = d.group { out += "group = \"\(TomlText.escape(g))\"\n" }
             if d.isDefault { out += "default = true\n" }
             if let c = d.command {
-                out += "command = \"\(c)\"\n"
+                out += "command = \"\(TomlText.escape(c))\"\n"
                 // Only worth writing when it says something the command does not.
-                if d.runtime != "shell" { out += "runtime = \"\(d.runtime)\"\n" }
+                if d.runtime != "shell" { out += "runtime = \"\(TomlText.escape(d.runtime))\"\n" }
             } else {
-                out += "runtime = \"\(d.runtime)\"\n"
-                if let a = d.agent { out += "agent = \"\(a)\"\n" }
+                out += "runtime = \"\(TomlText.escape(d.runtime))\"\n"
+                if let a = d.agent { out += "agent = \"\(TomlText.escape(a))\"\n" }
             }
-            if let w = d.cwd { out += "cwd = \"\(w)\"\n" }
+            if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
         }
         try? FileManager.default.createDirectory(
             atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)

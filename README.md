@@ -159,6 +159,16 @@ Not built yet:
 - One terminal per desk, no splits.
 - Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
 
+## Tests
+
+```sh
+cd app && swift build -c release && ./.build/release/deskwork-test
+```
+
+Plain executable, not XCTest — XCTest ships with Xcode, and this project builds on Command Line Tools alone. A suite that reintroduced a 15GB dependency would defeat the point.
+
+Every test is a regression for a fault that actually shipped, not an invented case.
+
 ## Reading
 
 - [DESIGN.md](DESIGN.md) — the thesis, why existing tools cannot host it, the architecture, the milestones

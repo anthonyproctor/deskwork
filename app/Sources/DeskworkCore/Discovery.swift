@@ -60,7 +60,7 @@ public enum Discovery {
         }
         for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
             var line = String(raw)
-            if let h = line.firstIndex(of: "#") { line = String(line[line.startIndex..<h]) }
+            line = TomlText.stripComment(line)
             line = line.trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("[") {
                 flush()
@@ -138,7 +138,9 @@ public enum Discovery {
 
     /// Reads the leading `---` block. Values may be quoted and may contain
     /// colons, so the split is on the FIRST colon only.
-    static func frontMatter(_ text: String) -> [String: String] {
+    /// Public so it can be tested: front-matter parsing is exactly the kind of
+    /// small thing that breaks quietly on a real file.
+    public static func frontMatter(_ text: String) -> [String: String] {
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         guard lines.first?.trimmingCharacters(in: .whitespaces) == "---" else { return [:] }
         var out: [String: String] = [:]

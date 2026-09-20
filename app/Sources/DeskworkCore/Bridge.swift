@@ -122,7 +122,7 @@ public struct Mailbox {
         var kv: [String: String] = [:]
         for raw in text.split(separator: "\n") {
             var line = String(raw)
-            if let h = line.firstIndex(of: "#") { line = String(line[line.startIndex..<h]) }
+            line = TomlText.stripComment(line)
             guard let eq = line.firstIndex(of: "=") else { continue }
             kv[String(line[line.startIndex..<eq]).trimmingCharacters(in: .whitespaces)] =
                 String(line[line.index(after: eq)...])

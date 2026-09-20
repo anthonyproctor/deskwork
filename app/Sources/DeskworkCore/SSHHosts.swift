@@ -54,7 +54,7 @@ public enum SSHHosts {
 
         for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
             var line = String(raw)
-            if let h = line.firstIndex(of: "#") { line = String(line[line.startIndex..<h]) }
+            line = TomlText.stripComment(line)
             line = line.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
 
