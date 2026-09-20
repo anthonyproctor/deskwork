@@ -89,6 +89,16 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             l.textColor = p != nil ? .labelColor : .tertiaryLabelColor
             rtLines.append(l)
         }
+        rtLines.append(caps("LIVE PLAN LIMITS"))
+        let limitsBtn = NSButton(title: Limits.isInstalled ? "Recorder installed ✓" : "Turn on live limits",
+                                 target: self, action: #selector(installLimits))
+        limitsBtn.bezelStyle = .rounded
+        limitsBtn.isEnabled = !Limits.isInstalled
+        rtLines.append(limitsBtn)
+        rtLines.append(note("Consumption comes from files the CLIs already write. Remaining quota does "
+            + "not: only Claude Code knows it, and only tells its statusline. This installs a small "
+            + "recorder as that statusline. Any statusline you already have keeps working — the "
+            + "recorder chains to it and prints its output unchanged."))
         rtLines.append(caps("AGENT MAIL"))
         let box = Mailbox.load()
         rtLines.append(note("Threads are appended to \((box.dir as NSString).abbreviatingWithTildeInPath)."
@@ -151,6 +161,12 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         d.runtime = runtime.titleOfSelectedItem ?? "claude"
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
         table.reloadData()
+    }
+
+    @objc private func installLimits() {
+        let msg = Limits.installRecorder()
+        let a = NSAlert(); a.messageText = "Live plan limits"; a.informativeText = msg
+        a.runModal()
     }
 
     @objc private func remove() {

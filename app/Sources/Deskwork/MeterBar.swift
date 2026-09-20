@@ -12,13 +12,16 @@ final class MeterBar: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
         summary.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         summary.textColor = .secondaryLabelColor
-        hint.font = .systemFont(ofSize: 11, weight: .medium)
-        hint.textColor = .systemOrange
+        hint.font = .systemFont(ofSize: 11, weight: .semibold)
+        hint.textColor = .labelColor          // adapts; orange on light grey was unreadable
         hint.lineBreakMode = .byTruncatingTail
+        hint.wantsLayer = true
+        hint.layer?.cornerRadius = 4
+        hint.drawsBackground = false
 
         let stack = NSStackView(views: [summary, NSView(), hint])
         stack.orientation = .horizontal
@@ -59,15 +62,47 @@ final class MeterBar: NSView {
     }
 
     private func render(_ r: Usage.Report, since: Date) {
-        let f = DateFormatter(); f.dateFormat = "EEE h:mma"
-        var parts: [String] = []
-        for (v, b) in r.byVendor.sorted(by: { $0.value.tokens > $1.value.tokens }) {
-            var s = "\(v) \(fmt(b.tokens))"
-            if let usd = b.usd { s += String(format: " ($%.0f)", usd) }
-            parts.append(s)
+        var left: [String] = []
+
+        // Real plan limits when the recorder is feeding us; otherwise say why not.
+        if let l = Limits.load() {
+            if let w = l.weekPct {
+                var seg = "week \(w)%"
+                if let ra = l.weekResetsAt {
+                    let f = DateFormatter(); f.dateFormat = "EEE h:mma"
+                    seg += " → " + f.string(from: Date(timeIntervalSince1970: ra)).lowercased()
+                }
+                left.append(seg)
+            }
+            if let h = l.fiveHourPct {
+                var seg = "5h \(h)%"
+                if let ra = l.fiveHourResetsAt {
+                    let m = Int(max(0, Date(timeIntervalSince1970: ra).timeIntervalSinceNow) / 60)
+                    seg += " \(m / 60)h\(String(format: "%02d", m % 60))m"
+                }
+                left.append(seg)
+            }
         }
-        if parts.isEmpty { parts = ["no usage recorded this week"] }
-        summary.stringValue = "week from \(f.string(from: since))   ·   " + parts.joined(separator: "   ·   ")
-        hint.stringValue = Usage.routerHint(r) ?? ""
+
+        for (v, b) in r.byVendor.sorted(by: { $0.value.tokens > $1.value.tokens }) {
+            var seg = "\(v) \(fmt(b.tokens))"
+            if let usd = b.usd { seg += String(format: " $%.0f", usd) }
+            left.append(seg)
+        }
+        if left.isEmpty { left = ["no usage recorded this week"] }
+
+        let f = DateFormatter(); f.dateFormat = "EEE h:mma"
+        summary.stringValue = left.joined(separator: "   ·   ")
+            + "      since \(f.string(from: since).lowercased())"
+
+        if Limits.load() == nil && !Limits.isInstalled {
+            hint.stringValue = "plan limits off — turn on in Settings"
+            hint.textColor = .tertiaryLabelColor
+        } else if let h = Usage.routerHint(r) {
+            hint.stringValue = h
+            hint.textColor = .labelColor
+        } else {
+            hint.stringValue = ""
+        }
     }
 }

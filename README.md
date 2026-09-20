@@ -22,7 +22,7 @@ Deskwork calls one of those a **desk**, and makes the desk the unit.
 
 **A folder tree and a reader.** Agents write, you read. The reader opens PDFs, images and text. Being read-only is what keeps it about a hundred lines instead of an editor — and why opening a PDF is trivial here.
 
-**A meter that spans vendors.** Deskwork reads what the CLIs already write to disk — Claude's transcripts and Codex's `token_usage_record` files — so the strip along the bottom shows where the week is actually going, and says so when one vendor is carrying all of it.
+**A meter that spans vendors.** The strip along the bottom shows where the week is going and says so when one vendor is carrying all of it. Consumption comes from files the CLIs already write — Claude's transcripts, Codex's `token_usage_record` files. Remaining quota is harder: no CLI writes it to disk, and only Claude Code knows it, which it tells its statusline and nobody else. So Deskwork offers to *be* that statusline — a recorder that captures the numbers and then hands stdin to whatever statusline you already had, printing its output unchanged. Turn it on in Settings.
 
 **A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
 
@@ -110,7 +110,7 @@ Not built yet:
 - Desks die when the app quits; they do not outlive it.
 - One terminal per desk, no splits.
 - The meter is a summary strip, not a full pane. No per-desk breakdown or history chart yet.
-- Vendor plan limits are not shown, only consumption. Neither CLI writes its remaining quota to disk.
+- Live plan limits work for Claude only. No other CLI exposes remaining quota anywhere a local tool can read it.
 
 ## Reading
 
