@@ -69,16 +69,17 @@ final class MeterBar: NSView {
         let limits = Limits.all()
 
         // Quota first, per vendor. This is the number that changes behaviour.
-        for l in limits.sorted(by: { ($0.weekPct ?? 0) > ($1.weekPct ?? 0) }) {
+        for l in limits.sorted(by: { ($0.liveWeekPct ?? 0) > ($1.liveWeekPct ?? 0) }) {
             var s = l.vendor
-            if let w = l.weekPct {
+            if let w = l.liveWeekPct {
                 s += String(format: " wk %.0f%%", w)
                 if let ra = l.weekResetsAt {
                     let f = DateFormatter(); f.dateFormat = "EEE h a"
                     s += "→" + f.string(from: Date(timeIntervalSince1970: ra)).lowercased()
                 }
             }
-            if let h = l.fiveHourPct { s += String(format: " · 5h %.0f%%", h) }
+            if let h = l.liveFiveHourPct { s += String(format: " · 5h %.0f%%", h) }
+            if let a = l.ageLabel { s += " (\(a))" }
             segs.append(s)
         }
 
@@ -111,7 +112,7 @@ final class MeterBar: NSView {
     /// With real quota on both sides the router stops guessing from token share
     /// and says the actionable thing: who is nearly out, who has room.
     static func routerCall(_ ls: [VendorLimits]) -> String? {
-        let withWeek = ls.compactMap { l -> (String, Double)? in l.weekPct.map { (l.vendor, $0) } }
+        let withWeek = ls.compactMap { l -> (String, Double)? in l.liveWeekPct.map { (l.vendor, $0) } }
         guard withWeek.count >= 2 else {
             if let one = withWeek.first, one.1 >= 75 {
                 return String(format: "%@ is %.0f%% through the week.", one.0, one.1)

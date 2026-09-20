@@ -26,7 +26,31 @@ struct VendorLimits: Codable {
     var planType: String?
     var at: Double = 0
 
-    var isFresh: Bool { Date().timeIntervalSince1970 - at < 3600 }
+    var age: TimeInterval { Date().timeIntervalSince1970 - at }
+
+    /// A vendor you have not touched in hours is precisely the one with room,
+    /// so an old reading is still worth showing — the weekly number barely
+    /// moves while you are idle. A day is the point where it stops being
+    /// trustworthy. Show the age instead of hiding the number.
+    var isUsable: Bool { age < 86_400 }
+    var isStale: Bool { age > 1_200 }
+
+    /// A window whose reset time has passed has rolled over; its percentage is
+    /// meaningless now. Drop those rather than report a number from last cycle.
+    var liveWeekPct: Double? {
+        guard let r = weekResetsAt, r > Date().timeIntervalSince1970 else { return nil }
+        return weekPct
+    }
+    var liveFiveHourPct: Double? {
+        guard let r = fiveHourResetsAt, r > Date().timeIntervalSince1970 else { return nil }
+        return fiveHourPct
+    }
+
+    var ageLabel: String? {
+        guard isStale else { return nil }
+        let m = Int(age / 60)
+        return m < 120 ? "\(m)m ago" : "\(m / 60)h ago"
+    }
 }
 
 enum Limits {
@@ -52,7 +76,7 @@ enum Limits {
                 if let v = fromDroppedFile(name) { out.append(v) }
             }
         }
-        return out.filter(\.isFresh)
+        return out.filter(\.isUsable)
     }
 
     private static func fromDroppedFile(_ vendor: String) -> VendorLimits? {

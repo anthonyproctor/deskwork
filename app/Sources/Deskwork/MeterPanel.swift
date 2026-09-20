@@ -17,7 +17,16 @@ final class MeterPanel: NSWindowController {
         stack.alignment = .leading
         stack.spacing = 10
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 20, right: 20)
+        // An NSStackView used as a documentView has no size of its own. Without
+        // these it lays out at zero and the window renders blank.
+        stack.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = stack
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            stack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+        ])
         w.contentView = scroll
         w.center()
         reload()
@@ -56,17 +65,18 @@ final class MeterPanel: NSWindowController {
         if limits.isEmpty {
             stack.addArrangedSubview(mono("no live quota — turn it on in Settings"))
         }
-        for l in limits.sorted(by: { ($0.weekPct ?? 0) > ($1.weekPct ?? 0) }) {
+        for l in limits.sorted(by: { ($0.liveWeekPct ?? 0) > ($1.liveWeekPct ?? 0) }) {
             var line = String(format: "%-8s", (l.vendor as NSString).utf8String!)
-            if let w = l.weekPct {
+            if let w = l.liveWeekPct {
                 line += "week  \(bar(w))  " + String(format: "%5.1f%%", w)
                 if let r = l.weekResetsAt {
                     line += "  resets " + df.string(from: Date(timeIntervalSince1970: r)).lowercased()
                 }
             }
             if let p = l.planType { line += "   (\(p))" }
+            if let a = l.ageLabel { line += "   \(a)" }
             stack.addArrangedSubview(mono(line, 12, .medium))
-            if let h = l.fiveHourPct {
+            if let h = l.liveFiveHourPct {
                 var s = String(format: "%-8s", "") + "5h    \(bar(h))  " + String(format: "%5.1f%%", h)
                 if let r = l.fiveHourResetsAt {
                     let m = Int(max(0, Date(timeIntervalSince1970: r).timeIntervalSinceNow) / 60)
