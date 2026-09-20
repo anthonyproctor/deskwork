@@ -39,12 +39,17 @@ public enum Bridge {
         public let readOnlyEnforced: Bool
         /// True if the CLI can write just its final message to a file.
         public let hasFinalMessageFlag: Bool
+        /// Runs entirely on this machine. The important consequence is that
+        /// nothing in the thread, and nothing the responder reads, leaves the
+        /// host — which is the honest answer to a workspace holding anything
+        /// you would not hand to a vendor.
+        public let isLocal: Bool
     }
 
     public static let known: [Runtime] = [
         Runtime(name: "claude", bin: "claude",
                 argv: { p, _ in ["-p", p, "--permission-mode", "plan"] },
-                readOnlyEnforced: true, hasFinalMessageFlag: false),
+                readOnlyEnforced: true, hasFinalMessageFlag: false, isLocal: false),
         // `-o` keeps the answer out of the transcript spew. Without it a single
         // review returned 46KB of grep output with the answer buried at the end.
         Runtime(name: "codex", bin: "codex",
@@ -53,11 +58,21 @@ public enum Bridge {
                     if let out { a += ["-o", out] }
                     a.append(p); return a
                 },
-                readOnlyEnforced: true, hasFinalMessageFlag: true),
+                readOnlyEnforced: true, hasFinalMessageFlag: true, isLocal: false),
         Runtime(name: "gemini", bin: "gemini",
-                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false),
+                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
         Runtime(name: "copilot", bin: "copilot",
-                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false),
+                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
+        // grok has a headless -p but no sandbox flag, so read-only can only be
+        // asked for in the prompt. The panel says so rather than implying more.
+        Runtime(name: "grok", bin: "grok",
+                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
+        // Local. Nothing leaves the machine, which makes it the right responder
+        // for a workspace you would not expose to a hosted vendor. The model is
+        // taken from the desk's `model` field, defaulting to whatever ollama has.
+        Runtime(name: "ollama", bin: "ollama",
+                argv: { p, _ in ["run", ProcessInfo.processInfo.environment["DESKWORK_OLLAMA_MODEL"] ?? "llama3", p] },
+                readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: true),
     ]
 
     public static func available() -> [Runtime] { known.filter { DeskConfig.which($0.bin) != nil } }

@@ -33,6 +33,13 @@ public struct Desk {
         case "codex":  return "codex"
         case "gemini": return "gemini"
         case "copilot": return "copilot"
+        case "ollama":
+            // `ollama run <model>` is interactive; the model is required.
+            return "ollama run \(model ?? "llama3")"
+        case "grok":
+            var parts = ["grok"]
+            if let m = model, !m.isEmpty { parts += ["-m", m] }
+            return parts.joined(separator: " ")
         default: return runtime
         }
     }
@@ -66,7 +73,8 @@ public enum DeskConfig {
         cwd = "~"
 
         """
-        for (runtime, bin) in [("claude", "claude"), ("codex", "codex"), ("gemini", "gemini"), ("copilot", "copilot")] {
+        for (runtime, bin) in [("claude", "claude"), ("codex", "codex"), ("gemini", "gemini"),
+                               ("copilot", "copilot"), ("grok", "grok"), ("ollama", "ollama")] {
             guard which(bin) != nil else { continue }
             out += """
 

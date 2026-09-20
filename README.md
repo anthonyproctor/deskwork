@@ -43,7 +43,7 @@ Click the strip (or `cmd-shift-u`) for the detail: quota bars per vendor, which 
   ```sh
   xcode-select --install
   ```
-- At least one agent CLI, though the app opens fine without any: Claude Code, Codex, Gemini CLI, or GitHub Copilot CLI
+- At least one agent CLI, though the app opens fine without any: Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, Grok CLI, or Ollama for a local model
 
 ## Install
 
@@ -77,7 +77,7 @@ cwd = "~"
 [desk.api]
 group   = "work"          # desks are not a flat list
 agent   = "backend"       # an agent profile the CLI already knows
-runtime = "claude"        # claude | codex | gemini | copilot
+runtime = "claude"        # claude | codex | gemini | copilot | grok | ollama
 cwd     = "~/src/api"
 
 [desk.review]
@@ -85,9 +85,15 @@ group   = "work"
 runtime = "codex"         # a second vendor, kept for cross-checking
 cwd     = "~/src/api"
 
+[desk.local]
+runtime = "ollama"        # runs on your machine; nothing leaves it
+model   = "llama3"
+cwd     = "~/src/api"
+
 [desk.notes]
-# `command` is the escape hatch: run anything verbatim, including a wrapper
-# script of your own that already handles resume-vs-new.
+# `command` is the escape hatch: run anything verbatim. A wrapper script of
+# your own, or a model on another box:
+#   command = "ssh box 'ollama run llama3'"
 command = "~/bin/desk notes"
 cwd     = "~/notes"
 ```
@@ -126,6 +132,8 @@ scope = "~/src/api"     # the responder sees only this, not your whole home
 ```
 
 If the tree holds anything you would not hand to that vendor, set `scope` before you send.
+
+**Or send it to a local model instead.** `ollama` is a first-class runtime, and a local responder reads your files without anything leaving the machine. The panel says which you are talking to, and only asks you to confirm exposure for the hosted ones — because for a local one there is none.
 
 Threads land in `~/.local/share/deskwork/mail/`. If you already have a handoff script, point Deskwork at it in `~/.config/deskwork/bridge.toml` and it will use yours instead.
 

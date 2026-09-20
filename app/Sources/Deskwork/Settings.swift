@@ -61,7 +61,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         tScroll.hasVerticalScroller = true; tScroll.borderType = .bezelBorder
         tScroll.translatesAutoresizingMaskIntoConstraints = false
 
-        runtime.addItems(withTitles: ["claude", "codex", "gemini", "copilot"])
+        runtime.addItems(withTitles: ["claude", "codex", "gemini", "copilot", "grok", "ollama"])
         let form = NSStackView(views: [
             caps("DESK"),
             field(name, "name, e.g. api"),

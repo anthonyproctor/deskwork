@@ -104,11 +104,18 @@ final class MailboxPanel: NSWindowController {
             readonlyNote.stringValue = "no runtimes found on PATH"; return
         }
         // Never overstate the guarantee.
-        readonlyNote.stringValue = rt.readOnlyEnforced
-            ? "cannot write"
-            : "read-only asked for in the prompt only, not enforced"
+        readonlyNote.stringValue = rt.isLocal
+            ? "local — nothing leaves this machine"
+            : (rt.readOnlyEnforced ? "cannot write"
+                                   : "read-only asked for in the prompt only, not enforced")
         // The honest framing: read-only stops writes, not reads.
         let scope = box.effectiveScope(deskCwd: cwd)
+        if rt.isLocal {
+            scopeNote.stringValue = "\(rt.name) reads "
+                + (scope as NSString).abbreviatingWithTildeInPath
+                + " on this machine only — nothing is sent to a vendor"
+            reload(); return
+        }
         scopeNote.stringValue = "\(rt.name) will be able to READ everything under "
             + (scope as NSString).abbreviatingWithTildeInPath
             + "  ·  narrow it with `scope` in bridge.toml"
@@ -135,7 +142,7 @@ final class MailboxPanel: NSWindowController {
 
         // Once per vendor per launch, say plainly what it will be able to read.
         let scope = box.effectiveScope(deskCwd: cwd)
-        if !MailboxPanel.acknowledged.contains(rt.name) {
+        if !rt.isLocal && !MailboxPanel.acknowledged.contains(rt.name) {
             let a = NSAlert()
             a.messageText = "\(rt.name) will read this directory"
             a.informativeText = "Sending this lets \(rt.name) read every file under:\n\n"

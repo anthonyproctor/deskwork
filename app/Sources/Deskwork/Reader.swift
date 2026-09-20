@@ -58,7 +58,40 @@ final class ReaderView: NSView {
         swap(to: l)
     }
 
-    func open(_ url: URL) {
+    /// Agents rewrite files while you are looking at them. Without this the
+    /// reader shows a snapshot from whenever you clicked, which is exactly the
+    /// wrong thing when the point is watching work happen.
+    private var watcher: DispatchSourceFileSystemObject?
+    private var watchedURL: URL?
+
+    private func watch(_ url: URL) {
+        watcher?.cancel(); watcher = nil
+        let fd = Darwin.open(url.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
+        src.setEventHandler { [weak self] in
+            guard let self, let u = self.watchedURL else { return }
+            // Editors and agents often replace rather than write in place, so
+            // re-open by path instead of trusting the old descriptor.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self.reload(u) }
+        }
+        src.setCancelHandler { Darwin.close(fd) }
+        src.resume()
+        watcher = src
+    }
+
+    private func reload(_ url: URL) {
+        let saved = (current as? NSScrollView)?.contentView.bounds.origin
+        open(url, rewatch: false)
+        if let s = saved, let sv = current as? NSScrollView {
+            sv.contentView.scroll(to: s)   // keep the reader where you were
+            sv.reflectScrolledClipView(sv.contentView)
+        }
+    }
+
+    func open(_ url: URL, rewatch: Bool = true) {
+        if rewatch { watchedURL = url; watch(url) }
         titleBar.stringValue = url.path
             .replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
 
@@ -95,11 +128,18 @@ final class ReaderView: NSView {
 
         let tv = NSTextView()
         tv.isEditable = false
-        tv.isRichText = false
         tv.drawsBackground = false
-        tv.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        let f = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        tv.font = f
         tv.textContainerInset = NSSize(width: 10, height: 8)
-        tv.string = text
+        // Shallow highlighting where it helps; plain text where it would guess.
+        if let hl = Highlight.attributed(text, ext: ext, font: f) {
+            tv.isRichText = true
+            tv.textStorage?.setAttributedString(hl)
+        } else {
+            tv.isRichText = false
+            tv.string = text
+        }
         let scroll = NSScrollView()
         scroll.documentView = tv
         scroll.hasVerticalScroller = true
