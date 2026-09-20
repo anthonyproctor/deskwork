@@ -183,6 +183,7 @@ Every test is a regression for a fault that actually shipped, not an invented ca
 ## Reading
 
 - [DESIGN.md](DESIGN.md) — the thesis, why existing tools cannot host it, the architecture, the milestones
+- [ROADMAP.md](ROADMAP.md) — what is next, what is deliberately not being built, and what would change the plan
 - [spikes/terminal-throughput/RESULT.md](spikes/terminal-throughput/RESULT.md) — the measurement behind choosing SwiftTerm over writing a renderer
 
 ## Built on
