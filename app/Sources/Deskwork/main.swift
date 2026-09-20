@@ -232,6 +232,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         flip.target = self
         deskMenu.addItem(flip)
         deskMenu.addItem(.separator())
+        let agentsItem = NSMenuItem(title: "Agents…", action: #selector(openAgents), keyEquivalent: "a")
+        agentsItem.keyEquivalentModifierMask = [.command, .shift]
+        agentsItem.target = self
+        deskMenu.addItem(agentsItem)
         let usage = NSMenuItem(title: "Usage…", action: #selector(openMeter), keyEquivalent: "u")
         usage.keyEquivalentModifierMask = [.command, .shift]
         usage.target = self
@@ -367,6 +371,40 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         installMenu()
         if let v = visible, let i = desks.firstIndex(where: { $0.name == v.desk.name }) {
             sidebar.select(i)
+        }
+    }
+
+    var agentsPanel: AgentsPanel?
+    @objc func openAgents() {
+        let dir = visible?.desk.resolvedCwd ?? desks.first?.resolvedCwd
+                  ?? FileManager.default.currentDirectoryPath
+        agentsPanel = AgentsPanel(projectDir: dir)
+        agentsPanel?.onDeskAdded = { [weak self] in self?.reloadDesks() }
+        agentsPanel?.onRunInDesk = { [weak self] runtime, cmd in
+            self?.runInDesk(runtime: runtime, command: cmd)
+        }
+        agentsPanel?.showWindow(nil)
+        agentsPanel?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Open a desk for this runtime and type a command into it. Used to hand
+    /// agent creation back to the vendor instead of rebuilding it here.
+    func runInDesk(runtime: String, command: String) {
+        let idx = desks.firstIndex { $0.runtime == runtime && $0.command == nil }
+            ?? desks.firstIndex { $0.name == "hub" }
+            ?? desks.firstIndex { $0.runtime == runtime }
+        guard let i = idx else {
+            let a = NSAlert()
+            a.messageText = "No \(runtime) desk to run that in"
+            a.informativeText = "Add one in Settings, then try again."
+            a.runModal(); return
+        }
+        show(i)
+        window.makeKeyAndOrderFront(nil)
+        // Let the CLI finish starting before typing at it.
+        let delay = sessions[desks[i].name]?.started == true ? 0.3 : 3.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.visible?.term.send(txt: command + "\n")
         }
     }
 
