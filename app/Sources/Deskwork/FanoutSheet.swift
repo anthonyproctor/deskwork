@@ -16,7 +16,7 @@ import DeskworkCore
 
 final class FanoutSheet: NSWindowController {
 
-    private let root: String
+    private var root: String
     private let rt: Bridge.Runtime
     private let box: Mailbox
     private let fromName: String
@@ -24,6 +24,9 @@ final class FanoutSheet: NSWindowController {
     private var onDone: (String, String) -> Void = { _, _ in }
 
     private var rows: [(dir: String, check: NSButton)] = []
+    private let rootLabel = NSTextField(labelWithString: "")
+    private let listStack = NSStackView()
+    private let exposureLine = NSTextField(wrappingLabelWithString: "")
     private let budgetLine = NSTextField(labelWithString: "")
     private let adviceLine = NSTextField(wrappingLabelWithString: "")
     private let runBtn = NSButton()
@@ -69,28 +72,32 @@ final class FanoutSheet: NSWindowController {
         guard let w = window else { return }
         let dirs = candidates()
 
+        _ = dirs
         let head = NSTextField(wrappingLabelString:
             "Ask \(rt.name) the same question of each directory separately, then once "
-            + "more with every answer as context.\n\n"
-            + "Each slice reads only its own directory, so this exposes LESS than one "
-            + "question pointed at \(((root as NSString).abbreviatingWithTildeInPath)).")
+            + "more with every answer as context.")
         head.font = .systemFont(ofSize: 11.5)
         head.textColor = .secondaryLabelColor
 
-        let list = NSStackView()
-        list.orientation = .vertical
-        list.alignment = .leading
-        list.spacing = 3
-        for d in dirs {
-            let b = NSButton(checkboxWithTitle: d, target: self, action: #selector(recount))
-            b.state = .on
-            list.addArrangedSubview(b)
-            rows.append((d, b))
-        }
-        if dirs.isEmpty {
-            list.addArrangedSubview(NSTextField(labelWithString:
-                "No subdirectories here to slice across."))
-        }
+        // The root is the privacy boundary, so it is shown and it is changeable.
+        // Defaulting to the desk's cwd is right for a desk that sits on one
+        // project and badly wrong for a desk that sits on a home directory —
+        // and the sheet cannot tell which it has.
+        rootLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        rootLabel.lineBreakMode = .byTruncatingMiddle
+        let pick = NSButton(title: "Choose…", target: self, action: #selector(chooseRoot))
+        pick.bezelStyle = .rounded
+        pick.controlSize = .small
+        let rootRow = NSStackView(views: [lbl("IN"), rootLabel, NSView(), pick])
+        rootRow.orientation = .horizontal
+        rootRow.distribution = .gravityAreas
+
+        exposureLine.font = .systemFont(ofSize: 11)
+
+        listStack.orientation = .vertical
+        listStack.alignment = .leading
+        listStack.spacing = 3
+        let list = listStack
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
@@ -136,7 +143,8 @@ final class FanoutSheet: NSWindowController {
         buttons.orientation = .horizontal
         buttons.distribution = .gravityAreas
 
-        let stack = NSStackView(views: [head, scroll, budgetLine, adviceLine, buttons])
+        let stack = NSStackView(views: [head, rootRow, scroll, exposureLine,
+                                        budgetLine, adviceLine, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -149,10 +157,76 @@ final class FanoutSheet: NSWindowController {
             stack.bottomAnchor.constraint(equalTo: w.contentView!.bottomAnchor, constant: -16),
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
             head.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            rootRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            exposureLine.widthAnchor.constraint(equalTo: stack.widthAnchor),
             adviceLine.widthAnchor.constraint(equalTo: stack.widthAnchor),
             buttons.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
+        reloadList()
+    }
+
+    private func lbl(_ s: String) -> NSTextField {
+        let t = NSTextField(labelWithString: s)
+        t.font = .systemFont(ofSize: 10, weight: .semibold)
+        t.textColor = .tertiaryLabelColor
+        return t
+    }
+
+    /// Re-read the root's subdirectories. Called on open and whenever the root
+    /// changes, so the checkbox list and the exposure warning never describe a
+    /// directory other than the one that will actually be read.
+    private func reloadList() {
+        for v in listStack.arrangedSubviews { v.removeFromSuperview() }
+        rows.removeAll()
+        rootLabel.stringValue = (root as NSString).abbreviatingWithTildeInPath
+
+        let dirs = candidates()
+        for d in dirs {
+            let b = NSButton(checkboxWithTitle: d, target: self, action: #selector(recount))
+            b.state = .on
+            listStack.addArrangedSubview(b)
+            rows.append((d, b))
+        }
+        if dirs.isEmpty {
+            listStack.addArrangedSubview(NSTextField(labelWithString:
+                "No subdirectories here to slice across."))
+        }
+
+        // A home or workspace root is almost never what was meant, and getting
+        // it wrong hands another vendor everything you own. Say so loudly
+        // rather than relying on the person to read the paths.
+        let home = NSHomeDirectory()
+        let broad = root == home
+            || dirs.count > 12
+            || dirs.contains(where: { ["Documents", "Desktop", "Library", "documents"].contains($0) })
+        if broad && !rt.isLocal {
+            exposureLine.stringValue = "\(rt.name) would read every file under this whole "
+                + "tree. That is almost certainly wider than you meant — point it at one "
+                + "project."
+            exposureLine.textColor = .systemRed
+        } else if rt.isLocal {
+            exposureLine.stringValue = "\(rt.name) runs on this machine; nothing is sent to a vendor."
+            exposureLine.textColor = .secondaryLabelColor
+        } else {
+            exposureLine.stringValue = "Each slice reads only its own directory, so this "
+                + "exposes less than one question pointed at the whole tree."
+            exposureLine.textColor = .secondaryLabelColor
+        }
         recount()
+    }
+
+    @objc private func chooseRoot() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: root)
+        panel.prompt = "Use as root"
+        panel.message = "Pick the directory to slice across. "
+            + "Everything under it is readable by \(rt.name)."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        root = url.path
+        reloadList()
     }
 
     @objc private func selectAll_() { for r in rows { r.check.state = .on }; recount() }
