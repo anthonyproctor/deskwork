@@ -2,6 +2,7 @@ import AppKit
 
 /// Read the thread, write the next message, get an answer from the other vendor.
 final class MailboxPanel: NSWindowController {
+    static var acknowledged = Set<String>()
     private let thread = NSTextView()
     private let compose = NSTextView()
     private let target = NSPopUpButton()
@@ -9,6 +10,7 @@ final class MailboxPanel: NSWindowController {
     private let readonlyNote = NSTextField(labelWithString: "")
     private let sendBtn = NSButton()
     private let spinner = NSProgressIndicator()
+    private let scopeNote = NSTextField(labelWithString: "")
     private var box = Mailbox.load()
     private var cwd = NSHomeDirectory()
     private var fromName = "you"
@@ -64,10 +66,13 @@ final class MailboxPanel: NSWindowController {
 
         let tScroll = scrolled(thread, editable: false)
         let cScroll = scrolled(compose, editable: true)
+        scopeNote.font = .systemFont(ofSize: 10.5)
+        scopeNote.textColor = .secondaryLabelColor
+        scopeNote.lineBreakMode = .byTruncatingMiddle
         let row = NSStackView(views: [lbl("ASK"), target, readonlyNote, NSView(), spinner, reloadBtn, sendBtn])
         row.orientation = .horizontal; row.spacing = 8
 
-        let stack = NSStackView(views: [lbl("THREAD"), tScroll, lbl("YOUR MESSAGE"), cScroll, row, status])
+        let stack = NSStackView(views: [lbl("THREAD"), tScroll, lbl("YOUR MESSAGE"), cScroll, row, scopeNote, status])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -80,6 +85,7 @@ final class MailboxPanel: NSWindowController {
             tScroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
             cScroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
             row.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            scopeNote.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
             cScroll.heightAnchor.constraint(equalToConstant: 160),
             tScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 400),
         ])
@@ -98,8 +104,13 @@ final class MailboxPanel: NSWindowController {
         }
         // Never overstate the guarantee.
         readonlyNote.stringValue = rt.readOnlyEnforced
-            ? "read-only enforced by \(rt.bin)"
-            : "read-only requested in the prompt only, not enforced"
+            ? "cannot write"
+            : "read-only asked for in the prompt only, not enforced"
+        // The honest framing: read-only stops writes, not reads.
+        let scope = box.effectiveScope(deskCwd: cwd)
+        scopeNote.stringValue = "\(rt.name) will be able to READ everything under "
+            + (scope as NSString).abbreviatingWithTildeInPath
+            + "  ·  narrow it with `scope` in bridge.toml"
         reload()
     }
 
@@ -120,6 +131,21 @@ final class MailboxPanel: NSWindowController {
         guard let rt = selectedRuntime else { return }
         let msg = compose.string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !msg.isEmpty else { return }
+
+        // Once per vendor per launch, say plainly what it will be able to read.
+        let scope = box.effectiveScope(deskCwd: cwd)
+        if !MailboxPanel.acknowledged.contains(rt.name) {
+            let a = NSAlert()
+            a.messageText = "\(rt.name) will read this directory"
+            a.informativeText = "Sending this lets \(rt.name) read every file under:\n\n"
+                + (scope as NSString).abbreviatingWithTildeInPath
+                + "\n\nIt cannot write, but read-only is not private. If that tree holds "
+                + "anything you would not hand to \(rt.name), set `scope` in "
+                + "~/.config/deskwork/bridge.toml to a narrower directory first."
+            a.addButton(withTitle: "Send"); a.addButton(withTitle: "Cancel")
+            guard a.runModal() == .alertFirstButtonReturn else { return }
+            MailboxPanel.acknowledged.insert(rt.name)
+        }
         compose.string = ""
         sendBtn.isEnabled = false; spinner.startAnimation(nil)
         status.stringValue = "asking \(rt.name)… the whole thread goes with it"

@@ -104,7 +104,20 @@ Two agents from different companies hand work back and forth through an **append
 - **Vendor-agnostic.** Anything with a headless mode can join. No adapter, no SDK, no coupling to anyone's release train.
 - **The thread is the context.** Every headless invocation starts with no memory, so the file carries the conversation. This is why it appends and never replaces — overwriting a thread once destroyed a long exchange by replacing it with an answer from a session that had never read it.
 - **Inspectable.** The exchange is a file you can read, diff and keep.
-- **The responder is read-only**, enforced by the vendor's own flag rather than asked for politely: `claude -p --permission-mode plan`, `codex exec --sandbox read-only`. Where a vendor offers no such flag, Deskwork says so in the interface instead of implying a guarantee it cannot make.
+- **The responder cannot write**, enforced by the vendor's own flag rather than asked for politely: `claude -p --permission-mode plan`, `codex exec --sandbox read-only`. Where a vendor offers no such flag, Deskwork says so in the interface instead of implying a guarantee it cannot make.
+
+### Read-only is not private
+
+This is the part worth reading twice. Those flags stop the other vendor **writing**. They do nothing about **reading**. A responder runs with a working directory, and it can read every file underneath it — in testing, a single review sent Codex grepping through the entire workspace, transcripts included.
+
+So the directory you point it at is a privacy boundary, not a convenience. Deskwork shows you that path before you send, and asks once per vendor per launch to confirm it. Narrow it with `scope`:
+
+```toml
+# ~/.config/deskwork/bridge.toml
+scope = "~/src/api"     # the responder sees only this, not your whole home
+```
+
+If the tree holds anything you would not hand to that vendor, set `scope` before you send.
 
 Threads land in `~/.local/share/deskwork/mail/`. If you already have a handoff script, point Deskwork at it in `~/.config/deskwork/bridge.toml` and it will use yours instead.
 

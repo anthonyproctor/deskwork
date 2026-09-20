@@ -185,10 +185,18 @@ thread**, and that beats a protocol on four counts:
   thread once destroyed a long exchange by overwriting it with an answer from a
   session that had never read it.
 - **Inspectable.** The whole exchange is a file you can read, diff and keep.
-- **The responder is read-only**, enforced by the vendor's own flag rather than
+- **The responder cannot write**, enforced by the vendor's own flag rather than
   asked for politely: `claude -p --permission-mode plan`,
   `codex exec --sandbox read-only`. Where a vendor has no such flag, Deskwork
   says so in the UI instead of implying a guarantee it cannot make.
+- **But read-only is not private, and that is the real risk.** Those flags block
+  writes and nothing else. The responder reads everything under its working
+  directory. The first live test of this bridge sent Codex grepping through the
+  whole workspace, transcripts included, to answer a question about one script.
+  The working directory is therefore a privacy boundary: Deskwork shows it
+  before sending, confirms it once per vendor, and `scope` in bridge.toml
+  narrows it. An earlier draft of this document described the responder as
+  simply "read-only", which overstated the guarantee.
 
 Credit where it is due: this pattern is not invented here. It comes from a
 working hand-rolled setup — a pair of markdown files and a shell script — that

@@ -27,22 +27,34 @@ enum Bridge {
     struct Runtime {
         let name: String
         let bin: String
-        /// argv for a headless, read-only answer.
-        let argv: (String) -> [String]
-        /// Whether read-only is actually ENFORCED by a vendor flag, or merely
-        /// requested in the prompt. Shown in the UI; never overstated.
+        /// argv for a headless, read-only answer. `out` is a file the runtime
+        /// may write its FINAL message to; without it some CLIs return their
+        /// entire working transcript, which buries the answer.
+        let argv: (String, String?) -> [String]
+        /// Whether read-only is ENFORCED by a vendor flag or merely requested in
+        /// the prompt. Shown in the UI; never overstated.
         let readOnlyEnforced: Bool
+        /// True if the CLI can write just its final message to a file.
+        let hasFinalMessageFlag: Bool
     }
 
     static let known: [Runtime] = [
         Runtime(name: "claude", bin: "claude",
-                argv: { ["-p", $0, "--permission-mode", "plan"] }, readOnlyEnforced: true),
+                argv: { p, _ in ["-p", p, "--permission-mode", "plan"] },
+                readOnlyEnforced: true, hasFinalMessageFlag: false),
+        // `-o` keeps the answer out of the transcript spew. Without it a single
+        // review returned 46KB of grep output with the answer buried at the end.
         Runtime(name: "codex", bin: "codex",
-                argv: { ["exec", "--sandbox", "read-only", $0] }, readOnlyEnforced: true),
+                argv: { p, out in
+                    var a = ["exec", "--sandbox", "read-only"]
+                    if let out { a += ["-o", out] }
+                    a.append(p); return a
+                },
+                readOnlyEnforced: true, hasFinalMessageFlag: true),
         Runtime(name: "gemini", bin: "gemini",
-                argv: { ["-p", $0] }, readOnlyEnforced: false),
+                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false),
         Runtime(name: "copilot", bin: "copilot",
-                argv: { ["-p", $0] }, readOnlyEnforced: false),
+                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false),
     ]
 
     static func available() -> [Runtime] { known.filter { DeskConfig.which($0.bin) != nil } }
@@ -73,6 +85,11 @@ struct Mailbox {
     var dir: String
     /// Optional: an existing runner script (a user who already built one).
     var runner: String?
+    /// The directory the RESPONDER runs in. This is a privacy boundary, not a
+    /// convenience: read-only blocks writes, not reads, so the other vendor can
+    /// read every file under this path. Defaults to the desk's own cwd; set
+    /// `scope` in bridge.toml to narrow it.
+    var scope: String?
     var legacyOutbound: String?
     var legacyInbound: String?
 
@@ -96,6 +113,7 @@ struct Mailbox {
         }
         return Mailbox(dir: NSString(string: kv["dir"] ?? defaultDir).expandingTildeInPath,
                        runner: kv["runner"],
+                       scope: kv["scope"].map { NSString(string: $0).expandingTildeInPath },
                        legacyOutbound: kv["outbound"],
                        legacyInbound: kv["inbound"])
     }
@@ -123,8 +141,12 @@ struct Mailbox {
     }
 
     /// Ask `to` to answer, with the whole thread as context. Appends the reply.
-    func ask(from: String, to rt: Bridge.Runtime, message: String, cwd: String,
+    /// Where the responder will actually be able to read.
+    func effectiveScope(deskCwd: String) -> String { scope ?? deskCwd }
+
+    func ask(from: String, to rt: Bridge.Runtime, message: String, cwd deskCwd: String,
              completion: @escaping (Result<String, BridgeError>) -> Void) {
+        let cwd = effectiveScope(deskCwd: deskCwd)
         let path = threadPath(from, rt.name)
         append(message, who: from, to: path)
         let thread = read(path)
@@ -134,9 +156,11 @@ struct Mailbox {
             completion(.failure(BridgeError(message: "\(rt.bin) is not on PATH"))); return
         }
         DispatchQueue.global(qos: .userInitiated).async {
+            let finalFile = rt.hasFinalMessageFlag
+                ? NSTemporaryDirectory() + "deskwork-reply-\(UUID().uuidString).txt" : nil
             let p = Process()
             p.executableURL = URL(fileURLWithPath: bin)
-            p.arguments = rt.argv(prompt)
+            p.arguments = rt.argv(prompt, finalFile)
             p.currentDirectoryURL = URL(fileURLWithPath: cwd)
             // A nested agent session refuses to start; clear the marker.
             var env = ProcessInfo.processInfo.environment
@@ -152,7 +176,14 @@ struct Mailbox {
             let d = out.fileHandleForReading.readDataToEndOfFile()
             let e = err.fileHandleForReading.readDataToEndOfFile()
             p.waitUntilExit()
-            var reply = String(data: d, encoding: .utf8) ?? ""
+            var reply = ""
+            if let f = finalFile, let only = try? String(contentsOfFile: f, encoding: .utf8),
+               !only.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                reply = only                       // just the answer
+                try? FileManager.default.removeItem(atPath: f)
+            } else {
+                reply = String(data: d, encoding: .utf8) ?? ""
+            }
             if reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 reply = String(data: e, encoding: .utf8) ?? "(no output)"
             }
