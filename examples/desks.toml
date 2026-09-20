@@ -1,0 +1,38 @@
+# Example desk configuration.
+#
+# A desk is a persistent specialist: its own agent definition, its own memory on
+# disk, its own pinned model. Sessions are disposable; the desk is not.
+#
+# `agent` names a profile the runtime already understands. Deskwork does not
+# reimplement agents, it launches them.
+
+[desk.notes]
+agent   = "research-copilot"
+runtime = "claude"
+model   = "sonnet"
+cwd     = "~/notes"
+tags    = ["low-cost"]
+
+[desk.api]
+agent   = "backend-copilot"
+runtime = "claude"
+model   = "opus"
+cwd     = "~/src/api"
+tags    = ["primary"]
+
+[desk.review]
+# A second vendor, kept deliberately for cross-checking the primary one.
+agent   = "reviewer"
+runtime = "codex"
+cwd     = "~/src/api"
+tags    = ["second-opinion"]
+
+[meter]
+# Warn loudly as the weekly window fills. Percentages of the vendor limit.
+warn_at  = 75
+alarm_at = 90
+
+[router]
+# When the preferred runtime is above warn_at and another is below this, suggest
+# moving the next job across.
+prefer_idle_below = 40

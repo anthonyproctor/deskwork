@@ -1,0 +1,7 @@
+# Nothing from the private workspace ever lands here.
+*.jsonl
+*-snapshot.json
+.DS_Store
+target/
+node_modules/
+.venv/
