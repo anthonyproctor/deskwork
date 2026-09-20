@@ -1,0 +1,110 @@
+import AppKit
+
+/// What a stranger sees the first time they open Deskwork.
+///
+/// The job is to answer three questions before they touch anything: what is a
+/// desk, what did you find on my machine, and what happens if I press the
+/// button. It writes a working config from whatever CLIs are actually
+/// installed, so nobody starts at an empty window or a blank TOML file.
+final class WelcomeWindow: NSWindowController {
+    var onFinish: (() -> Void)?
+    private var checks: [(Bridge.Runtime, Bool)] = []
+
+    convenience init() {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        self.init(window: w)
+        w.title = "Welcome to Deskwork"
+        build()
+        w.center()
+    }
+
+    private func h1(_ s: String) -> NSTextField {
+        let l = NSTextField(labelWithString: s)
+        l.font = .systemFont(ofSize: 22, weight: .semibold)
+        return l
+    }
+    private func body(_ s: String) -> NSTextField {
+        let l = NSTextField(wrappingLabelWithString: s)
+        l.font = .systemFont(ofSize: 12.5)
+        l.textColor = .secondaryLabelColor
+        l.preferredMaxLayoutWidth = 580
+        return l
+    }
+    private func caps(_ s: String) -> NSTextField {
+        let l = NSTextField(labelWithString: s)
+        l.font = .systemFont(ofSize: 9.5, weight: .semibold)
+        l.textColor = .tertiaryLabelColor
+        return l
+    }
+
+    private func build() {
+        guard let c = window?.contentView else { return }
+        checks = Bridge.known.map { ($0, DeskConfig.which($0.bin) != nil) }
+        let found = checks.filter { $0.1 }
+
+        var views: [NSView] = [
+            h1("Deskwork"),
+            body("A desk is a persistent specialist — its own agent, memory and model — "
+               + "with a long-lived terminal of its own. Sessions are disposable. The desk is not.\n\n"
+               + "Deskwork never reimplements an agent. Each desk launches the vendor's own CLI "
+               + "in a real terminal, so your existing config, hooks and memory work untouched."),
+            caps("FOUND ON THIS MACHINE"),
+        ]
+
+        for (rt, ok) in checks {
+            let line = NSTextField(labelWithString:
+                (ok ? "✓  " : "✗  ") + rt.name
+                + (ok ? "   \((DeskConfig.which(rt.bin) ?? "") as String)" : "   not on PATH"))
+            line.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+            line.textColor = ok ? .labelColor : .tertiaryLabelColor
+            views.append(line)
+        }
+
+        if found.isEmpty {
+            views.append(body("No agent CLIs were found. Install at least one — Claude Code, "
+                            + "Codex, Gemini CLI or Copilot CLI — then reopen Deskwork. "
+                            + "A plain shell desk will be created in the meantime."))
+        } else {
+            views.append(body("Deskwork will write a starter config with "
+                + found.map(\.0.name).joined(separator: ", ")
+                + ", plus a plain shell desk so opening the app costs nothing. "
+                + "Edit it any time in Settings, or by hand at ~/.config/deskwork/desks.toml."))
+        }
+
+        if found.count >= 2 {
+            views.append(caps("AGENT MAIL"))
+            views.append(body("You have more than one vendor installed, so the bridge works: "
+                + "put a question to a second agent and it answers with the whole thread as "
+                + "context, in an append-only markdown file you can read and keep. "
+                + "The responder runs read-only where the vendor supports it. cmd-shift-m."))
+        }
+
+        let go = NSButton(title: found.isEmpty ? "Continue" : "Create my desks",
+                          target: self, action: #selector(finish))
+        go.bezelStyle = .rounded
+        go.keyEquivalent = "\r"
+        views.append(go)
+
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 10
+        stack.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 24, right: 28)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        c.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: c.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: c.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: c.trailingAnchor),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: c.bottomAnchor),
+        ])
+    }
+
+    @objc private func finish() {
+        DeskConfig.writeStarter()
+        UIState.markSeenWelcome()
+        close()
+        onFinish?()
+    }
+}

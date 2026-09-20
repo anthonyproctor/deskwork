@@ -8,6 +8,9 @@ struct Desk {
     var model: String?
     var cwd: String?
     var command: String?     // escape hatch: run this verbatim instead
+    /// Desks are not a flat list. `study` belongs under `school` next to `mba`.
+    /// Ungrouped desks sit at the top, above the first group header.
+    var group: String?
 
     /// argv for the login shell. Deskwork never reimplements an agent — it
     /// launches the vendor's own CLI so that CLI's config, hooks, memory and
@@ -37,6 +40,63 @@ struct Desk {
 enum DeskConfig {
     static var path: String {
         NSString(string: "~/.config/deskwork/desks.toml").expandingTildeInPath
+    }
+
+    /// First run: leave a working config on disk rather than an empty window.
+    /// Only desks whose CLI is actually installed get written.
+    static func writeStarter() {
+        let dir = (path as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        guard !FileManager.default.fileExists(atPath: path) else { return }
+
+        var out = """
+        # Deskwork desks. A desk is a persistent specialist; sessions are disposable.
+        # Written on first run. Edit freely, then restart Deskwork.
+
+        [desk.shell]
+        # A plain shell first, so opening the app costs nothing.
+        command = "exec zsh -l"
+        cwd = "~"
+
+        """
+        for (runtime, bin) in [("claude", "claude"), ("codex", "codex"), ("gemini", "gemini"), ("copilot", "copilot")] {
+            guard which(bin) != nil else { continue }
+            out += """
+
+            [desk.\(runtime)]
+            runtime = "\(runtime)"
+            cwd = "~"
+
+            """
+        }
+        out += """
+
+        # An agent-backed desk, once you have one defined in that CLI:
+        # [desk.notes]
+        # agent   = "research-copilot"
+        # runtime = "claude"
+        # cwd     = "~/notes"
+
+        # `command` is the escape hatch: run anything verbatim, including your own
+        # wrapper that already handles resume-vs-new.
+        # [desk.api]
+        # command = "~/bin/desk api"
+        # cwd     = "~/src/api"
+
+        """
+        try? out.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
+    /// Is this CLI on PATH? Used so the starter config only lists real runtimes.
+    static func which(_ bin: String) -> String? {
+        let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")
+            .split(separator: ":").map(String.init)
+            + [NSString(string: "~/.local/bin").expandingTildeInPath, "/opt/homebrew/bin", "/usr/local/bin"]
+        for p in paths {
+            let full = (p as NSString).appendingPathComponent(bin)
+            if FileManager.default.isExecutableFile(atPath: full) { return full }
+        }
+        return nil
     }
 
     static func load() -> [Desk] {
@@ -69,6 +129,7 @@ enum DeskConfig {
             case "model":   current?.model = val
             case "cwd":     current?.cwd = val
             case "command": current?.command = val
+            case "group":   current?.group = val
             default: break
             }
         }

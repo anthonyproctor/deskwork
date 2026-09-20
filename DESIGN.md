@@ -165,23 +165,48 @@ store. Two things a naive reader gets wrong:
 The meter is a bar, a projection, and a verdict. It shouts when the week is nearly
 spent, because that is the only moment the information changes behaviour.
 
-## 7. The router
+## 7. The bridge, and the router
 
 This is the part that does not exist anywhere, and it only becomes possible once
 one window holds several vendors.
+
+### The bridge is a mailbox, not a protocol
+
+The obvious design is a wire protocol. It is the wrong one. Two agents from
+different companies hand work back and forth through an **append-only markdown
+thread**, and that beats a protocol on four counts:
+
+- **Vendor-agnostic.** Anything with a headless mode can join. No adapter, no
+  SDK, no coupling to anybody's release train. Compare ACP, where the Claude
+  adapter runs a Claude Code bundled inside the Agent SDK rather than the CLI on
+  your machine (section 2).
+- **The thread IS the context.** Every headless invocation starts with no memory,
+  so the file carries the conversation. This is why it must APPEND. Replacing the
+  thread once destroyed a long exchange by overwriting it with an answer from a
+  session that had never read it.
+- **Inspectable.** The whole exchange is a file you can read, diff and keep.
+- **The responder is read-only**, enforced by the vendor's own flag rather than
+  asked for politely: `claude -p --permission-mode plan`,
+  `codex exec --sandbox read-only`. Where a vendor has no such flag, Deskwork
+  says so in the UI instead of implying a guarantee it cannot make.
+
+Credit where it is due: this pattern is not invented here. It comes from a
+working hand-rolled setup — a pair of markdown files and a shell script — that
+had already learned the append rule the hard way. Deskwork generalises it to
+arbitrary runtime pairs and ships it built in, so a new user needs nothing but
+the CLIs they already have.
+
+Three moves fall out of the same primitive: a **second opinion** (same question,
+different vendor), a **handoff** (move a thread across with context intact), and
+a **review** (one agent reads another's diff).
+
+### The router
 
 The meter knows each vendor's remaining budget. The desk list knows which runtime
 each desk uses. So the console can say the useful thing:
 
 > Claude's weekly window is 84% gone and it is Wednesday. Codex is barely touched.
 > Run this one on Codex.
-
-Beyond routing, three collaboration moves that are all currently manual:
-
-- **Second opinion.** Same prompt to two runtimes, answers side by side.
-- **Handoff.** Move a thread from one runtime to another with context intact.
-- **Review.** One agent reads another's diff. This works — it is how a bad token
-  accounting script got caught — but today it means copying text between windows.
 
 ## 8. What is already solved
 

@@ -23,73 +23,27 @@ final class DeskSession {
     func startIfNeeded() {
         guard !started else { return }
         started = true
+
+        // A CLI can take several seconds to boot. Paint something immediately,
+        // written straight to the view rather than through the pty, so a blank
+        // screen never reads as "nothing happened".
+        term.feed(text: "\u{1b}[2J\u{1b}[H"
+            + "\u{1b}[36m●\u{1b}[0m starting \u{1b}[1m\(desk.name)\u{1b}[0m\r\n"
+            + "\u{1b}[2m  \(desk.launchCommand())\r\n"
+            + "  in \(desk.resolvedCwd)\u{1b}[0m\r\n\r\n")
+
         var env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
         // Hooks and desk-scoped behaviour key off this, same as the shell wrapper.
         env.append("CLAUDE_DESK=\(desk.name)")
         env.append("DESKWORK=1")
         term.startProcess(executable: "/bin/zsh", args: ["-l"], environment: env)
 
-        // Land in the desk's directory, then launch its CLI.
+        // Land in the desk's directory, then launch its CLI. No `clear` here —
+        // wiping the screen would throw away the only feedback there is.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
             guard let self else { return }
-            self.term.send(txt: "cd \(self.desk.resolvedCwd.replacingOccurrences(of: " ", with: "\\ ")) && clear && \(self.desk.launchCommand())\n")
-        }
-    }
-}
-
-// MARK: - sidebar
-
-final class SidebarView: NSView {
-    var onSelect: ((Int) -> Void)?
-    private var buttons: [NSButton] = []
-    private var selected = -1
-
-    func build(desks: [Desk]) {
-        subviews.forEach { $0.removeFromSuperview() }
-        buttons = []
-
-        let title = NSTextField(labelWithString: "DESKS")
-        title.font = .systemFont(ofSize: 10, weight: .semibold)
-        title.textColor = .tertiaryLabelColor
-        title.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(title)
-        NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: topAnchor, constant: 14),
-            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-        ])
-
-        var prev: NSView = title
-        for (i, d) in desks.enumerated() {
-            let b = NSButton(title: d.name, target: self, action: #selector(tapped(_:)))
-            b.tag = i
-            b.bezelStyle = .inline
-            b.isBordered = false
-            b.contentTintColor = .secondaryLabelColor
-            b.alignment = .left
-            b.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-            b.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(b)
-            NSLayoutConstraint.activate([
-                b.topAnchor.constraint(equalTo: prev.bottomAnchor, constant: i == 0 ? 10 : 2),
-                b.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-                b.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-                b.heightAnchor.constraint(equalToConstant: 24),
-            ])
-            buttons.append(b)
-            prev = b
-        }
-    }
-
-    @objc private func tapped(_ sender: NSButton) { select(sender.tag); onSelect?(sender.tag) }
-
-    func select(_ i: Int) {
-        selected = i
-        for (j, b) in buttons.enumerated() {
-            let on = j == i
-            b.contentTintColor = on ? .controlAccentColor : .secondaryLabelColor
-            b.font = .monospacedSystemFont(ofSize: 13, weight: on ? .bold : .regular)
-            // A running desk keeps its marker even when it is not the visible one.
-            b.title = (on ? "● " : "○ ") + b.title.replacingOccurrences(of: "● ", with: "").replacingOccurrences(of: "○ ", with: "")
+            let dir = self.desk.resolvedCwd.replacingOccurrences(of: " ", with: "\\ ")
+            self.term.send(txt: "cd \(dir) && \(self.desk.launchCommand())\n")
         }
     }
 }
@@ -106,11 +60,19 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     var desks: [Desk] = []
     var sessions: [String: DeskSession] = [:]
     var visible: DeskSession?
+    var ui = UIState.load()
+    let deskScroll = NSScrollView()
+    var rail: NSSplitView!
 
     func applicationDidFinishLaunching(_ n: Notification) {
         desks = DeskConfig.load()
+        let firstRun = desks.isEmpty || !ui.seenWelcome
         if desks.isEmpty {
-            desks = [Desk(name: "shell", command: "echo 'No desks configured.'; echo 'Create \\(DeskConfig.path)'; exec zsh -l")]
+            DeskConfig.writeStarter()
+            desks = DeskConfig.load()
+        }
+        if desks.isEmpty {
+            desks = [Desk(name: "shell", command: "exec zsh -l")]
         }
 
         // Size to the screen so the resize corner is always reachable. The window
@@ -127,17 +89,15 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 
         // Left rail: desks on top, folder tree beneath, with a DRAGGABLE divider.
         // A fixed desk height starved the tree once the list got long.
-        let deskScroll = NSScrollView()
         deskScroll.documentView = sidebar
         deskScroll.hasVerticalScroller = true
         deskScroll.drawsBackground = false
         deskScroll.automaticallyAdjustsContentInsets = false
 
-        let rail = NSSplitView()
+        rail = NSSplitView()
         rail.isVertical = false          // stacked, so the divider is horizontal
         rail.dividerStyle = .thin
-        rail.addArrangedSubview(deskScroll)
-        rail.addArrangedSubview(tree)
+        applyRailOrder()
         rail.wantsLayer = true
         rail.layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
 
@@ -153,19 +113,22 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             _ = w
             self.split.setPosition(240, ofDividerAt: 0)
             // Desks get a third of the rail, the tree keeps the rest.
-            rail.setPosition(min(CGFloat(40 + self.desks.count * 26), h * 0.38), ofDividerAt: 0)
+            self.rail.setPosition(min(self.sidebar.contentHeight, h * 0.45), ofDividerAt: 0)
         }
 
         tree.onOpen = { [weak self] url in self?.openReader(url) }
 
+        sidebar.collapsed = Set(ui.collapsed)
         sidebar.build(desks: desks)
-        sidebar.frame = NSRect(x: 0, y: 0, width: 200, height: CGFloat(40 + desks.count * 26))
+        sidebar.onToggleGroup = { [weak self] g in self?.toggleGroup(g) }
+        sidebar.onRenameGroup = { [weak self] g in self?.renameGroup(g) }
         sidebar.onSelect = { [weak self] i in self?.show(i) }
 
         window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         installMenu()
         show(0)
+        if firstRun { showWelcome() }
     }
 
     /// Swap which desk is on screen. The others keep running.
@@ -200,6 +163,13 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem)
         let appMenu = NSMenu()
+        let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        prefs.target = self
+        appMenu.addItem(prefs)
+        let welcome = NSMenuItem(title: "Show Welcome", action: #selector(showWelcome), keyEquivalent: "")
+        welcome.target = self
+        appMenu.addItem(welcome)
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Deskwork", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
@@ -214,12 +184,105 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let refresh = NSMenuItem(title: "Refresh Files", action: #selector(refreshTree), keyEquivalent: "r")
         refresh.target = self
         deskMenu.addItem(refresh)
+        let flip = NSMenuItem(title: "Tree on Top", action: #selector(toggleTreePosition), keyEquivalent: "t")
+        flip.target = self
+        deskMenu.addItem(flip)
+        deskMenu.addItem(.separator())
+        let mail = NSMenuItem(title: "Agent Mail…", action: #selector(openMailbox), keyEquivalent: "m")
+        mail.keyEquivalentModifierMask = [.command, .shift]
+        mail.target = self
+        deskMenu.addItem(mail)
         deskItem.submenu = deskMenu
         NSApp.mainMenu = main
     }
 
     @objc func jump(_ sender: NSMenuItem) { show(sender.tag) }
     @objc func refreshTree() { tree.refresh() }
+
+    /// The cross-vendor bridge: drive the mailbox rather than invent a protocol.
+    var settings: SettingsWindow?
+    var welcome: WelcomeWindow?
+
+    @objc func openSettings() {
+        settings = SettingsWindow()
+        settings?.onSaved = { [weak self] in self?.reloadDesks() }
+        settings?.showWindow(nil)
+        settings?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc func showWelcome() {
+        welcome = WelcomeWindow()
+        welcome?.onFinish = { [weak self] in self?.reloadDesks() }
+        welcome?.showWindow(nil)
+        welcome?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Config changed under us: rebuild the rail, keep running desks alive.
+    func reloadDesks() {
+        let fresh = DeskConfig.load()
+        guard !fresh.isEmpty else { return }
+        desks = fresh
+        sidebar.build(desks: desks)
+        installMenu()
+        if let v = visible, let i = desks.firstIndex(where: { $0.name == v.desk.name }) {
+            sidebar.select(i)
+        }
+    }
+
+    var mailPanel: MailboxPanel?
+    @objc func openMailbox() {
+        let from = visible?.desk.name ?? "you"
+        let cwd = visible?.desk.resolvedCwd ?? NSHomeDirectory()
+        if mailPanel == nil { mailPanel = MailboxPanel(cwd: cwd, from: from) }
+        mailPanel?.showWindow(nil)
+        mailPanel?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Desks above the tree, or the tree above the desks. Persisted.
+    func applyRailOrder() {
+        rail.arrangedSubviews.forEach { rail.removeArrangedSubview($0); $0.removeFromSuperview() }
+        if ui.treeOnTop {
+            rail.addArrangedSubview(tree); rail.addArrangedSubview(deskScroll)
+        } else {
+            rail.addArrangedSubview(deskScroll); rail.addArrangedSubview(tree)
+        }
+    }
+
+    @objc func toggleTreePosition() {
+        ui.treeOnTop.toggle(); ui.save()
+        applyRailOrder()
+        let h = window.contentView?.bounds.height ?? 800
+        rail.setPosition(ui.treeOnTop ? h * 0.55 : min(sidebar.contentHeight, h * 0.45), ofDividerAt: 0)
+    }
+
+    func toggleGroup(_ g: String) {
+        if sidebar.collapsed.contains(g) { sidebar.collapsed.remove(g) } else { sidebar.collapsed.insert(g) }
+        ui.collapsed = Array(sidebar.collapsed); ui.save()
+        sidebar.build(desks: desks)
+    }
+
+    /// Renaming writes back to the config, so the change survives a restart.
+    func renameGroup(_ g: String) {
+        let a = NSAlert()
+        a.messageText = "Rename group"
+        a.informativeText = "Renames it in ~/.config/deskwork/desks.toml."
+        a.addButton(withTitle: "Rename"); a.addButton(withTitle: "Cancel")
+        let f = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        f.stringValue = g
+        a.accessoryView = f
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        let new = f.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !new.isEmpty, new != g else { return }
+
+        if let text = try? String(contentsOfFile: DeskConfig.path, encoding: .utf8) {
+            let updated = text.replacingOccurrences(of: "group = \"\(g)\"", with: "group = \"\(new)\"")
+            try? updated.write(toFile: DeskConfig.path, atomically: true, encoding: .utf8)
+        }
+        for i in desks.indices where desks[i].group == g { desks[i].group = new }
+        if sidebar.collapsed.remove(g) != nil { sidebar.collapsed.insert(new) }
+        ui.collapsed = Array(sidebar.collapsed); ui.save()
+        sidebar.build(desks: desks)
+    }
 
     /// Files open in their own window. Keeps the main layout to two panes and
     /// means you can leave a PDF up beside the desk that is working on it.
