@@ -62,7 +62,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         rail.dividerStyle = .thin
         applyRailOrder()
         rail.wantsLayer = true
-        rail.layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
+        Theme.paint(rail, Theme.ui.sidebar)
 
         split.delegate = self
         split.isVertical = true
@@ -115,10 +115,15 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onRevealAgent = { [weak self] i in self?.revealAgent(i) }
         sidebar.onSelect = { [weak self] i in self?.show(i) }
 
+        // Set the appearance BEFORE showing: every semantic colour in the app
+        // resolves off it, so flipping after the fact repaints everything.
+        Theme.apply(to: window)
+        Theme.paint(host, Theme.ui.editor)
         window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         installMenu()
         watchPaneClicks()
+        watchSystemAppearance()
         // The update sheet names what a relaunch is about to end. Only the
         // controller knows which desks have live processes.
         SelfUpdate.runningDesks = { [weak self] in
@@ -481,6 +486,35 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// handles `undo:` itself and this never fires; anywhere else — the tree,
     /// the desk list, a terminal — it means "put that file back".
     @objc func undo(_ sender: Any?) { undoMove() }
+
+    /// Follow the OS light/dark switch when the theme is on "system".
+    ///
+    /// The terminals are repainted explicitly: SwiftTerm holds its colours as
+    /// concrete values rather than semantic ones, so unlike the rest of the UI
+    /// it does not follow the appearance on its own.
+    func watchSystemAppearance() {
+        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+            guard let self else { return }
+            let was = Theme.isDark
+            Theme.invalidate()
+            guard Theme.isDark != was else { return }
+            DispatchQueue.main.async {
+                Theme.apply(to: self.window)
+                Theme.paint(self.rail, Theme.ui.sidebar)
+                Theme.paint(self.host, Theme.ui.editor)
+                for s in self.sessions.values {
+                    for p in s.panes {
+                        Theme.apply(to: p.term)
+                        p.box.needsDisplay = true
+                    }
+                }
+                self.sidebar.restyle()
+                self.tree.restyle()
+                self.meter.restyle()
+            }
+        }
+    }
+    var appearanceObserver: NSKeyValueObservation?
 
     // MARK: - panes
 

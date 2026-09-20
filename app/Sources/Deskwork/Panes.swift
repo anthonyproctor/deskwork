@@ -113,7 +113,7 @@ final class PaneBox: NSView {
             term.leadingAnchor.constraint(equalTo: leadingAnchor, constant: x),
             term.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -x),
         ])
-        layer?.backgroundColor = Theme.current().palette.background.cgColor
+        layer?.backgroundColor = Theme.current().skin.terminal.background.cgColor
     }
     required init?(coder: NSCoder) { nil }
 
@@ -126,7 +126,7 @@ final class PaneBox: NSView {
     }
 
     override func draw(_ dirty: NSRect) {
-        Theme.current().palette.background.setFill()
+        Theme.current().skin.terminal.background.setFill()
         bounds.fill()
         guard showsFocus, focused else { return }
         let r = bounds.insetBy(dx: ring / 2, dy: ring / 2)

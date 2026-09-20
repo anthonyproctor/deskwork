@@ -18,10 +18,10 @@ final class MeterBar: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        layer?.backgroundColor = Theme.ui.status.cgColor
 
         summary.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        summary.textColor = .labelColor
+        summary.textColor = Theme.ui.text
         hint.font = .systemFont(ofSize: 11, weight: .semibold)
         hint.textColor = .labelColor          // adapts; orange on light grey was unreadable
         hint.lineBreakMode = .byTruncatingTail
@@ -143,5 +143,12 @@ final class MeterBar: NSView {
             return String(format: "%@ is at %.0f%%.", hot.0, hot.1)
         }
         return nil
+    }
+
+    /// Repaint after a light/dark flip.
+    func restyle() {
+        layer?.backgroundColor = Theme.ui.status.cgColor
+        summary.textColor = Theme.ui.text
+        needsDisplay = true
     }
 }

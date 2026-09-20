@@ -168,6 +168,10 @@ public enum DeskConfig {
         public var font: String?
         public var size: Int?
         public var palette: String?
+        /// "system" follows the OS, "light"/"dark" pin it. Pinning matters
+        /// more here than in most apps: a terminal you read all day is not
+        /// something everyone wants flipping at sunset.
+        public var mode: String?
         /// Space between the terminal and the edge of its pane. Ghostty's
         /// defaults, because text butting against the frame is the first thing
         /// that makes a terminal feel cheap.
@@ -190,6 +194,7 @@ public enum DeskConfig {
             case "font":    t.font = v.isEmpty ? nil : v
             case "size":    t.size = Int(v)
             case "palette": t.palette = v.isEmpty ? nil : v
+            case "mode":    t.mode = v.isEmpty ? nil : v
             case "padding_x", "padx": t.padX = Int(v) ?? t.padX
             case "padding_y", "pady": t.padY = Int(v) ?? t.padY
             default: break

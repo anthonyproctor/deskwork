@@ -19,7 +19,11 @@ final class SidebarView: NSView {
 
     override var isFlipped: Bool { true }   // lay out top-down inside the scroll view
 
+    private(set) var lastDesks: [Desk]?
+    private(set) var lastSelected: Int?
+
     func build(desks: [Desk]) {
+        lastDesks = desks
         subviews.forEach { $0.removeFromSuperview() }
         buttons = [:]
 
@@ -78,6 +82,7 @@ final class SidebarView: NSView {
     @objc private func tapped(_ sender: NSButton) { select(sender.tag); onSelect?(sender.tag) }
 
     func select(_ i: Int) {
+        lastSelected = i
         selected = i
         for (j, b) in buttons {
             let on = j == i
@@ -95,7 +100,7 @@ final class SidebarView: NSView {
                     .font: NSFont.monospacedSystemFont(ofSize: 13, weight: on ? .bold : .regular),
                     // An inactive desk is still a thing you read. secondary
                     // washed the whole rail out.
-                    .foregroundColor: on ? NSColor.controlAccentColor : NSColor.labelColor,
+                    .foregroundColor: on ? Theme.ui.accent : Theme.ui.text,
                 ])
             if rt != "shell" {
                 // Mark the home so the concept is visible, not just a menu item.
@@ -104,7 +109,7 @@ final class SidebarView: NSView {
                     string: "  " + rt + (isHome ? " home" : ""),
                     attributes: [
                         .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium),
-                        .foregroundColor: NSColor.secondaryLabelColor,
+                        .foregroundColor: Theme.ui.dimText,
                     ]))
             }
             b.attributedTitle = title
@@ -113,6 +118,16 @@ final class SidebarView: NSView {
 }
 
 /// Click to collapse, right-click (or the ⋯ menu) to rename.
+extension SidebarView {
+    /// Repaint after a light/dark flip. Every row builds its attributed string
+    /// from the theme, so rebuilding them is the whole job.
+    func restyle() {
+        guard let d = lastDesks else { return }
+        build(desks: d)
+        if let i = lastSelected { select(i) }
+    }
+}
+
 final class GroupHeader: NSView {
     var onClick: (() -> Void)?
     var onRename: (() -> Void)?
@@ -121,7 +136,7 @@ final class GroupHeader: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         label.font = .systemFont(ofSize: 10, weight: .bold)
-        label.textColor = .secondaryLabelColor
+        label.textColor = Theme.ui.dimText
         label.frame = bounds
         label.autoresizingMask = [.width]
         addSubview(label)
@@ -181,4 +196,5 @@ final class DeskButton: NSButton {
     @objc private func remove() { onRemove?() }
     @objc private func reveal() { onReveal?() }
     @objc private func makeDefault() { onMakeDefault?() }
+
 }

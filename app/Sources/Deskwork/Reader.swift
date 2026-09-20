@@ -31,7 +31,7 @@ final class ReaderView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
+        layer?.backgroundColor = Theme.ui.editor.cgColor
 
         tabBar.orientation = .horizontal
         tabBar.spacing = 4

@@ -214,7 +214,10 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
             return c
         }()
         cell.textField?.stringValue = (n.isDir ? "▸ " : "   ") + n.name
-        cell.textField?.textColor = .labelColor
+        cell.textField?.textColor = Theme.ui.text
         return cell
     }
+
+    /// Repaint after a light/dark flip.
+    func restyle() { outline.reloadData() }
 }
