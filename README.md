@@ -18,9 +18,11 @@ Deskwork calls one of those a **desk**, and makes the desk the unit.
 
 ## What it does
 
-**Desks, not threads.** Each desk owns a long-lived terminal running the vendor's own CLI. Switching desks swaps which terminal is visible; the rest keep running. Come back an hour later and it is mid-thought where you left it.
+**Desks, not threads.** Each desk owns one or more long-lived terminals running the vendor's own CLI. Switching desks swaps which terminal is visible; the rest keep running. Come back an hour later and it is mid-thought where you left it.
 
 **It never reimplements an agent.** Deskwork launches `claude`, `codex`, `gemini` or `copilot` in a real pty. Your agent definitions, hooks, memory files and model pins all apply, because nothing is intercepting them. This is the point: ACP-based editors run a Claude Code bundled inside the Agent SDK rather than the CLI on your machine, which is why your own agents do not exist there.
+
+**Splits, when one terminal is not enough.** `cmd-d` and `cmd-shift-d` give a desk a second pane: the agent in one, a shell in the other to look at what it just did. Pane 0 is the agent and confirms before you close it; the rest are login shells in the same directory and close for free. A desk keeps one axis and stops at four panes, because past that it is a mosaic rather than a workspace.
 
 **A folder tree and a reader, with tabs.** Agents write, you read. Files an agent touches **open themselves** — you cannot pre-open a file when you do not know which one it will edit. Those tabs are transient and render italic, like a preview tab, and recycle past four so a busy desk cannot bury you; clicking one pins it. Each tab watches its file and refreshes in place. PDFs, images and text, with shallow syntax highlighting. Read-only is what keeps the reader small — and why a PDF opens here at all.
 
@@ -55,6 +57,16 @@ Each desk shows which vendor is behind it, and each runtime can have a **home** 
 
 ## Install
 
+Download the latest `Deskwork.app.zip` from [Releases](https://github.com/anthonyproctor/deskwork/releases), unzip it, and drag it to Applications.
+
+It is **not notarised**, so the first launch is blocked with "Apple could not verify Deskwork is free of malware." That is Gatekeeper telling you the truth: nobody has paid Apple $99 to vouch for this binary. To open it anyway:
+
+```sh
+xattr -d com.apple.quarantine /Applications/Deskwork.app
+```
+
+Or right-click the app, choose **Open**, and confirm once. If you would rather not do either, build it yourself — the source is right here, and that is the better habit:
+
 ```sh
 git clone https://github.com/anthonyproctor/deskwork
 cd deskwork
@@ -63,8 +75,6 @@ open ~/Applications/Deskwork.app
 ```
 
 Pass a directory to put it elsewhere: `./scripts/build-app.sh /Applications`.
-
-The bundle is **ad-hoc signed**, which is enough to run on the machine that built it. It is not notarised, so macOS will ask once the first time.
 
 First launch writes a working config from whichever CLIs it finds and shows a welcome screen explaining what it found. There is nothing to set up by hand.
 
@@ -111,6 +121,9 @@ cwd     = "~/notes"
 | | |
 |---|---|
 | `cmd-1` … `cmd-9` | jump to a desk |
+| `cmd-d` / `cmd-shift-d` | split the desk right / down |
+| `cmd-w` | close the focused pane |
+| `cmd-[` / `cmd-]` | move between panes |
 | `cmd-r` | refresh the folder tree |
 | `cmd-z` | undo the last file move |
 | `cmd-shift-a` | agents |
@@ -159,7 +172,6 @@ Not built yet:
 - No diff view. The reader shows a file, not what changed in it.
 - No syntax highlighting.
 - Desks die when the app quits; they do not outlive it.
-- One terminal per desk, no splits.
 - Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
 
 ## Updating

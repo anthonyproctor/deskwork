@@ -18,6 +18,8 @@ there is something to act on. A mailbox bridge between vendors. Discovery of
 agents, Codex profiles and SSH hosts. Settings, first run, an app bundle,
 a headless CLI, 33 tests, CI, and self-update from inside the app.
 
+Splits, so a desk can hold the agent and a shell at once.
+
 Six runtimes: claude, codex, gemini, copilot, grok, ollama.
 
 ---
@@ -31,25 +33,40 @@ working in it. Every item below is a guess, and a week of real use would
 replace the guesses with evidence — probably reordering this list and deleting
 some of it.
 
-### 2. Releases, so nobody has to build it
+### 2. ~~Releases, so nobody has to build it~~ — shipped 2026-09-20
 
-Right now installing means cloning a repo and running a build script. That is
-fine for contributors and wrong for everybody else.
+An earlier draft of this file said releases needed a $99 Developer ID. That
+conflated two unrelated things, and the mistake cost nothing only because
+somebody questioned it:
 
-Needs a notarised, signed build attached to a GitHub release. That costs $99 a
-year for a Developer ID, which is the only item here with a bill attached, and
-it should wait until somebody other than the author wants to install it.
+- **A GitHub release is free** on any account. Downloading a zipped `.app` is
+  now the install path; cloning and building is for contributors.
+- **A Developer ID is $99/year** and buys exactly one thing: *notarisation*,
+  which removes the "unidentified developer" warning. It is not required to
+  publish, and the README says plainly what the warning is and how to get past
+  it.
 
-Until then the README is honest that the bundle is ad-hoc signed and macOS will
-ask once.
+Notarisation stays unbought until somebody who is not the author is actually
+blocked by that warning. Worth recording for anyone who reaches for the
+obvious workaround: **Apple's fee waiver does not apply here.** It requires a
+legal entity — explicitly not an individual or sole proprietor — that is a
+nonprofit, accredited educational institution or government entity. Being a
+student, or a service member, qualifies the institution, not you. And signing a
+personal MIT project under an employer's, a university's or a government
+entity's Developer ID tells everyone who downloads it that *that organisation*
+published it, and makes them answerable for what it does. If notarisation ever
+matters, it is $99 in your own name.
 
-### 3. Splits — more than one terminal per desk
+### 3. ~~Splits — more than one terminal per desk~~ — shipped 2026-09-20
 
-A desk is one terminal today. Real work often wants two: the agent, and a shell
-to look at what it did. This is the most requested thing that does not exist
-yet, mostly because it is requested by the act of using the app for an hour.
+`cmd-d` splits right, `cmd-shift-d` splits down, `cmd-w` closes a pane and
+`cmd-[` / `cmd-]` move between them. Pane 0 is the agent; the rest are login
+shells in the same directory.
 
-Mechanically small; it is layout, not architecture.
+One axis per desk rather than a nested tree, and four panes maximum. Nested
+splits are the obvious next ask and are deliberately not built: nesting doubles
+the interaction surface to serve a layout nobody has requested. **If you want
+them, that is [an issue](../../issues) with a thumbs-up on it.**
 
 ### 4. A remote session, localhost-only
 
