@@ -187,13 +187,31 @@ Beyond routing, three collaboration moves that are all currently manual:
 
 | Piece | Source |
 |---|---|
-| Terminal engine | **libghostty** — C API, bindings for Rust, Go, Swift, Elixir; `ghostty-org/ghostling` is a working reference |
+| Terminal engine | **SwiftTerm** — VT100/xterm emulator in Swift, AppKit front end, CoreText rendering, pty included; ships in CodeEdit and commercial SSH clients |
+| Terminal engine, later | **libghostty** once it renders — see the correction below |
 | Multi-vendor agents | **ACP** — open JSON-RPC, Zed and JetBrains co-maintain it; Claude, Codex, Gemini, Copilot, Cursor all ship adapters |
 | Syntax highlighting | tree-sitter |
 | PDF and image | platform native (PDFKit on macOS) |
 
 Ours to write: the desk model, the meter, the router, the cross-agent moves, the
 shell that holds them.
+
+### Correction, 2026-09-19
+
+An earlier draft listed libghostty as the terminal engine and called it solved. It
+is not, yet. **`libghostty-vt` is parsing and terminal state only** — it tells an
+embedder what to draw, not how. Mitchell Hashimoto's own write-up puts GPU
+rendering and input handling in the "longer term" bucket, and `ghostling`, the
+reference embedder, writes its own renderer in Raylib.
+
+Embedding libghostty today therefore means writing a Metal renderer, a glyph
+atlas and keyboard encoding. That is the largest single piece of work in the
+project and it is not the interesting part.
+
+SwiftTerm covers it now. The open risk is throughput: SwiftTerm renders through
+CoreText rather than the GPU, and a terminal that cannot keep up is the exact
+complaint that started this project. That is the first thing to measure, before
+any other code gets written.
 
 Two of the three genuinely hard problems are off the shelf and open source. That is
 new as of this year and it is what makes the project tractable.
@@ -221,9 +239,13 @@ the rest does not rescue it.
 
 ## 10. Open questions
 
-- **Host language.** Rust gets the best libghostty and ACP story. Swift gets the
-  best native macOS reader and PDFKit for free. Cross-platform matters eventually,
-  not at M1.
+- **Host language — DECIDED: Swift.** Ghostty's own macOS app is Swift, SwiftTerm
+  is Swift, PDFKit is free, and ACP is plain JSON-RPC over stdio so no binding
+  matters. Rust would buy cross-platform nobody needs and cost the entire GUI
+  layer. Revisit only if this ever has to leave macOS.
+- **Can SwiftTerm keep up?** CoreText, not GPU. The whole project exists because a
+  slow terminal drove the author out of VS Code, so this is the one unknown that
+  can invalidate the design. Measure it first.
 - **Does a desk need to be one process?** Splitting a desk across panes is
   appealing and may fight the runtime's own session model.
 - **How much ACP, how much pty?** Terminal-only is honest and simple but gives the
