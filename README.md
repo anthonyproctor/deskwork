@@ -118,6 +118,7 @@ cwd     = "~/notes"
 | `cmd-shift-u` | usage detail |
 | `cmd-shift-m` | agent mail |
 | `cmd-,` | settings |
+| `cmd-opt-shift-u` | update Deskwork from source |
 
 Click a group header to collapse it, right-click to rename it.
 
@@ -160,6 +161,14 @@ Not built yet:
 - Desks die when the app quits; they do not outlive it.
 - One terminal per desk, no splits.
 - Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
+
+## Updating
+
+`cmd-opt-shift-u`. Deskwork pulls, rebuilds from source and relaunches itself — no terminal, no remembering three commands. It records where it was built from at build time rather than guessing, so a bundle shipped without source says so instead of inventing a path.
+
+A failed build never relaunches. The running app stays exactly as it was and the log tells you why.
+
+Running desks stop on relaunch and resume when you reopen them, which is the design working rather than a cost: the desk is the durable thing, the window is not.
 
 ## Tests
 

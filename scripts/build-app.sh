@@ -11,6 +11,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../app"
 APP="${1:-$HOME/Applications}/Deskwork.app"
 VERSION="$(git -C .. describe --tags --always 2>/dev/null || echo 0.1.0)"
+SOURCE_ROOT="$(cd .. && pwd)"
+BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "building…"
 swift build -c release 2>&1 | grep -vE "build database|^\[" || true
@@ -39,6 +41,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key>      <true/>
   <!-- Terminals live here; the app is not a document editor. -->
   <key>LSApplicationCategoryType</key>    <string>public.app-category.developer-tools</string>
+  <!-- Where this bundle was built from, so the app can rebuild and update
+       itself without the user opening a terminal. Absent in a bundle shipped
+       without source, and the app says so rather than guessing. -->
+  <key>DWSourceRoot</key>                 <string>${SOURCE_ROOT}</string>
+  <key>DWBuiltAt</key>                    <string>${BUILT_AT}</string>
 </dict>
 </plist>
 PLIST

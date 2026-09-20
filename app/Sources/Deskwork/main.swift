@@ -211,6 +211,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem)
         let appMenu = NSMenu()
+        let upd = NSMenuItem(title: "Update Deskwork…", action: #selector(openUpdate), keyEquivalent: "u")
+        upd.keyEquivalentModifierMask = [.command, .shift, .option]
+        upd.target = self
+        appMenu.addItem(upd)
         let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         prefs.target = self
         appMenu.addItem(prefs)
@@ -386,6 +390,21 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     }
 
     /// The cross-vendor bridge: drive the mailbox rather than invent a protocol.
+    var updateWindow: UpdateWindow?
+    @objc func openUpdate() {
+        guard let root = SelfUpdate.sourceRoot else {
+            let a = NSAlert()
+            a.messageText = "This build has no source to update from"
+            a.informativeText = "Deskwork records where it was built from when you run "
+                + "scripts/build-app.sh. This bundle has no such record, or the source has moved, "
+                + "so there is nothing to rebuild."
+            a.runModal(); return
+        }
+        updateWindow = UpdateWindow(root: root)
+        updateWindow?.showWindow(nil)
+        updateWindow?.window?.makeKeyAndOrderFront(nil)
+    }
+
     var settings: SettingsWindow?
     var welcome: WelcomeWindow?
 
