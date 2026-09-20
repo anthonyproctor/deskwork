@@ -1,0 +1,49 @@
+name: build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  macos:
+    # The project's claim is that it builds with Command Line Tools and needs
+    # no Xcode. CI should hold that claim honest rather than quietly using the
+    # full toolchain a runner happens to have.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: toolchain
+        run: |
+          swift --version
+          echo "xcode-select: $(xcode-select -p)"
+
+      - name: build
+        run: cd app && swift build -c release
+
+      - name: test
+        run: cd app && ./.build/release/deskwork-test
+
+      # The core must not gain a UI dependency. That boundary is what keeps a
+      # future Linux or Windows front end a UI project rather than a rewrite,
+      # and it is only real if something checks.
+      - name: core stays Foundation-only
+        run: |
+          cd app
+          if grep -rlE '^import (AppKit|SwiftUI|UIKit|PDFKit|SwiftTerm)' Sources/DeskworkCore/; then
+            echo "::error::DeskworkCore imported a UI framework"
+            exit 1
+          fi
+          echo "clean"
+
+      # Nothing from anyone's workspace belongs in this repo.
+      - name: no private paths committed
+        run: |
+          if grep -rInE '/Users/[a-z]|\.claude/agents/[a-z-]+\.md' \
+               --include='*.swift' --include='*.toml' --include='*.md' \
+               . | grep -v '^\./docs/' | grep -v 'README' | grep -v '~/'; then
+            echo "::error::an absolute home path or private agent name is committed"
+            exit 1
+          fi
+          echo "clean"
