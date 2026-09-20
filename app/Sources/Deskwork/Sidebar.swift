@@ -60,7 +60,7 @@ final class SidebarView: NSView {
                 b.tag = i
                 b.bezelStyle = .inline
                 b.isBordered = false
-                b.contentTintColor = .secondaryLabelColor
+                b.contentTintColor = .labelColor
                 b.alignment = .left
                 b.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
                 addSubview(b)
@@ -93,14 +93,18 @@ final class SidebarView: NSView {
                 string: (on ? "● " : "○ ") + bare,
                 attributes: [
                     .font: NSFont.monospacedSystemFont(ofSize: 13, weight: on ? .bold : .regular),
-                    .foregroundColor: on ? NSColor.controlAccentColor : NSColor.secondaryLabelColor,
+                    // An inactive desk is still a thing you read. secondary
+                    // washed the whole rail out.
+                    .foregroundColor: on ? NSColor.controlAccentColor : NSColor.labelColor,
                 ])
             if rt != "shell" {
+                // Mark the home so the concept is visible, not just a menu item.
+                let isHome = (b as? DeskButton)?.isDefaultDesk == true
                 title.append(NSAttributedString(
-                    string: "  " + rt,
+                    string: "  " + rt + (isHome ? " home" : ""),
                     attributes: [
-                        .font: NSFont.monospacedSystemFont(ofSize: 9.5, weight: .regular),
-                        .foregroundColor: NSColor.tertiaryLabelColor,
+                        .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium),
+                        .foregroundColor: NSColor.secondaryLabelColor,
                     ]))
             }
             b.attributedTitle = title
@@ -116,8 +120,8 @@ final class GroupHeader: NSView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        label.font = .systemFont(ofSize: 9.5, weight: .semibold)
-        label.textColor = .tertiaryLabelColor
+        label.font = .systemFont(ofSize: 10, weight: .bold)
+        label.textColor = .secondaryLabelColor
         label.frame = bounds
         label.autoresizingMask = [.width]
         addSubview(label)
@@ -160,9 +164,12 @@ final class DeskButton: NSButton {
             m.addItem(.separator())
         }
         if let _ = onMakeDefault {
-            let g = NSMenuItem(title: "Use as the \(runtimeName) home",
+            let g = NSMenuItem(title: "Make this the \(runtimeName) home",
                                action: #selector(makeDefault), keyEquivalent: "")
             g.target = self
+            g.toolTip = "The home desk for a vendor is where Deskwork sends work that belongs "
+                + "to the vendor rather than to one agent — creating an agent, managing them. "
+                + "One per vendor. The home marked default also opens when Deskwork starts."
             m.addItem(g)
             m.addItem(.separator())
         }

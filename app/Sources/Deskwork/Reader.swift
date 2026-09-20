@@ -46,7 +46,7 @@ final class ReaderView: NSView {
         tabScroll.translatesAutoresizingMaskIntoConstraints = false
 
         titleBar.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
-        titleBar.textColor = .tertiaryLabelColor
+        titleBar.textColor = .secondaryLabelColor
         titleBar.lineBreakMode = .byTruncatingHead
         titleBar.translatesAutoresizingMaskIntoConstraints = false
         container.translatesAutoresizingMaskIntoConstraints = false
@@ -205,7 +205,7 @@ final class ReaderView: NSView {
 
     private func showPlaceholder() {
         let l = NSTextField(labelWithString: "Pick a file, or let a desk open one.")
-        l.textColor = .tertiaryLabelColor
+        l.textColor = .secondaryLabelColor
         swapPlaceholder(l)
         titleBar.stringValue = ""
     }

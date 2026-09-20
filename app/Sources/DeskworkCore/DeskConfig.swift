@@ -28,6 +28,8 @@ public struct Desk {
     /// particular agent. One per runtime, not one overall — somebody running
     /// Claude and Codex wants a home for each.
     public var isDefault: Bool = false
+    /// True when the config said which vendor, rather than us assuming.
+    public var declaredRuntime: Bool = false
 
     /// argv for the login shell. Deskwork never reimplements an agent — it
     /// launches the vendor's own CLI so that CLI's config, hooks, memory and
@@ -140,6 +142,21 @@ public enum DeskConfig {
         desks.firstIndex(where: \.isDefault) ?? 0
     }
 
+    /// The runtime to assume when a desk names none and runs no command.
+    ///
+    /// Previously this was hardcoded to claude, which quietly made one vendor
+    /// the default for everybody. It is now whichever runtime the config
+    /// already uses most — so it reflects what you actually run — falling back
+    /// to the first one installed, in no particular order of preference.
+    public static func preferredRuntime(given desks: [Desk] = []) -> String {
+        var counts: [String: Int] = [:]
+        for d in desks where d.runtime != "shell" { counts[d.runtime, default: 0] += 1 }
+        if let top = counts.max(by: { ($0.value, $1.key) < ($1.value, $0.key) })?.key { return top }
+        for r in ["claude", "codex", "gemini", "copilot", "grok", "ollama"]
+        where which(r) != nil { return r }
+        return "shell"
+    }
+
     public static func load() -> [Desk] {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
         var desks: [Desk] = []
@@ -179,6 +196,7 @@ public enum DeskConfig {
             case "agent":   current?.agent = val
             case "runtime":
                 current?.runtime = val
+                current?.declaredRuntime = true
                 explicitRuntime = true
             case "model":   current?.model = val
             case "cwd":     current?.cwd = val
@@ -189,7 +207,13 @@ public enum DeskConfig {
             }
         }
         finish()
-        return desks
+        // Resolve any desk that named neither a runtime nor a command.
+        let fallback = preferredRuntime(given: desks)
+        return desks.map { d in
+            var d = d
+            if d.command == nil && !d.declaredRuntime { d.runtime = fallback }
+            return d
+        }
     }
 
     /// Write desks back out. The file stays the source of truth, so anything

@@ -158,7 +158,32 @@ final class AgentsPanel: NSWindowController {
     /// The vendor's own agent manager. `/agents` in Claude Code interviews you,
     /// writes the definition, and is where deleting belongs too — it knows that
     /// an agent's memory directory is a separate thing from its definition.
-    @objc private func newAgent() { route(runtime: "claude") }
+    /// Which vendor was hardcoded to claude, which quietly made one company
+    /// the default for everyone. Ask instead — and only offer vendors that both
+    /// have an agent manager and are actually installed.
+    @objc private func newAgent() {
+        let capable = ["claude", "copilot"].filter { DeskConfig.which($0) != nil }
+        guard !capable.isEmpty else {
+            let a = NSAlert()
+            a.messageText = "No installed vendor has an agent manager"
+            a.informativeText = "Claude Code and Copilot CLI can create agents. "
+                + "Codex uses profiles instead, which live in ~/.codex/config.toml."
+            a.runModal(); return
+        }
+        if capable.count == 1 { route(runtime: capable[0]); return }
+
+        let a = NSAlert()
+        a.messageText = "Create an agent with which vendor?"
+        a.informativeText = "Opens that vendor's own agent manager in a desk. "
+            + "It interviews you and writes the definition."
+        let pick = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 25))
+        pick.addItems(withTitles: capable)
+        a.accessoryView = pick
+        a.addButton(withTitle: "Open"); a.addButton(withTitle: "Cancel")
+        guard a.runModal() == .alertFirstButtonReturn,
+              let chosen = pick.titleOfSelectedItem else { return }
+        route(runtime: chosen)
+    }
     @objc private func manage(_ s: NSButton) { route(runtime: s.identifier?.rawValue ?? "claude") }
 
     private func route(runtime: String) {

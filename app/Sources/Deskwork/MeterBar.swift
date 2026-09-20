@@ -21,7 +21,7 @@ final class MeterBar: NSView {
         layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
         summary.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        summary.textColor = .secondaryLabelColor
+        summary.textColor = .labelColor
         hint.font = .systemFont(ofSize: 11, weight: .semibold)
         hint.textColor = .labelColor          // adapts; orange on light grey was unreadable
         hint.lineBreakMode = .byTruncatingTail
@@ -114,7 +114,7 @@ final class MeterBar: NSView {
             hint.textColor = .labelColor
         } else if limits.isEmpty && !Limits.recorderInstalled {
             hint.stringValue = "plan limits off — turn on in Settings"
-            hint.textColor = .tertiaryLabelColor
+            hint.textColor = .secondaryLabelColor
         } else if let h = Usage.routerHint(r) {
             hint.stringValue = h
             hint.textColor = .labelColor

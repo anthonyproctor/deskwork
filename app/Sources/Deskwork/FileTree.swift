@@ -202,7 +202,7 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         let cell = v.makeView(withIdentifier: id, owner: self) as? NSTableCellView ?? {
             let c = NSTableCellView(); c.identifier = id
             let t = NSTextField(labelWithString: "")
-            t.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+            t.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
             t.lineBreakMode = .byTruncatingMiddle
             t.translatesAutoresizingMaskIntoConstraints = false
             c.addSubview(t); c.textField = t
@@ -213,8 +213,8 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
             ])
             return c
         }()
-        cell.textField?.stringValue = (n.isDir ? "▸ " : "  ") + n.name
-        cell.textField?.textColor = n.isDir ? .labelColor : .secondaryLabelColor
+        cell.textField?.stringValue = (n.isDir ? "▸ " : "   ") + n.name
+        cell.textField?.textColor = .labelColor
         return cell
     }
 }
