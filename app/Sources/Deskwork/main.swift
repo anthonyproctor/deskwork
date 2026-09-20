@@ -72,6 +72,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     let reader = ReaderView()
     let split = NSSplitView()
     let meter = MeterBar()
+    let watcher = WorkspaceWatcher()
     var desks: [Desk] = []
     var sessions: [String: DeskSession] = [:]
     var visible: DeskSession?
@@ -148,6 +149,14 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         tree.onOpen = { [weak self] url in self?.openReader(url) }
         meter.onClick = { [weak self] in self?.openMeter() }
 
+        // The VS Code behaviour: files the agent touches open themselves.
+        watcher.onChanged = { [weak self] urls in
+            guard let self else { return }
+            for u in urls.prefix(3) { self.reader.openFromAgent(u) }
+            if !urls.isEmpty { self.openReaderWindow() }
+            self.tree.refresh()
+        }
+
         sidebar.collapsed = Set(ui.collapsed)
         sidebar.build(desks: desks)
         sidebar.onToggleGroup = { [weak self] g in self?.toggleGroup(g) }
@@ -183,6 +192,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         s.startIfNeeded()
         visible = s
         meter.currentDesk = d.name
+        // Follow the desk that is on screen.
+        watcher.start(root: d.resolvedCwd)
         tree.setRoot(d.resolvedCwd)
         sidebar.select(i)
         window.title = "Deskwork — \(d.name)"
@@ -332,16 +343,31 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// Files open in their own window. Keeps the main layout to two panes and
     /// means you can leave a PDF up beside the desk that is working on it.
     var readerWindow: NSWindow?
-    func openReader(_ url: URL) {
+    /// Bring the reader window up without changing what is in it.
+    func openReaderWindow() {
+        ensureReaderWindow()
+        if readerWindow?.isVisible != true { readerWindow?.orderFront(nil) }
+    }
+
+    private func ensureReaderWindow() {
         if readerWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 860),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 900),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
             w.contentView = reader
+            w.title = "Files"
             w.isReleasedWhenClosed = false
+            if let main = window {
+                w.setFrameOrigin(NSPoint(x: main.frame.maxX + 12, y: main.frame.origin.y))
+            }
             readerWindow = w
         }
-        readerWindow?.title = url.lastPathComponent
+    }
+
+    func openReader(_ url: URL) {
+        if false {
+        }
+        ensureReaderWindow()
         reader.open(url)
         readerWindow?.makeKeyAndOrderFront(nil)
     }
