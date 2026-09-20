@@ -173,6 +173,34 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         appMenu.addItem(withTitle: "Quit Deskwork", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
+        // Without this menu, cmd-c/v/x/a are bound to nothing and no text field
+        // in the app can be pasted into. AppKit does not supply it: the standard
+        // editing actions travel the responder chain from MENU ITEMS, so an app
+        // with no Edit menu has no clipboard at all.
+        //
+        // Every item targets nil so it goes to whoever is first responder — a
+        // text view handles it itself, and anything else falls through to this
+        // controller.
+        let editItem = NSMenuItem(); main.addItem(editItem)
+        let editMenu = NSMenu(title: "Edit")
+        func edit(_ title: String, _ sel: Selector, _ key: String,
+                  _ mods: NSEvent.ModifierFlags = [.command]) {
+            let it = NSMenuItem(title: title, action: sel, keyEquivalent: key)
+            it.keyEquivalentModifierMask = mods
+            it.target = nil                      // responder chain, not this object
+            editMenu.addItem(it)
+        }
+        // `undo:` is declared here (below) so #selector resolves it; `redo:` is
+        // implemented only by NSTextView, so it has to be named as a string.
+        edit("Undo", #selector(undo(_:)), "z")
+        edit("Redo", NSSelectorFromString("redo:"), "z", [.command, .shift])
+        editMenu.addItem(.separator())
+        edit("Cut", #selector(NSText.cut(_:)), "x")
+        edit("Copy", #selector(NSText.copy(_:)), "c")
+        edit("Paste", #selector(NSText.paste(_:)), "v")
+        edit("Select All", #selector(NSText.selectAll(_:)), "a")
+        editItem.submenu = editMenu
+
         let deskItem = NSMenuItem(); main.addItem(deskItem)
         let deskMenu = NSMenu(title: "Desks")
         for (i, d) in desks.prefix(9).enumerated() {
@@ -184,7 +212,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let refresh = NSMenuItem(title: "Refresh Files", action: #selector(refreshTree), keyEquivalent: "r")
         refresh.target = self
         deskMenu.addItem(refresh)
-        let undo = NSMenuItem(title: "Undo Move", action: #selector(undoMove), keyEquivalent: "z")
+        // No key equivalent: cmd-z lives in the Edit menu and reaches undoMove()
+        // through the responder chain below. Two menu items sharing cmd-z would
+        // leave which one fires up to AppKit.
+        let undo = NSMenuItem(title: "Undo Move", action: #selector(undoMove), keyEquivalent: "")
         undo.target = self
         deskMenu.addItem(undo)
         let flip = NSMenuItem(title: "Tree on Top", action: #selector(toggleTreePosition), keyEquivalent: "t")
@@ -440,6 +471,11 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             self?.visible?.agentTerm.send(txt: command + "\n")
         }
     }
+
+    /// Last stop on the responder chain for cmd-z. A text view being edited
+    /// handles `undo:` itself and this never fires; anywhere else — the tree,
+    /// the desk list, a terminal — it means "put that file back".
+    @objc func undo(_ sender: Any?) { undoMove() }
 
     // MARK: - panes
 

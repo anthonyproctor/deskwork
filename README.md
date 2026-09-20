@@ -125,7 +125,7 @@ cwd     = "~/notes"
 | `cmd-w` | close the focused pane |
 | `cmd-[` / `cmd-]` | move between panes |
 | `cmd-r` | refresh the folder tree |
-| `cmd-z` | undo the last file move |
+| `cmd-z` | undo — the last file move, or your typing if you are in a text field |
 | `cmd-shift-a` | agents |
 | `cmd-t` | move the tree above or below the desk list |
 | `cmd-shift-u` | usage detail |
