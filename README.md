@@ -22,7 +22,15 @@ Deskwork calls one of those a **desk**, and makes the desk the unit.
 
 **A folder tree and a reader.** Agents write, you read. The reader opens PDFs, images and text. Being read-only is what keeps it about a hundred lines instead of an editor — and why opening a PDF is trivial here.
 
-**A meter that spans vendors.** The strip along the bottom shows where the week is going and says so when one vendor is carrying all of it. Consumption comes from files the CLIs already write — Claude's transcripts, Codex's `token_usage_record` files. Remaining quota is harder: no CLI writes it to disk, and only Claude Code knows it, which it tells its statusline and nobody else. So Deskwork offers to *be* that statusline — a recorder that captures the numbers and then hands stdin to whatever statusline you already had, printing its output unchanged. Turn it on in Settings.
+**A meter that spans vendors.** The strip along the bottom shows how much of each vendor's plan you have left, side by side:
+
+```
+codex wk 19% → mon 8pm · 5h 0%     claude wk 3% → sat 11am · 5h 3%
+```
+
+Each vendor gives this up differently, so Deskwork meets each where it is. **Codex** writes quota into its own session rollout, so it needs nothing. **Claude** tells only its statusline, so Deskwork offers to *be* that statusline — a recorder captures the numbers and then chains to whatever statusline you already had, printing its output unchanged. **Anything else** can join by dropping `~/.local/share/deskwork/limits/<vendor>.json`; no code change needed.
+
+With real quota on both sides the router stops guessing from token share and says the actionable thing: *"claude 84% used, codex only 19% — send the next one to codex."* It stays quiet when there is no real gap.
 
 **A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
 
@@ -110,7 +118,7 @@ Not built yet:
 - Desks die when the app quits; they do not outlive it.
 - One terminal per desk, no splits.
 - The meter is a summary strip, not a full pane. No per-desk breakdown or history chart yet.
-- Live plan limits work for Claude only. No other CLI exposes remaining quota anywhere a local tool can read it.
+- Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
 
 ## Reading
 

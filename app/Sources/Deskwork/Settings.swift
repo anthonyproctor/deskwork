@@ -90,15 +90,25 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             rtLines.append(l)
         }
         rtLines.append(caps("LIVE PLAN LIMITS"))
-        let limitsBtn = NSButton(title: Limits.isInstalled ? "Recorder installed ✓" : "Turn on live limits",
+        let limitsBtn = NSButton(title: Limits.recorderInstalled ? "Claude recorder installed ✓" : "Turn on live limits for Claude",
                                  target: self, action: #selector(installLimits))
         limitsBtn.bezelStyle = .rounded
-        limitsBtn.isEnabled = !Limits.isInstalled
+        limitsBtn.isEnabled = !Limits.recorderInstalled
         rtLines.append(limitsBtn)
-        rtLines.append(note("Consumption comes from files the CLIs already write. Remaining quota does "
-            + "not: only Claude Code knows it, and only tells its statusline. This installs a small "
-            + "recorder as that statusline. Any statusline you already have keeps working — the "
-            + "recorder chains to it and prints its output unchanged."))
+        var seen: [String] = []
+        for l in Limits.all() {
+            var t = "✓  \(l.vendor)"
+            if let w = l.weekPct { t += String(format: "  week %.0f%%", w) }
+            if let p = l.planType { t += "  (\(p))" }
+            seen.append(t)
+        }
+        let live = NSTextField(labelWithString: seen.isEmpty ? "no live limits yet" : seen.joined(separator: "\n"))
+        live.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        rtLines.append(live)
+        rtLines.append(note("Codex writes its quota into its own session log, so it needs nothing. "
+            + "Claude tells only its statusline, so the button above installs a recorder as that "
+            + "statusline — any statusline you already have keeps working, the recorder chains to it. "
+            + "Any other tool can join by writing ~/.local/share/deskwork/limits/<vendor>.json."))
         rtLines.append(caps("AGENT MAIL"))
         let box = Mailbox.load()
         rtLines.append(note("Threads are appended to \((box.dir as NSString).abbreviatingWithTildeInPath)."
