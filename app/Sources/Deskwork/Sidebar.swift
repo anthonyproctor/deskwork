@@ -23,6 +23,15 @@ final class SidebarView: NSView {
     var activity: [String: DeskActivity] = [:] {
         didSet { if let i = lastSelected { select(i) } }
     }
+    /// Advanced by the controller so a working desk SPINS. A static glyph and
+    /// a hung desk look identical, which is the thing this is here to answer.
+    var tick = 0
+
+    /// Braille spinner: reads as motion at a glance without stealing attention
+    /// from the green dot, which is the state you actually have to act on.
+    private static let spin = ["\u{280B}", "\u{2819}", "\u{2839}", "\u{2838}",
+                               "\u{283C}", "\u{2834}", "\u{2826}", "\u{2827}",
+                               "\u{2807}", "\u{280F}"]
 
     private(set) var lastDesks: [Desk]?
     private(set) var lastSelected: Int?
@@ -105,7 +114,14 @@ final class SidebarView: NSView {
                     .font: NSFont.monospacedSystemFont(ofSize: 13, weight: on ? .bold : .regular),
                     // An inactive desk is still a thing you read. secondary
                     // washed the whole rail out.
-                    .foregroundColor: on ? Theme.ui.accent : Theme.ui.text,
+                    .foregroundColor: {
+                    // A desk that has finished colours its NAME, not just a
+                    // dot after it. Scanning a list of fifteen rows, a 6-point
+                    // glyph at the end of the line is not what the eye lands
+                    // on — the word is.
+                    if case .ready = activity[bare] ?? .quiet, !on { return NSColor.systemGreen }
+                    return on ? Theme.ui.accent : Theme.ui.text
+                }(),
                 ])
             if rt != "shell" {
                 // Mark the home so the concept is visible, not just a menu item.
@@ -125,12 +141,13 @@ final class SidebarView: NSView {
             switch activity[bare] ?? .quiet {
             case .quiet: break
             case .working:
-                title.append(NSAttributedString(string: "  \u{25CC}", attributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
-                    .foregroundColor: Theme.ui.dimText]))
-            case .ready:
-                title.append(NSAttributedString(string: "  \u{25CF}", attributes: [
+                let g = SidebarView.spin[tick % SidebarView.spin.count]
+                title.append(NSAttributedString(string: "  " + g, attributes: [
                     .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .bold),
+                    .foregroundColor: Theme.ui.accent]))
+            case .ready:
+                title.append(NSAttributedString(string: "  \u{25CF} done", attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
                     .foregroundColor: NSColor.systemGreen]))
             }
             b.attributedTitle = title

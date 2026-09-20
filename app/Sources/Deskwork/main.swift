@@ -525,7 +525,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// output STOPPING, and nothing fires an event when data does not arrive.
     /// A one-second tick against a handful of desks costs nothing.
     func watchDeskActivity() {
-        activityTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        activityTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
             guard let self else { return }
             var map: [String: DeskActivity] = [:]
             var waiting = 0
@@ -534,6 +534,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 map[name] = a
                 if case .ready = a { waiting += 1 }
             }
+            self.sidebar.tick &+= 1
             self.sidebar.activity = map
 
             // The dock badge is the half that works when Deskwork is not the
