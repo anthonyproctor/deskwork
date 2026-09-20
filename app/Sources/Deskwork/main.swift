@@ -124,6 +124,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         installMenu()
         watchPaneClicks()
         watchSystemAppearance()
+        watchDeskActivity()
         // The update sheet names what a relaunch is about to end. Only the
         // controller knows which desks have live processes.
         SelfUpdate.runningDesks = { [weak self] in
@@ -154,6 +155,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             s.container.trailingAnchor.constraint(equalTo: host.trailingAnchor),
         ])
         s.startIfNeeded()
+        visible?.isVisible = false
+        s.isVisible = true
         visible = s
         meter.currentDesk = d.name
         // Follow the desk that is on screen.
@@ -515,6 +518,30 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
     }
     var appearanceObserver: NSKeyValueObservation?
+
+    /// Refresh the activity badges once a second.
+    ///
+    /// Polled rather than event-driven on purpose: "finished" is inferred from
+    /// output STOPPING, and nothing fires an event when data does not arrive.
+    /// A one-second tick against a handful of desks costs nothing.
+    func watchDeskActivity() {
+        activityTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            var map: [String: DeskActivity] = [:]
+            var waiting = 0
+            for (name, s) in self.sessions {
+                let a = s.activity
+                map[name] = a
+                if case .ready = a { waiting += 1 }
+            }
+            self.sidebar.activity = map
+
+            // The dock badge is the half that works when Deskwork is not the
+            // front app, which is exactly when you have walked away from a desk.
+            NSApp.dockTile.badgeLabel = waiting > 0 ? "\(waiting)" : nil
+        }
+    }
+    var activityTimer: Timer?
 
     // MARK: - panes
 

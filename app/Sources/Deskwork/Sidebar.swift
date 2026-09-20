@@ -19,6 +19,11 @@ final class SidebarView: NSView {
 
     override var isFlipped: Bool { true }   // lay out top-down inside the scroll view
 
+    /// Per-desk activity, keyed by name. Set by the controller each tick.
+    var activity: [String: DeskActivity] = [:] {
+        didSet { if let i = lastSelected { select(i) } }
+    }
+
     private(set) var lastDesks: [Desk]?
     private(set) var lastSelected: Int?
 

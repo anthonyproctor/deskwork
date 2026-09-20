@@ -242,6 +242,66 @@ do {
        && !Fanout.budget(vendor: "claude", slices: 40, limits: [mid]).allowsRun)
 }
 
+// MARK: - desk activity badges
+//
+// "Finished" is inferred from output STOPPING, which has two failure modes
+// pulling opposite ways: a short quiet window flickers "ready" mid-answer, a
+// long one lags. These pin the boundaries and the clearing rule.
+
+do {
+    let t0 = Date()
+    let quiet = ActivityState.quietFor
+
+    // Output still arriving: working, not ready. A badge that says "done"
+    // while the agent is mid-sentence is worse than no badge.
+    var s = ActivityState()
+    s.setVisible(false)
+    s.noteOutput(at: t0)
+    eq("output just now reads as working", s.activity(now: t0.addingTimeInterval(0.5)), .working)
+
+    // Gone quiet while you were elsewhere: ready.
+    eq("quiet after output reads as ready", s.activity(now: t0.addingTimeInterval(quiet + 0.1)), .ready)
+
+    // The window is exclusive: at EXACTLY the boundary it has already flipped
+    // to ready. Named for what it asserts — an earlier version of this test
+    // said "still working" while asserting .ready, which is a suite that lies.
+    eq("the boundary itself already reads as ready",
+       s.activity(now: t0.addingTimeInterval(quiet)), .ready)
+    eq("a hair before the boundary is still working",
+       s.activity(now: t0.addingTimeInterval(quiet - 0.01)), .working)
+
+    // Looking at a desk clears it, and it stays clear.
+    var seen = ActivityState()
+    seen.setVisible(false)
+    seen.noteOutput(at: t0)
+    seen.setVisible(true)
+    eq("a desk you are looking at never badges", seen.activity(now: t0.addingTimeInterval(quiet + 5)), .quiet)
+    seen.setVisible(false)
+    eq("and stays clear after you leave it", seen.activity(now: t0.addingTimeInterval(quiet + 6)), .quiet)
+
+    // Output while VISIBLE must not queue up a badge for later. You saw it.
+    var watched = ActivityState()
+    watched.setVisible(true)
+    watched.noteOutput(at: t0)
+    watched.setVisible(false)
+    eq("output you watched arrive does not badge later",
+       watched.activity(now: t0.addingTimeInterval(quiet + 1)), .quiet)
+
+    // A desk that has never written anything has nothing to say.
+    var fresh = ActivityState()
+    fresh.setVisible(false)
+    eq("a silent desk is quiet", fresh.activity(now: t0), .quiet)
+
+    // New output after you have left re-arms it.
+    var again = ActivityState()
+    again.setVisible(true)
+    again.noteOutput(at: t0)
+    again.setVisible(false)
+    again.noteOutput(at: t0.addingTimeInterval(10))
+    eq("new output after leaving re-arms the badge",
+       again.activity(now: t0.addingTimeInterval(10 + quiet + 0.1)), .ready)
+}
+
 print("\n\(passed) passed, \(failures.count) failed")
 if !failures.isEmpty {
     print("\nfailures:")

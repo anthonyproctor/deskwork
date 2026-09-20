@@ -17,11 +17,29 @@ import AppKit
 import SwiftTerm
 import DeskworkCore
 
+// MARK: - knowing a desk answered
+
+// `DeskActivity` and its timing live in DeskworkCore, under test.
+
+/// A terminal that reports when its process writes something.
+///
+/// `dataReceived` is the only honest signal available. A CLI does not announce
+/// "I have finished answering"; all that reaches us is bytes, so "finished"
+/// has to be inferred from bytes stopping.
+final class DeskTerminalView: LocalProcessTerminalView {
+    var onOutput: (() -> Void)?
+
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        super.dataReceived(slice: slice)
+        onOutput?()
+    }
+}
+
 // MARK: - a pane
 
 /// A single terminal inside a desk, wrapped in a box that can show focus.
 final class Pane {
-    let term: LocalProcessTerminalView
+    let term: DeskTerminalView
     let box: PaneBox
     /// Pane 0 runs the desk's CLI. The rest are shells, and closing one is free.
     let isAgent: Bool
@@ -29,7 +47,7 @@ final class Pane {
 
     init(isAgent: Bool) {
         self.isAgent = isAgent
-        term = LocalProcessTerminalView(frame: .zero)
+        term = DeskTerminalView(frame: .zero)
         term.translatesAutoresizingMaskIntoConstraints = false
         Theme.apply(to: term)
         box = PaneBox(term: term)
@@ -163,11 +181,26 @@ final class DeskSession {
         container.isVertical = true
         panes.append(Pane(isAgent: true))
         rebuild()
+        wireOutput()
     }
 
     /// The agent's terminal — where a routed command goes, regardless of which
     /// pane the user happens to be looking at.
-    var agentTerm: LocalProcessTerminalView { panes[0].term }
+    var agentTerm: DeskTerminalView { panes[0].term }
+
+    /// Inferring "finished" from output stopping is fiddly enough to be worth
+    /// testing, so the rule lives in DeskworkCore rather than here.
+    private var activityState = ActivityState()
+
+    var isVisible: Bool {
+        get { activityState.visible }
+        set { activityState.setVisible(newValue) }
+    }
+
+    func noteOutput() { activityState.noteOutput() }
+
+    /// What the rail should draw right now.
+    var activity: DeskActivity { activityState.activity() }
     var focusedPane: Pane { panes[min(focused, panes.count - 1)] }
     var started: Bool { panes[0].started }
 
@@ -185,6 +218,7 @@ final class DeskSession {
         if panes.count == 1 { isVertical = vertical; container.isVertical = vertical }
         let p = Pane(isAgent: false)
         p.term.processDelegate = processDelegate
+        p.term.onOutput = { [weak self] in self?.noteOutput() }
         panes.insert(p, at: focused + 1)
         focused += 1
         rebuild()
@@ -231,6 +265,12 @@ final class DeskSession {
         panes.remove(at: i)
         focused = min(focused, panes.count - 1)
         rebuild()
+    }
+
+    /// Any pane writing counts as the desk writing — a shell pane finishing a
+    /// build is as worth knowing about as the agent answering.
+    private func wireOutput() {
+        for p in panes { p.term.onOutput = { [weak self] in self?.noteOutput() } }
     }
 
     private func rebuild() {

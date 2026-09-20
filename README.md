@@ -22,6 +22,10 @@ Deskwork calls one of those a **desk**, and makes the desk the unit.
 
 **It never reimplements an agent.** Deskwork launches `claude`, `codex`, `gemini` or `copilot` in a real pty. Your agent definitions, hooks, memory files and model pins all apply, because nothing is intercepting them. This is the point: ACP-based editors run a Claude Code bundled inside the Agent SDK rather than the CLI on your machine, which is why your own agents do not exist there.
 
+**It tells you when a desk answered.** The point of desks is running several agents at once, which means you are never watching more than one of them — so a desk that finishes while you are elsewhere gets a **green dot** in the rail, and the Dock icon carries a count of how many are waiting. A desk mid-thought shows a dim ring instead, so "working" and "done" are not the same signal.
+
+No CLI announces that it has finished answering; all that reaches Deskwork is bytes on a pty, so "finished" is inferred from bytes stopping for two seconds. Looking at the desk is the only thing that clears the dot — not hovering, not bringing the app forward. A badge that clears itself is worse than none, because you stop trusting it was ever set.
+
 **Splits, when one terminal is not enough.** `cmd-d` and `cmd-shift-d` give a desk a second pane: the agent in one, a shell in the other to look at what it just did. Pane 0 is the agent and confirms before you close it; the rest are login shells in the same directory and close for free. A desk keeps one axis and stops at four panes, because past that it is a mosaic rather than a workspace.
 
 **A folder tree and a reader, with tabs.** Agents write, you read. Files an agent touches **open themselves** — you cannot pre-open a file when you do not know which one it will edit. Those tabs are transient and render italic, like a preview tab, and recycle past four so a busy desk cannot bury you; clicking one pins it. Each tab watches its file and refreshes in place. PDFs, images and text, with shallow syntax highlighting. Read-only is what keeps the reader small — and why a PDF opens here at all.
