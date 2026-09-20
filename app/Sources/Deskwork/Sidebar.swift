@@ -8,6 +8,8 @@ final class SidebarView: NSView {
     var onSelect: ((Int) -> Void)?
     var onToggleGroup: ((String) -> Void)?
     var onRenameGroup: ((String) -> Void)?
+    var onRemoveDesk: ((Int) -> Void)?
+    var onRevealAgent: ((Int) -> Void)?
 
     private var buttons: [Int: NSButton] = [:]
     private var selected = -1
@@ -44,8 +46,10 @@ final class SidebarView: NSView {
             }
 
             for (i, d) in members {
-                let b = NSButton(frame: NSRect(x: g == nil ? 12 : 22, y: y,
-                                               width: w - (g == nil ? 22 : 32), height: 22))
+                let b = DeskButton(frame: NSRect(x: g == nil ? 12 : 22, y: y,
+                                                 width: w - (g == nil ? 22 : 32), height: 22))
+                b.onRemove = { [weak self] in self?.onRemoveDesk?(i) }
+                b.onReveal = d.agent == nil ? nil : { [weak self] in self?.onRevealAgent?(i) }
                 b.title = d.name
                 b.target = self; b.action = #selector(tapped(_:))
                 b.tag = i
@@ -110,4 +114,28 @@ final class GroupHeader: NSView {
         NSMenu.popUpContextMenu(m, with: e, for: self)
     }
     @objc private func rename() { onRename?() }
+}
+
+
+/// Right-click a desk to remove it. The natural gesture, and it keeps the
+/// distinction visible: removing a desk removes the shortcut, not the agent.
+final class DeskButton: NSButton {
+    var onRemove: (() -> Void)?
+    var onReveal: (() -> Void)?
+
+    override func rightMouseDown(with e: NSEvent) {
+        let m = NSMenu()
+        if onReveal != nil {
+            let r = NSMenuItem(title: "Reveal Agent Definition", action: #selector(reveal), keyEquivalent: "")
+            r.target = self
+            m.addItem(r)
+            m.addItem(.separator())
+        }
+        let d = NSMenuItem(title: "Remove Desk…", action: #selector(remove), keyEquivalent: "")
+        d.target = self
+        m.addItem(d)
+        NSMenu.popUpContextMenu(m, with: e, for: self)
+    }
+    @objc private func remove() { onRemove?() }
+    @objc private func reveal() { onReveal?() }
 }

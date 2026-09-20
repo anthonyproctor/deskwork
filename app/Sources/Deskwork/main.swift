@@ -161,6 +161,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.build(desks: desks)
         sidebar.onToggleGroup = { [weak self] g in self?.toggleGroup(g) }
         sidebar.onRenameGroup = { [weak self] g in self?.renameGroup(g) }
+        sidebar.onRemoveDesk = { [weak self] i in self?.removeDesk(i) }
+        sidebar.onRevealAgent = { [weak self] i in self?.revealAgent(i) }
         sidebar.onSelect = { [weak self] i in self?.show(i) }
 
         window.center(); window.makeKeyAndOrderFront(nil)
@@ -243,6 +245,96 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     }
 
     @objc func jump(_ sender: NSMenuItem) { show(sender.tag) }
+    /// Removing a desk removes the shortcut. It does NOT delete the agent
+    /// definition and it does NOT stop a running session — both said out loud,
+    /// because guessing wrong about either would be somebody's bad afternoon.
+    ///
+    /// Confirmation is graduated on purpose. A desk backed by a discoverable
+    /// agent or an ssh host is one click to restore, so demanding typed
+    /// confirmation there is friction without risk — and friction people learn
+    /// to click through stops protecting them. A desk carrying a hand-written
+    /// `command` is not recoverable, so that one asks you to type its name.
+    func removeDesk(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        let d = desks[i]
+        let running = sessions[d.name] != nil
+        let recoverable = d.agent != nil || d.command?.hasPrefix("ssh -t ") == true
+
+        var detail = "Removes it from desks.toml. Nothing else is deleted."
+        if d.agent != nil {
+            detail += "\n\nThe agent definition stays where it is, with its memory. "
+                + "Delete that with the vendor's own tooling if you want it gone. "
+                + "Deskwork will offer this desk back the next time it looks."
+        } else if d.command?.hasPrefix("ssh -t ") == true {
+            detail += "\n\nThe host stays in ~/.ssh/config, so Deskwork will offer it back."
+        } else if let c = d.command {
+            detail += "\n\nThis desk runs a command you wrote by hand and nothing else knows "
+                + "about it, so removing it loses that configuration:\n\n    \(c)"
+        }
+        if running {
+            detail += "\n\nIts session is running and keeps running until Deskwork quits."
+        }
+
+        let a = NSAlert()
+        a.messageText = "Remove the \(d.name) desk?"
+        a.informativeText = detail
+        a.addButton(withTitle: "Remove")
+        a.addButton(withTitle: "Cancel")
+
+        // Unrecoverable: make them type the name.
+        var field: NSTextField? = nil
+        if !recoverable {
+            a.alertStyle = .critical
+            let f = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+            f.placeholderString = "type \(d.name) to confirm"
+            a.accessoryView = f
+            field = f
+            a.buttons.first?.title = "Remove"
+        }
+
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        if !recoverable {
+            let typed = (field?.stringValue ?? "").trimmingCharacters(in: .whitespaces)
+            guard typed == d.name else {
+                let no = NSAlert()
+                no.messageText = "Not removed"
+                no.informativeText = typed.isEmpty
+                    ? "Nothing was typed, so nothing was changed."
+                    : "\"\(typed)\" does not match \"\(d.name)\", so nothing was changed."
+                no.runModal()
+                return
+            }
+        }
+
+        desks.remove(at: i)
+        DeskConfig.write(desks)
+        sidebar.build(desks: desks)
+        installMenu()
+        if visible?.desk.name == d.name, !desks.isEmpty { show(0) }
+        else if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) {
+            sidebar.select(j)
+        }
+    }
+
+    /// The safe half of deleting an agent: show it, let them decide.
+    func revealAgent(_ i: Int) {
+        guard desks.indices.contains(i), let agent = desks[i].agent else { return }
+        let root = desks[i].resolvedCwd
+        let candidates = [
+            "\(root)/.claude/agents/\(agent).md",
+            "\(root)/.github/agents/\(agent).agent.md",
+            NSString(string: "~/.claude/agents/\(agent).md").expandingTildeInPath,
+        ]
+        if let hit = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: hit)])
+        } else {
+            let a = NSAlert()
+            a.messageText = "No definition found for \(agent)"
+            a.informativeText = "Looked in .claude/agents, .github/agents and ~/.claude/agents."
+            a.runModal()
+        }
+    }
+
     @objc func refreshTree() { tree.refresh() }
 
     /// The cross-vendor bridge: drive the mailbox rather than invent a protocol.
