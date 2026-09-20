@@ -4,8 +4,16 @@ import DeskworkCore
 /// Rebuild and update Deskwork from inside Deskwork.
 ///
 /// You cannot replace a running binary in place — macOS keeps the executable
-/// mapped — but you do not need to. Build, then relaunch. Desks resume by
-/// design, so a relaunch costs a click rather than your work.
+/// mapped — but you do not need to. Build, then relaunch.
+///
+/// A relaunch is NOT free, and an earlier version of this comment said it was.
+/// `launchCommand()` starts `claude -n <name>` and `codex` with no resume flag,
+/// so a desk comes back as a FRESH session: the desk returns, the conversation
+/// it was holding does not. That matters most to exactly the person using
+/// Deskwork to work AND to upgrade itself, which is everybody who has it.
+///
+/// So the sheet names the desks it is about to end, and says plainly what is
+/// lost. Making them actually resume is a separate and larger job.
 ///
 /// For an open-source app this is the difference between "upgrade by opening a
 /// terminal and remembering three commands" and "press Update".
@@ -65,6 +73,11 @@ enum SelfUpdate {
         }
     }
 
+    /// Which desks have a live process right now. Set by the controller, which
+    /// is the only thing that knows; a closure rather than a reference so this
+    /// window does not reach back into the app to ask.
+    static var runningDesks: () -> [String] = { [] }
+
     /// Replace the running app with the one just built.
     ///
     /// Relaunching has to outlive this process, so it is handed to a detached
@@ -88,6 +101,7 @@ final class UpdateWindow: NSWindowController {
     private let log = NSTextView()
     private let status = NSTextField(labelWithString: "")
     private let goBtn = NSButton()
+    private let running = NSTextField(wrappingLabelWithString: "")
     private let pullToggle = NSButton(checkboxWithTitle: "Pull latest changes first", target: nil, action: nil)
     private var root: String
     private var busy = false
@@ -121,10 +135,26 @@ final class UpdateWindow: NSWindowController {
             "Version \(SelfUpdate.version)"
             + (SelfUpdate.builtAt.map { ", built \($0)" } ?? "")
             + "\nSource: \((root as NSString).abbreviatingWithTildeInPath)"
-            + "\n\nBuilds from source, then relaunches. Running desks stop and resume "
-            + "when you reopen them.")
+            + "\n\nBuilds from source, then relaunches.")
         head.font = .systemFont(ofSize: 11.5)
         head.textColor = .secondaryLabelColor
+
+        // Name what is about to be ended, and be honest that it is not free.
+        // A desk comes back; the session it was holding does not, because
+        // nothing here passes a resume flag to the vendor CLI.
+        running.font = .systemFont(ofSize: 11.5)
+        running.preferredMaxLayoutWidth = 660
+        let live = SelfUpdate.runningDesks().sorted()
+        if live.isEmpty {
+            running.stringValue = "No desks are running, so nothing is lost."
+            running.textColor = .secondaryLabelColor
+        } else {
+            running.stringValue = "Relaunching ends \(live.count) running "
+                + "desk\(live.count == 1 ? "" : "s") — \(live.joined(separator: ", ")) — "
+                + "and they come back as NEW sessions. The desks return; what they "
+                + "were in the middle of does not."
+            running.textColor = .systemOrange
+        }
         head.preferredMaxLayoutWidth = 660
 
         pullToggle.state = .on
@@ -137,7 +167,7 @@ final class UpdateWindow: NSWindowController {
 
         let row = NSStackView(views: [pullToggle, NSView(), status, goBtn])
         row.orientation = .horizontal; row.spacing = 10
-        let stack = NSStackView(views: [head, scroll, row])
+        let stack = NSStackView(views: [head, running, scroll, row])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 16, bottom: 16, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false

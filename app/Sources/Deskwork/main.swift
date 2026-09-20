@@ -119,6 +119,11 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         NSApp.activate(ignoringOtherApps: true)
         installMenu()
         watchPaneClicks()
+        // The update sheet names what a relaunch is about to end. Only the
+        // controller knows which desks have live processes.
+        SelfUpdate.runningDesks = { [weak self] in
+            (self?.sessions.filter { $0.value.started }.map(\.key)) ?? []
+        }
         show(DeskConfig.startup(in: desks))
         if firstRun { showWelcome() }
     }

@@ -192,7 +192,7 @@ Not built yet:
 
 - No diff view. The reader shows a file, not what changed in it.
 - No syntax highlighting.
-- Desks die when the app quits; they do not outlive it.
+- Desks die when the app quits and come back as new sessions, not resumed ones.
 - Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
 
 ## Updating
@@ -201,7 +201,7 @@ Not built yet:
 
 A failed build never relaunches. The running app stays exactly as it was and the log tells you why.
 
-Running desks stop on relaunch and resume when you reopen them, which is the design working rather than a cost: the desk is the durable thing, the window is not.
+**A relaunch is not free**, and the update window says so before you press it: it names the desks about to end. A desk comes back when you reopen it, but as a **new session** — nothing passes a resume flag to the vendor's CLI, so the desk returns and whatever it was in the middle of does not. That matters most to the person using Deskwork to work *and* to upgrade Deskwork, which is everybody who has it. Making desks genuinely resume is tracked as an issue.
 
 ## Tests
 
