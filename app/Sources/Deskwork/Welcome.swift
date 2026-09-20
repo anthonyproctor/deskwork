@@ -10,12 +10,16 @@ import DeskworkCore
 final class WelcomeWindow: NSWindowController {
     var onFinish: (() -> Void)?
     private var checks: [(Bridge.Runtime, Bool)] = []
+    private var projectDir = FileManager.default.currentDirectoryPath
+    private var found: [DiscoveredAgent] = []
 
-    convenience init() {
+    convenience init(projectDir: String = FileManager.default.currentDirectoryPath) {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         self.init(window: w)
         w.title = "Welcome to Deskwork"
+        self.projectDir = projectDir
+        self.found = Discovery.agents(in: projectDir)
         build()
         w.center()
     }
@@ -81,6 +85,23 @@ final class WelcomeWindow: NSWindowController {
                 + "The responder runs read-only where the vendor supports it. cmd-shift-m."))
         }
 
+        // Someone with existing agents should not have to configure anything.
+        if !self.found.isEmpty {
+            views.append(caps("AGENTS ALREADY IN THIS PROJECT"))
+            views.append(body("Found \(self.found.count) agent definition"
+                + (self.found.count == 1 ? "" : "s")
+                + " in .claude/agents and .github/agents. Deskwork will make a desk for each, "
+                + "launching that vendor's own CLI with that agent. Remove any you do not want "
+                + "in Settings."))
+            let names = self.found.prefix(8).map(\.name).joined(separator: ", ")
+            let l = NSTextField(wrappingLabelWithString: names
+                + (self.found.count > 8 ? ", and \(self.found.count - 8) more" : ""))
+            l.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+            l.textColor = .secondaryLabelColor
+            l.preferredMaxLayoutWidth = 580
+            views.append(l)
+        }
+
         let go = NSButton(title: found.isEmpty ? "Continue" : "Create my desks",
                           target: self, action: #selector(finish))
         go.bezelStyle = .rounded
@@ -104,6 +125,14 @@ final class WelcomeWindow: NSWindowController {
 
     @objc private func finish() {
         DeskConfig.writeStarter()
+        // Append discovered agents to whatever the starter wrote.
+        if !found.isEmpty {
+            var desks = DeskConfig.load()
+            for a in Discovery.undeskedAgents(in: projectDir, desks: desks) {
+                desks.append(Discovery.desk(from: a, cwd: projectDir))
+            }
+            DeskConfig.write(desks)
+        }
         UIState.markSeenWelcome()
         close()
         onFinish?()

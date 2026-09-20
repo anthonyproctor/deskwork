@@ -143,4 +143,23 @@ public enum DeskConfig {
         if let d = current { desks.append(d) }
         return desks
     }
+
+    /// Write desks back out. The file stays the source of truth, so anything
+    /// written here must be something a human can also edit by hand.
+    public static func write(_ desks: [Desk]) {
+        var out = "# Deskwork desks. Written by Deskwork; safe to edit by hand.\n"
+        for d in desks {
+            out += "\n[desk.\(d.name)]\n"
+            if let g = d.group { out += "group = \"\(g)\"\n" }
+            if let c = d.command { out += "command = \"\(c)\"\n" }
+            else {
+                out += "runtime = \"\(d.runtime)\"\n"
+                if let a = d.agent { out += "agent = \"\(a)\"\n" }
+            }
+            if let w = d.cwd { out += "cwd = \"\(w)\"\n" }
+        }
+        try? FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try? out.write(toFile: path, atomically: true, encoding: .utf8)
+    }
 }

@@ -239,14 +239,17 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     var welcome: WelcomeWindow?
 
     @objc func openSettings() {
-        settings = SettingsWindow()
+        settings = SettingsWindow(projectDir: visible?.desk.resolvedCwd
+                                  ?? desks.first?.resolvedCwd
+                                  ?? FileManager.default.currentDirectoryPath)
         settings?.onSaved = { [weak self] in self?.reloadDesks() }
         settings?.showWindow(nil)
         settings?.window?.makeKeyAndOrderFront(nil)
     }
 
     @objc func showWelcome() {
-        welcome = WelcomeWindow()
+        welcome = WelcomeWindow(projectDir: desks.first?.resolvedCwd
+                                ?? FileManager.default.currentDirectoryPath)
         welcome?.onFinish = { [weak self] in self?.reloadDesks() }
         welcome?.showWindow(nil)
         welcome?.window?.makeKeyAndOrderFront(nil)

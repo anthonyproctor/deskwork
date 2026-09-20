@@ -15,12 +15,15 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let cwd = NSTextField(), command = NSTextField()
     private let runtime = NSPopUpButton()
     private var editing: Int?
+    private var projectDir = FileManager.default.currentDirectoryPath
+    private let discoveredStack = NSStackView()
 
-    convenience init() {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 880, height: 640),
+    convenience init(projectDir: String = FileManager.default.currentDirectoryPath) {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 880, height: 700),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         self.init(window: w)
         w.title = "Deskwork Settings"
+        self.projectDir = projectDir
         desks = DeskConfig.load()
         build()
         w.center()
@@ -110,6 +113,16 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             + "Claude tells only its statusline, so the button above installs a recorder as that "
             + "statusline — any statusline you already have keeps working, the recorder chains to it. "
             + "Any other tool can join by writing ~/.local/share/deskwork/limits/<vendor>.json."))
+        rtLines.append(caps("AGENTS FOUND ON DISK"))
+        discoveredStack.orientation = .vertical
+        discoveredStack.alignment = .leading
+        discoveredStack.spacing = 3
+        rtLines.append(discoveredStack)
+        rtLines.append(note("Agent definitions already in .claude/agents or .github/agents that "
+            + "have no desk yet. Adding one creates a desk that launches the vendor's own CLI "
+            + "with that agent."))
+        refreshDiscovered()
+
         rtLines.append(caps("AGENT MAIL"))
         let box = Mailbox.load()
         rtLines.append(note("Threads are appended to \((box.dir as NSString).abbreviatingWithTildeInPath)."
@@ -162,6 +175,41 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         runtime.selectItem(withTitle: d.runtime)
     }
 
+    /// Only agents without a desk are worth showing; the rest is noise.
+    private func refreshDiscovered() {
+        discoveredStack.subviews.forEach { $0.removeFromSuperview() }
+        let found = Discovery.undeskedAgents(in: projectDir, desks: desks)
+        if found.isEmpty {
+            let l = NSTextField(labelWithString: "every agent already has a desk")
+            l.font = .systemFont(ofSize: 11); l.textColor = .tertiaryLabelColor
+            discoveredStack.addArrangedSubview(l)
+            return
+        }
+        for a in found.prefix(20) {
+            let b = NSButton(title: "＋  \(a.name)   \(a.runtime)", target: self,
+                             action: #selector(addDiscovered(_:)))
+            b.bezelStyle = .inline
+            b.isBordered = false
+            b.alignment = .left
+            b.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+            b.contentTintColor = .controlAccentColor
+            b.toolTip = a.blurb + "\n\n" + a.path
+            b.identifier = NSUserInterfaceItemIdentifier(a.name + "\u{1}" + a.runtime)
+            discoveredStack.addArrangedSubview(b)
+        }
+    }
+
+    @objc private func addDiscovered(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else { return }
+        let parts = id.split(separator: "\u{1}").map(String.init)
+        guard parts.count == 2,
+              let a = Discovery.agents(in: projectDir).first(where: { $0.name == parts[0] && $0.runtime == parts[1] })
+        else { return }
+        desks.append(Discovery.desk(from: a, cwd: projectDir))
+        table.reloadData()
+        refreshDiscovered()
+    }
+
     @objc private func addOrUpdate() {
         let n = name.stringValue.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { NSSound.beep(); return }
@@ -184,24 +232,11 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         guard desks.indices.contains(table.selectedRow) else { return }
         desks.remove(at: table.selectedRow)
         table.reloadData()
+        refreshDiscovered()
     }
 
     @objc private func save() {
-        var out = "# Deskwork desks. Written by Settings; safe to edit by hand.\n"
-        for d in desks {
-            out += "\n[desk.\(d.name)]\n"
-            if let g = d.group { out += "group = \"\(g)\"\n" }
-            if let c = d.command { out += "command = \"\(c)\"\n" }
-            else {
-                out += "runtime = \"\(d.runtime)\"\n"
-                if let a = d.agent { out += "agent = \"\(a)\"\n" }
-            }
-            if let w = d.cwd { out += "cwd = \"\(w)\"\n" }
-        }
-        try? FileManager.default.createDirectory(
-            atPath: (DeskConfig.path as NSString).deletingLastPathComponent,
-            withIntermediateDirectories: true)
-        try? out.write(toFile: DeskConfig.path, atomically: true, encoding: .utf8)
+        DeskConfig.write(desks)
         onSaved?()
         close()
     }

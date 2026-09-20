@@ -53,6 +53,16 @@ case "usage":
         "routerHint": Usage.routerHint(r) ?? "",
     ])
 
+case "agents":
+    let dir = args.count > 1 ? args[1] : FileManager.default.currentDirectoryPath
+    out(Discovery.agents(in: dir).map { a -> [String: Any] in
+        var o: [String: Any] = ["name": a.name, "runtime": a.runtime,
+                                "path": a.path, "scope": a.isProjectLevel ? "project" : "user"]
+        if let m = a.model { o["model"] = m }
+        o["blurb"] = a.blurb
+        return o
+    })
+
 case "formats":
     out([
         "desks":    DeskConfig.path,
@@ -68,6 +78,7 @@ default:
     deskwork-cli — DeskworkCore, headless
 
       desks              configured desks and how each launches
+      agents [dir]       agent definitions on disk that could become desks
       limits             remaining quota per vendor, stale entries dropped
       usage [--days N]   consumption by vendor and by desk (default: this week)
       formats            where every file Deskwork reads or writes lives
