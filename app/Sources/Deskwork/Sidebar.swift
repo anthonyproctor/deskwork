@@ -117,6 +117,22 @@ final class SidebarView: NSView {
                         .foregroundColor: Theme.ui.dimText,
                     ]))
             }
+            // The activity badge: a desk that answered while you were looking
+            // somewhere else. AFTER the vendor label and in colour rather than a
+            // new glyph in front, because the LEADING dot already means
+            // "selected" and two dots with different meanings in one row is how
+            // you get a badge nobody can read.
+            switch activity[bare] ?? .quiet {
+            case .quiet: break
+            case .working:
+                title.append(NSAttributedString(string: "  \u{25CC}", attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
+                    .foregroundColor: Theme.ui.dimText]))
+            case .ready:
+                title.append(NSAttributedString(string: "  \u{25CF}", attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .bold),
+                    .foregroundColor: NSColor.systemGreen]))
+            }
             b.attributedTitle = title
         }
     }

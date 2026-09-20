@@ -168,9 +168,13 @@ public enum DeskConfig {
         public var font: String?
         public var size: Int?
         public var palette: String?
-        /// "system" follows the OS, "light"/"dark" pin it. Pinning matters
-        /// more here than in most apps: a terminal you read all day is not
-        /// something everyone wants flipping at sunset.
+        /// "dark" (the default), "light", or "system" to follow the OS.
+        ///
+        /// Dark rather than system on purpose. This is a terminal-first tool
+        /// and every terminal-first tool it sits next to — VS Code, Ghostty,
+        /// iTerm — opens dark. Following the OS means someone whose Mac is in
+        /// light mode gets a white terminal they never asked for on first
+        /// launch, and first launch is the only impression there is.
         public var mode: String?
         /// Space between the terminal and the edge of its pane. Ghostty's
         /// defaults, because text butting against the frame is the first thing
@@ -188,8 +192,7 @@ public enum DeskConfig {
             if l.hasPrefix("[") { inTheme = (l == "[theme]"); continue }
             guard inTheme, let eq = l.firstIndex(of: "=") else { continue }
             let k = l[l.startIndex..<eq].trimmingCharacters(in: .whitespaces)
-            let v = TomlText.unescape(String(l[l.index(after: eq)...])
-                .trimmingCharacters(in: .whitespaces))
+            let v = TomlText.value(String(l[l.index(after: eq)...]))
             switch k {
             case "font":    t.font = v.isEmpty ? nil : v
             case "size":    t.size = Int(v)
@@ -273,11 +276,80 @@ public enum DeskConfig {
 
     /// Write desks back out. The file stays the source of truth, so anything
     /// written here must be something a human can also edit by hand.
-    public static func write(_ desks: [Desk]) { write(desks, to: path) }
+    public static func write(_ desks: [Desk]) { write(desks, theme: nil, to: path) }
+    public static func write(_ desks: [Desk], to path: String) {
+        write(desks, theme: nil, to: path)
+    }
 
     /// Path injectable so the write -> load round trip can be tested.
-    public static func write(_ desks: [Desk], to path: String) {
+    /// Everything in the file that is NOT a `[desk.*]` table, kept verbatim.
+    ///
+    /// The writer builds desks.toml from the desk list, so any section it does
+    /// not know about would be silently deleted on save — `[theme]` was, and
+    /// the next section somebody adds would be too. Rather than teach the
+    /// writer about each one, keep whatever else is there exactly as written,
+    /// comments and all.
+    public static func preservedTables(from path: String = DeskConfig.path,
+                                       dropping: Set<String> = []) -> String {
+        guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return "" }
+        var kept: [String] = []
+        var skipping = false
+        for line in raw.components(separatedBy: .newlines) {
+            let t = TomlText.stripComment(line).trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("[") {
+                // A table header ends the previous table, so the decision is
+                // remade here rather than carried. Slicing the file at the
+                // first "[theme]" instead would have thrown away every table
+                // that came after it.
+                skipping = t.hasPrefix("[desk.") || dropping.contains(t)
+                if skipping { continue }
+            }
+            if !skipping { kept.append(line) }
+        }
+        // Trim the blank run at either end so the rebuilt file does not grow a
+        // gap every time it is saved.
+        while kept.first?.trimmingCharacters(in: .whitespaces).isEmpty == true { kept.removeFirst() }
+        while kept.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { kept.removeLast() }
+        return kept.joined(separator: "\n")
+    }
+
+    /// Render a `[theme]` table. Only non-default values are written, so the
+    /// file stays about what the user chose rather than restating every default.
+    public static func themeTable(_ t: ThemeSettings) -> String {
+        var lines: [String] = []
+        if let v = t.palette, !v.isEmpty { lines.append("palette = \"\(TomlText.escape(v))\"") }
+        if let v = t.mode, !v.isEmpty { lines.append("mode = \"\(TomlText.escape(v))\"") }
+        if let v = t.font, !v.isEmpty { lines.append("font = \"\(TomlText.escape(v))\"") }
+        if let v = t.size { lines.append("size = \(v)") }
+        if t.padX != 12 { lines.append("padding_x = \(t.padX)") }
+        if t.padY != 10 { lines.append("padding_y = \(t.padY)") }
+        return lines.isEmpty ? "" : "[theme]\n" + lines.joined(separator: "\n") + "\n"
+    }
+
+    public static func write(_ desks: [Desk], theme: ThemeSettings?, to path: String) {
+        var head: String
+        if let theme {
+            // Keep every other non-desk table, dropping only the one being
+            // replaced, then append the new one.
+            let others = preservedTables(from: path, dropping: ["[theme]"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let table = themeTable(theme)
+            head = others.isEmpty ? table
+                 : (table.isEmpty ? others : others + "\n\n" + table)
+        } else {
+            // No new theme: keep whatever the file already had, untouched.
+            head = preservedTables(from: path)
+        }
+        writeBody(desks, head: head, to: path)
+    }
+
+    public static func write(_ desks: [Desk], theme: ThemeSettings?) {
+        write(desks, theme: theme, to: path)
+    }
+
+    private static func writeBody(_ desks: [Desk], head: String, to path: String) {
         var out = "# Deskwork desks. Written by Deskwork; safe to edit by hand.\n"
+        if !head.isEmpty { out += "\n" + head + "\n" }
         for d in desks {
             out += "\n[desk.\(d.name)]\n"
             if let g = d.group { out += "group = \"\(TomlText.escape(g))\"\n" }

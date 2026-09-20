@@ -51,6 +51,19 @@ public enum TomlText {
     }
 
     /// Undo `escape` when reading a value back.
+    /// Strip surrounding quotes, then unescape what is inside.
+    ///
+    /// Every TOML string value needs both steps and they were written out
+    /// separately in two places. The theme parser did only the second, so
+    /// `palette = "gruvbox"` parsed as the seven characters `"gruvbox"`,
+    /// matched no known palette, and was silently ignored — a setting that had
+    /// never once worked. One implementation, so that cannot happen again.
+    public static func value(_ raw: String) -> String {
+        let t = raw.trimmingCharacters(in: .whitespaces)
+        guard t.count >= 2, t.hasPrefix("\""), t.hasSuffix("\"") else { return t }
+        return unescape(String(t.dropFirst().dropLast()))
+    }
+
     public static func unescape(_ s: String) -> String {
         var out = ""
         var it = s.makeIterator()

@@ -20,7 +20,7 @@
 //
 //     [theme]
 //     palette = "vscode"     # vscode | gruvbox | nord | solarized
-//     mode    = "system"     # system | light | dark
+//     mode    = "dark"       # dark (default) | light | system
 //     font    = "JetBrainsMono Nerd Font Mono"
 //     size    = 14
 //
@@ -181,7 +181,7 @@ enum Theme {
 
         let fam = families[(cfg.palette ?? "vscode").lowercased()] ?? (vscodeDark, vscodeLight)
         let wantDark: Bool
-        switch (cfg.mode ?? "system").lowercased() {
+        switch (cfg.mode ?? "dark").lowercased() {
         case "light": wantDark = false
         case "dark":  wantDark = true
         default:      wantDark = systemIsDark

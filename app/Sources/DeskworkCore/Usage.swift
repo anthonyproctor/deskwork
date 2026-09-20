@@ -67,10 +67,16 @@ public enum Usage {
         return start
     }
 
+    /// Every file seen this pass, so the cache can drop entries for files
+    /// that no longer exist instead of growing forever.
+    private static var live = Set<String>()
+
     public static func scan(since: Date) -> Report {
         var r = Report()
+        live.removeAll()
         scanClaude(since: since, into: &r)
         scanCodex(since: since, into: &r)
+        UsageCache.flush(keeping: live)
         return r
     }
 
@@ -99,7 +105,23 @@ public enum Usage {
             guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
             for file in files where file.hasSuffix(".jsonl") {
                 let path = (dir as NSString).appendingPathComponent(file)
+                live.insert(path)
+
+                // A file untouched since before the window opened cannot
+                // contribute to it. This gate was missing entirely, and on a
+                // real machine it meant 262MB of 823MB was opened and parsed
+                // for nothing on every single refresh.
+                guard let fp = UsageCache.fingerprint(path), fp.modified >= since else { continue }
+
+                // Unchanged since last time means the same numbers as last
+                // time. Reuse them rather than re-deriving them.
+                if let cached = UsageCache.slices(for: path, key: fp.key, since: since) {
+                    for sl in cached { addSlice(&r, sl) }
+                    continue
+                }
+
                 guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+                var mine: [String: UsageSlice] = [:]
 
                 var desk: String? = nil
                 var seen = Set<String>()        // per-file dedupe: that is where dupes come from
@@ -126,10 +148,45 @@ public enum Usage {
                     let (pin, pout) = claudePrices[model] ?? (5, 25)
                     let usd = (Double(i) + 1.25 * Double(cw) + 0.10 * Double(cr)) / 1e6 * pin
                             + Double(out) / 1e6 * pout
-                    add(&r, vendor: "claude", desk: desk, tokens: i + cw + cr + out, usd: usd, when: when)
+                    collect(&mine, vendor: "claude", desk: desk,
+                            tokens: i + cw + cr + out, usd: usd, when: when)
                 }
+                let slices = Array(mine.values)
+                UsageCache.store(slices, for: path, key: fp.key, since: since)
+                for sl in slices { addSlice(&r, sl) }
             }
         }
+    }
+
+    /// Accumulate one message into a per-file bundle, keyed so a whole
+    /// transcript collapses to a handful of rows before it is cached.
+    private static func collect(_ into: inout [String: UsageSlice], vendor: String,
+                                desk: String?, tokens: Int, usd: Double?, when: Date) {
+        let day = dayKey(when)
+        let k = "\(vendor)|\(desk ?? "")|\(day)"
+        var sl = into[k] ?? UsageSlice(vendor: vendor, desk: desk, day: day,
+                                       tokens: 0, calls: 0, usd: nil)
+        sl.tokens += tokens
+        sl.calls += 1
+        if let usd { sl.usd = (sl.usd ?? 0) + usd }
+        into[k] = sl
+    }
+
+    /// Fold a cached or freshly-computed slice into the report. The only path
+    /// that writes to the report, so cached and uncached files cannot drift.
+    private static func addSlice(_ r: inout Report, _ sl: UsageSlice) {
+        var v = r.byVendor[sl.vendor] ?? Bucket()
+        v.tokens += sl.tokens; v.calls += sl.calls
+        if let u = sl.usd { v.usd = (v.usd ?? 0) + u }
+        r.byVendor[sl.vendor] = v
+
+        if let d = sl.desk, !d.isEmpty {
+            var b = r.byDesk[d] ?? Bucket()
+            b.tokens += sl.tokens; b.calls += sl.calls
+            if let u = sl.usd { b.usd = (b.usd ?? 0) + u }
+            r.byDesk[d] = b
+        }
+        r.byDay[sl.day, default: [:]][sl.vendor, default: 0] += sl.tokens
     }
 
     private static func scanCodex(since: Date, into r: inout Report) {
@@ -137,6 +194,7 @@ public enum Usage {
         guard let e = FileManager.default.enumerator(atPath: root) else { return }
         for case let rel as String in e where rel.hasSuffix(".jsonl") {
             let path = (root as NSString).appendingPathComponent(rel)
+            live.insert(path)
             guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
                   let m = attrs[.modificationDate] as? Date, m >= since,
                   let text = try? String(contentsOfFile: path, encoding: .utf8) else { continue }

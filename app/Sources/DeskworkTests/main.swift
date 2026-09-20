@@ -302,6 +302,140 @@ do {
        again.activity(now: t0.addingTimeInterval(10 + quiet + 0.1)), .ready)
 }
 
+// MARK: - saving desks must not eat the rest of the file
+//
+// write() rebuilds desks.toml from the desk list. Anything it does not know
+// about was silently deleted, so changing one desk in Settings wiped [theme]
+// — and would have wiped whatever section came next, too.
+
+do {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let f = dir.appendingPathComponent("desks.toml").path
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    try? """
+    [theme]
+    palette = "gruvbox"
+    mode = "light"
+    size = 16
+
+    [future]
+    # a section this writer has never heard of
+    setting = "keep me"
+
+    [desk.one]
+    runtime = "claude"
+    cwd = "~/src"
+    """.write(toFile: f, atomically: true, encoding: .utf8)
+
+    // Save with no theme given: everything non-desk survives untouched.
+    DeskConfig.write(DeskConfig.load(path: f), to: f)
+    let after = (try? String(contentsOfFile: f, encoding: .utf8)) ?? ""
+    check("saving desks keeps the theme table", after.contains("palette = \"gruvbox\""))
+    check("saving desks keeps a section the writer never heard of",
+          after.contains("setting = \"keep me\""))
+    check("and still writes the desks", after.contains("[desk.one]"))
+
+    let t = DeskConfig.themeSettings(path: f)
+    eq("the theme still parses after a save", t.palette, "gruvbox")
+    eq("including the mode", t.mode, "light")
+    eq("and the size", t.size, 16)
+
+    // Now save WITH a new theme: it replaces the old one and keeps the rest.
+    var t2 = DeskConfig.themeSettings(path: f)
+    t2.palette = "vscode"; t2.mode = "dark"
+    DeskConfig.write(DeskConfig.load(path: f), theme: t2, to: f)
+    let t3 = DeskConfig.themeSettings(path: f)
+    eq("a new theme replaces the old palette", t3.palette, "vscode")
+    eq("and the old mode", t3.mode, "dark")
+    let after2 = (try? String(contentsOfFile: f, encoding: .utf8)) ?? ""
+    check("replacing the theme still keeps other sections",
+          after2.contains("setting = \"keep me\""))
+    check("and does not leave a second theme table",
+          after2.components(separatedBy: "[theme]").count == 2)
+
+    // Repeated saves must be stable rather than accreting blank lines or dupes.
+    DeskConfig.write(DeskConfig.load(path: f), theme: t3, to: f)
+    DeskConfig.write(DeskConfig.load(path: f), theme: t3, to: f)
+    let after3 = (try? String(contentsOfFile: f, encoding: .utf8)) ?? ""
+    check("saving repeatedly does not duplicate the theme",
+          after3.components(separatedBy: "[theme]").count == 2)
+    check("saving repeatedly does not duplicate a desk",
+          after3.components(separatedBy: "[desk.one]").count == 2)
+}
+
+// Dark is the default, not the system setting. A terminal-first tool that
+// opens white on a light-mode Mac has wasted its only first impression.
+do {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let f = dir.appendingPathComponent("desks.toml").path
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try? "[desk.one]\nruntime = \"claude\"\n".write(toFile: f, atomically: true, encoding: .utf8)
+    eq("no theme table means no mode set, so the app default applies",
+       DeskConfig.themeSettings(path: f).mode, nil)
+}
+
+// MARK: - the usage cache
+//
+// A cache that is fast and WRONG is worse than the 12-second scan it replaced,
+// so these pin invalidation rather than hits. Every one of them is a way the
+// meter could quietly report yesterday's numbers.
+
+do {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let f = dir.appendingPathComponent("t.jsonl").path
+    defer { try? FileManager.default.removeItem(at: dir); UsageCache.clear() }
+    UsageCache.clear()
+
+    try? "one".write(toFile: f, atomically: true, encoding: .utf8)
+    let since = Date(timeIntervalSince1970: 1_700_000_000)
+    guard let fp1 = UsageCache.fingerprint(f) else { fatalError("no fingerprint") }
+
+    let slice = UsageSlice(vendor: "claude", desk: "hub", day: "2026-09-20",
+                           tokens: 100, calls: 2, usd: 1.5)
+    UsageCache.store([slice], for: f, key: fp1.key, since: since)
+
+    eq("an unchanged file serves its cached slices",
+       UsageCache.slices(for: f, key: fp1.key, since: since)?.first?.tokens, 100)
+
+    // A file whose CONTENTS changed must not serve the old numbers. Size is
+    // part of the key precisely so a same-second rewrite is still caught.
+    try? "one plus more text".write(toFile: f, atomically: true, encoding: .utf8)
+    guard let fp2 = UsageCache.fingerprint(f) else { fatalError("no fingerprint") }
+    check("a changed file invalidates its cache entry",
+          UsageCache.slices(for: f, key: fp2.key, since: since) == nil)
+
+    // A report over a different window is a different answer and must not be
+    // served from an entry computed for another one.
+    check("a different window invalidates the cache",
+          UsageCache.slices(for: f, key: fp1.key,
+                            since: since.addingTimeInterval(86_400)) == nil)
+
+    // A file that no longer exists must not linger forever.
+    UsageCache.store([slice], for: f, key: fp2.key, since: since)
+    UsageCache.flush(keeping: [])
+    check("flushing drops files that were not seen this pass",
+          UsageCache.slices(for: f, key: fp2.key, since: since) == nil)
+
+    // A file that IS still present survives the same flush.
+    UsageCache.store([slice], for: f, key: fp2.key, since: since)
+    UsageCache.flush(keeping: [f])
+    eq("and keeps the ones that were",
+       UsageCache.slices(for: f, key: fp2.key, since: since)?.first?.calls, 2)
+
+    // An unknown path is a miss, not a crash.
+    check("an unknown file is simply a miss",
+          UsageCache.slices(for: "/nope/missing.jsonl", key: "x", since: since) == nil)
+
+    // Fingerprinting something that is not there fails cleanly rather than
+    // returning a key that would match every other missing file.
+    check("fingerprinting a missing file returns nil",
+          UsageCache.fingerprint("/nope/missing.jsonl") == nil)
+}
+
 print("\n\(passed) passed, \(failures.count) failed")
 if !failures.isEmpty {
     print("\nfailures:")

@@ -114,6 +114,7 @@ public enum Limits {
         let root = NSString(string: "~/.codex/sessions").expandingTildeInPath
         guard let e = FileManager.default.enumerator(atPath: root) else { return nil }
         var newest: (Date, String)? = nil
+        var candidates: [(Date, String)] = []
         // Match isUsable (24h). A 6h file cutoff silently discarded readings
         // that the freshness rule would have accepted, so an idle vendor
         // vanished for the wrong reason.
@@ -122,13 +123,35 @@ public enum Limits {
             let p = (root as NSString).appendingPathComponent(rel)
             guard let a = try? FileManager.default.attributesOfItem(atPath: p),
                   let m = a[.modificationDate] as? Date, m > cutoff else { continue }
+            candidates.append((m, p))
             if newest == nil || m > newest!.0 { newest = (m, p) }
         }
-        guard let (_, path) = newest,
-              let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        _ = newest
+        // Try rollouts NEWEST FIRST and stop at the first one that actually
+        // carries rate_limits.
+        //
+        // Reading only the single newest file was wrong in a way that bit
+        // immediately: a `codex exec` run that is killed, or that ends before
+        // the server reports quota, writes a rollout with NO rate_limits in it.
+        // That file is the newest, so the whole vendor silently disappeared
+        // from the meter — and the fan-out feature in this same app produces
+        // exactly those files. Verified live: the 13:05 rollout had zero
+        // rate_limits records while the 12:50 one had seven.
+        for (_, path) in candidates.sorted(by: { $0.0 > $1.0 }) {
+            if let v = limits(fromRollout: path) { return v }
+        }
+        return nil
+    }
 
-        var found: VendorLimits? = nil
-        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+    /// Pull the last rate_limits record out of one rollout.
+    ///
+    /// Scanned BACKWARDS: the newest record wins anyway, so stopping at the
+    /// first hit from the end avoids JSON-parsing an entire multi-megabyte
+    /// file to throw away all but its final match.
+    private static func limits(fromRollout path: String) -> VendorLimits? {
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true).reversed() {
             guard let d = line.data(using: .utf8),
                   let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
                   let p = o["payload"] as? [String: Any],
@@ -150,9 +173,9 @@ public enum Limits {
                 f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                 v.at = (f.date(from: ts) ?? ISO8601DateFormatter().date(from: ts) ?? Date()).timeIntervalSince1970
             }
-            found = v            // keep the last one in the file: newest wins
+            return v             // scanning from the end, so the first hit IS the newest
         }
-        return found
+        return nil
     }
 
     // MARK: - the Claude recorder

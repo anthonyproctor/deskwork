@@ -14,6 +14,10 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let name = NSTextField(), group = NSTextField()
     private let cwd = NSTextField(), command = NSTextField()
     private let runtime = NSPopUpButton()
+    private let themePalette = NSPopUpButton()
+    private let themeMode = NSPopUpButton()
+    private let themeFont = NSTextField()
+    private let themeSize = NSTextField()
     private var editing: Int?
     private var projectDir = FileManager.default.currentDirectoryPath
     private let discoveredStack = NSStackView()
@@ -75,6 +79,31 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
                + "already have a wrapper script that handles resume-vs-new."),
         ])
         form.orientation = .vertical; form.alignment = .leading; form.spacing = 6
+
+        // Appearance belongs here, not only in a TOML file. "Where do I go to
+        // change the theme" having no answer but "edit a config file" is a
+        // wrong answer for the thing a user looks at all day.
+        let t = DeskConfig.themeSettings()
+        themePalette.addItems(withTitles: ["vscode", "gruvbox", "nord", "solarized"])
+        themePalette.selectItem(withTitle: t.palette ?? "vscode")
+        themeMode.addItems(withTitles: ["dark", "light", "system"])
+        themeMode.selectItem(withTitle: t.mode ?? "dark")
+        themeFont.stringValue = t.font ?? "JetBrainsMono Nerd Font Mono"
+        themeFont.placeholderString = "font, e.g. JetBrains Mono"
+        themeSize.stringValue = String(t.size ?? 14)
+        themeSize.placeholderString = "size"
+        for f in [themeFont, themeSize] { f.font = .systemFont(ofSize: 12) }
+        themeSize.widthAnchor.constraint(equalToConstant: 60).isActive = true
+
+        let themeRow = NSStackView(views: [themePalette, themeMode, themeSize])
+        themeRow.orientation = .horizontal; themeRow.spacing = 8
+        let themeBlock = NSStackView(views: [
+            caps("APPEARANCE"), themeRow, themeFont,
+            note("nord and solarized are dark only and stay dark in light mode, "
+               + "rather than inventing a light variant badly. A font that is not "
+               + "installed falls back to the next one that is."),
+        ])
+        themeBlock.orientation = .vertical; themeBlock.alignment = .leading; themeBlock.spacing = 6
 
         let addBtn = NSButton(title: "Add / Update", target: self, action: #selector(addOrUpdate))
         let delBtn = NSButton(title: "Remove", target: self, action: #selector(remove))
@@ -139,7 +168,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         rtLines.append(note("Threads are appended to \((box.dir as NSString).abbreviatingWithTildeInPath)."
             + (box.runner != nil ? " Using your own runner: \(box.runner!)." : " Using the built-in handoff.")))
 
-        let right = NSStackView(views: [form, btns] + rtLines)
+        let right = NSStackView(views: [form, btns, themeBlock] + rtLines)
         right.orientation = .vertical; right.alignment = .leading; right.spacing = 10
 
         let split = NSStackView(views: [tScroll, right])
@@ -276,7 +305,15 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     }
 
     @objc private func save() {
-        DeskConfig.write(desks)
+        // The theme goes out with the desks. Saving used to rebuild the file
+        // from the desk list alone, which silently deleted [theme].
+        var t = DeskConfig.themeSettings()
+        t.palette = themePalette.titleOfSelectedItem
+        t.mode = themeMode.titleOfSelectedItem
+        t.font = themeFont.stringValue.trimmingCharacters(in: .whitespaces)
+        t.size = Int(themeSize.stringValue) ?? t.size
+        Theme.invalidate()
+        DeskConfig.write(desks, theme: t)
         onSaved?()
         close()
     }
