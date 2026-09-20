@@ -34,6 +34,19 @@ final class DeskSession {
             + "  in \(desk.resolvedCwd)\u{1b}[0m\r\n\r\n")
 
         var env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
+
+        // Deskwork hands its own environment to every desk, so anything the app
+        // inherited is inherited again by the agent. CLAUDECODE marks "you are
+        // already inside a Claude Code session" and makes a nested one refuse to
+        // start — which happens whenever Deskwork is launched from a terminal
+        // that is itself running an agent. Scrub it rather than depending on how
+        // the app was launched.
+        let poison = ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID",
+                      "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_BRIDGE_SESSION_ID",
+                      "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
+                      "CLAUDE_CODE_SESSION_ATTENDED", "CLAUDE_PID", "CLAUDE_EFFORT"]
+        env.removeAll { entry in poison.contains(where: { entry.hasPrefix($0 + "=") }) }
+
         // Hooks and desk-scoped behaviour key off this, same as the shell wrapper.
         env.append("CLAUDE_DESK=\(desk.name)")
         env.append("DESKWORK=1")

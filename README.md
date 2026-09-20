@@ -49,12 +49,20 @@ Click the strip (or `cmd-shift-u`) for the detail: quota bars per vendor, which 
 
 ```sh
 git clone https://github.com/anthonyproctor/deskwork
-cd deskwork/app
-swift build -c release
-.build/release/Deskwork
+cd deskwork
+./scripts/build-app.sh          # builds ~/Applications/Deskwork.app
+open ~/Applications/Deskwork.app
 ```
 
+Pass a directory to put it elsewhere: `./scripts/build-app.sh /Applications`.
+
+The bundle is **ad-hoc signed**, which is enough to run on the machine that built it. It is not notarised, so macOS will ask once the first time.
+
 First launch writes a working config from whichever CLIs it finds and shows a welcome screen explaining what it found. There is nothing to set up by hand.
+
+`deskwork-cli` ships inside the bundle at `Deskwork.app/Contents/MacOS/deskwork-cli` — the core, headless, JSON on stdout. See [docs/FORMATS.md](docs/FORMATS.md).
+
+To run it as a plain binary during development: `cd app && swift build -c release && .build/release/Deskwork`.
 
 ## Configure
 
