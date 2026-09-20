@@ -18,7 +18,9 @@ there is something to act on. A mailbox bridge between vendors. Discovery of
 agents, Codex profiles and SSH hosts. Settings, first run, an app bundle,
 a headless CLI, 33 tests, CI, and self-update from inside the app.
 
-Splits, so a desk can hold the agent and a shell at once.
+Splits, so a desk can hold the agent and a shell at once. Fan-out, so one
+question can be asked of a dozen directories at once and reconciled into one
+answer, priced against real quota before it runs.
 
 Six runtimes: claude, codex, gemini, copilot, grok, ollama.
 
@@ -124,13 +126,32 @@ Not built because advising is obviously right and routing is obviously
 arguable. Handing your work to a different vendor because a number crossed a
 threshold is a decision, not an optimisation.
 
-### Orchestration past the mailbox
+### Orchestration past the mailbox — partly shipped 2026-09-20
 
-The bridge does one question and one answer. A review that fans out across
-several files, or a handoff that carries state, both want more than a thread.
+The bridge did one question and one answer. Three things it could not express:
+**fan-out**, **multi-turn between agents**, and **handoff state**.
 
-Wait for a real need. The mailbox was built because a hand-rolled one already
-existed and worked; the same bar should apply here.
+**Fan-out is built.** The same question across N directories in parallel, then
+a merge pass with every answer as context. A run is a directory of ordinary
+threads, so you can still `cat` the state of one — which is the constraint that
+keeps this from becoming a framework.
+
+The other two are deliberately not built, and the reasons differ:
+
+- **Multi-turn (A → B → A → B).** The stopping rule is the whole problem. A
+  convergence check between two agents is unreliable, and unreliable plus a
+  loop is how you spend a week's quota on an argument. If this is ever built it
+  gets a hard round cap and a human reading the result, not a "run until they
+  agree" button.
+- **Structured handoff state.** This is where a schema gets invented and the
+  project becomes a worse programming language. LangChain, AutoGPT and crewAI
+  all started at "agents hand work to each other" and ended as DAG config
+  formats nobody can debug. The thread stays prose.
+
+The line to hold, for anyone extending this: **if you cannot `cat` the state of
+a run, it is the wrong design.** The mailbox's entire virtue is that it is a
+file — readable, diffable, keepable. A fan-out is a directory of those. A graph
+in a config file is not.
 
 ---
 

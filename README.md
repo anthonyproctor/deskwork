@@ -44,7 +44,7 @@ Click the strip (or `cmd-shift-u`) for the detail: quota bars per vendor, which 
 
 Each desk shows which vendor is behind it, and each runtime can have a **home** — the general desk it opens on and where vendor-owned work gets routed. A Claude home and a Codex home coexist.
 
-**A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
+**A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context, or fan the same question across a dozen directories at once and get one reconciled reply. It is a mailbox, not a protocol — see below.
 
 ## Requirements
 
@@ -158,6 +158,27 @@ scope = "~/src/api"     # the responder sees only this, not your whole home
 If the tree holds anything you would not hand to that vendor, set `scope` before you send.
 
 **Or send it to a local model instead.** `ollama` is a first-class runtime, and a local responder reads your files without anything leaving the machine. The panel says which you are talking to, and only asks you to confirm exposure for the hosted ones — because for a local one there is none.
+
+### Fanning out
+
+The mailbox does one question and one answer, which is right for a second opinion and wrong for a review. **Fan out…** asks the same question of several directories in parallel, then once more with every answer as context — that last step is the deliverable, because N opinions you have to reconcile yourself is worse than none.
+
+A run is a directory of ordinary threads, not a graph in a config file:
+
+```
+mail/fanout-2026-09-20-143022-review/
+  00-ask.md          the question, and what it was sliced across
+  01-src-api.md      one thread per slice, same format as any other
+  02-src-web.md
+  merge.md           every answer as context, one reconciled reply
+```
+
+Two things make this worth doing here rather than in an orchestration framework:
+
+- **It knows what it costs.** N slices is N+1 invocations, and Deskwork is the only thing in the loop reading your real remaining quota. The sheet prices the run before you press Run, refuses outright when the week cannot pay for it, and names a vendor with room instead. It never moves the work for you — that is a decision, not an optimisation.
+- **It exposes less, not more.** One responder pointed at a whole tree reads everything. Twelve responders each pointed at one subdirectory read one twelfth each. Slicing tightens the privacy boundary described above.
+
+Build output, `node_modules`, `.git` and friends are skipped; a slice spent being told there is nothing in `node_modules` is a wasted invocation.
 
 Threads land in `~/.local/share/deskwork/mail/`. If you already have a handoff script, point Deskwork at it in `~/.config/deskwork/bridge.toml` and it will use yours instead.
 

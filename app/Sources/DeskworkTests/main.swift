@@ -189,6 +189,59 @@ do {
     eq("stale label reads in minutes", fortyMin.ageLabel, "40m ago")
 }
 
+// MARK: - fan-out budget
+//
+// The point of pricing a fan-out is that it REFUSES. A budget check that only
+// ever says yes is decoration, so these pin the boundaries in both directions.
+
+do {
+    let now = Date().timeIntervalSince1970
+    func lim(_ v: String, _ week: Double) -> VendorLimits {
+        VendorLimits(vendor: v, weekPct: week, weekResetsAt: now + 86_400, at: now)
+    }
+
+    // Plenty of room: quiet. The router says nothing when there is nothing to do.
+    let easy = Fanout.budget(vendor: "claude", slices: 4, limits: [lim("claude", 5)])
+    check("fan-out is allowed with room to spare", easy.allowsRun)
+    eq("and says nothing about it", easy.advice, nil)
+
+    // Nearly spent: refuse, and say why rather than failing silently.
+    let broke = Fanout.budget(vendor: "claude", slices: 12, limits: [lim("claude", 97)])
+    check("fan-out refuses when the week cannot pay for it", !broke.allowsRun)
+    check("and the refusal explains itself", (broke.advice ?? "").contains("left"))
+
+    // A vendor with real room: advise, never act. Moving work to another
+    // company is a decision, so the verdict still allows the run.
+    let split = Fanout.budget(vendor: "claude", slices: 3,
+                              limits: [lim("claude", 60), lim("codex", 8)])
+    check("a much emptier vendor is suggested", (split.advice ?? "").contains("codex"))
+    check("but the run is still allowed", split.allowsRun)
+
+    // A vendor only slightly emptier is NOT worth interrupting over.
+    let close = Fanout.budget(vendor: "claude", slices: 3,
+                              limits: [lim("claude", 40), lim("codex", 30)])
+    eq("a marginally emptier vendor stays quiet", close.advice, nil)
+
+    // No local quota (Gemini, Copilot) must not become a block. Punishing the
+    // user for their vendor exposing nothing would be the wrong default.
+    let blind = Fanout.budget(vendor: "gemini", slices: 8, limits: [])
+    check("unknown quota allows the run", blind.allowsRun)
+
+    // Stale data is not usable data: a reading from last week says nothing
+    // about this week, and must not be treated as quota in hand.
+    let old = VendorLimits(vendor: "claude", weekPct: 99, weekResetsAt: now + 86_400,
+                           at: now - 200_000)
+    check("a day-old reading is ignored rather than trusted",
+       Fanout.budget(vendor: "claude", slices: 9, limits: [old]).allowsRun)
+
+    // Cost scales with slices: the same vendor state must refuse more slices
+    // than it allows, or the count is not actually in the arithmetic.
+    let mid = lim("claude", 90)
+    check("more slices cost more",
+       Fanout.budget(vendor: "claude", slices: 2, limits: [mid]).allowsRun
+       && !Fanout.budget(vendor: "claude", slices: 40, limits: [mid]).allowsRun)
+}
+
 print("\n\(passed) passed, \(failures.count) failed")
 if !failures.isEmpty {
     print("\nfailures:")

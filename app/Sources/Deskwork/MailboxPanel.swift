@@ -10,6 +10,8 @@ final class MailboxPanel: NSWindowController {
     private let status = NSTextField(labelWithString: "")
     private let readonlyNote = NSTextField(labelWithString: "")
     private let sendBtn = NSButton()
+    private let fanBtn = NSButton()
+    private var fanSheet: FanoutSheet?
     private let spinner = NSProgressIndicator()
     private let scopeNote = NSTextField(labelWithString: "")
     private var box = Mailbox.load()
@@ -62,6 +64,9 @@ final class MailboxPanel: NSWindowController {
         readonlyNote.font = .systemFont(ofSize: 10); readonlyNote.textColor = .tertiaryLabelColor
 
         compose.string = ""
+        fanBtn.title = "Fan out…"
+        fanBtn.bezelStyle = .rounded
+        fanBtn.target = self; fanBtn.action = #selector(fanOut)
         let reloadBtn = NSButton(title: "Reload", target: self, action: #selector(reloadTapped))
         reloadBtn.bezelStyle = .rounded
 
@@ -70,7 +75,7 @@ final class MailboxPanel: NSWindowController {
         scopeNote.font = .systemFont(ofSize: 10.5)
         scopeNote.textColor = .secondaryLabelColor
         scopeNote.lineBreakMode = .byTruncatingMiddle
-        let row = NSStackView(views: [lbl("ASK"), target, readonlyNote, NSView(), spinner, reloadBtn, sendBtn])
+        let row = NSStackView(views: [lbl("ASK"), target, readonlyNote, NSView(), spinner, reloadBtn, fanBtn, sendBtn])
         row.orientation = .horizontal; row.spacing = 8
 
         let stack = NSStackView(views: [lbl("THREAD"), tScroll, lbl("YOUR MESSAGE"), cScroll, row, scopeNote, status])
@@ -120,6 +125,40 @@ final class MailboxPanel: NSWindowController {
             + (scope as NSString).abbreviatingWithTildeInPath
             + "  ·  narrow it with `scope` in bridge.toml"
         reload()
+    }
+
+    /// Ask the same question of several directories at once.
+    ///
+    /// Deliberately a separate button rather than a mode on Send: a fan-out
+    /// costs N times as much and produces a different artifact (a directory of
+    /// threads, not a line in this one), so it should not be something you can
+    /// trigger by pressing return.
+    @objc private func fanOut() {
+        guard let rt = selectedRuntime else { return }
+        let q = compose.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else {
+            let a = NSAlert()
+            a.messageText = "Write the question first"
+            a.informativeText = "Every slice gets asked the same thing, so there has to "
+                + "be a thing to ask."
+            a.runModal(); return
+        }
+        let root = box.effectiveScope(deskCwd: cwd)
+        let sheet = FanoutSheet(root: root, runtime: rt, box: box, from: fromName,
+                                question: q) { [weak self] _, dir in
+            guard let self else { return }
+            self.compose.string = ""
+            self.status.stringValue = "done — merged answer in "
+                + ((dir as NSString).appendingPathComponent("merge.md") as NSString)
+                    .abbreviatingWithTildeInPath
+            NSWorkspace.shared.selectFile(
+                (dir as NSString).appendingPathComponent("merge.md"),
+                inFileViewerRootedAtPath: dir)
+        }
+        fanSheet = sheet
+        if let w = window, let sw = sheet.window {
+            w.beginSheet(sw) { [weak self] _ in self?.fanSheet = nil }
+        }
     }
 
     @objc private func reloadTapped() { reload() }
