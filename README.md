@@ -20,7 +20,7 @@ Deskwork calls one of those a **desk**, and makes the desk the unit.
 
 **It never reimplements an agent.** Deskwork launches `claude`, `codex`, `gemini` or `copilot` in a real pty. Your agent definitions, hooks, memory files and model pins all apply, because nothing is intercepting them. This is the point: ACP-based editors run a Claude Code bundled inside the Agent SDK rather than the CLI on your machine, which is why your own agents do not exist there.
 
-**A folder tree and a reader.** Agents write, you read. The reader opens PDFs, images and text. Being read-only is what keeps it about a hundred lines instead of an editor — and why opening a PDF is trivial here.
+**A folder tree and a reader, with tabs.** Agents write, you read. Files an agent touches **open themselves** — you cannot pre-open a file when you do not know which one it will edit. Those tabs are transient and render italic, like a preview tab, and recycle past four so a busy desk cannot bury you; clicking one pins it. Each tab watches its file and refreshes in place. PDFs, images and text, with shallow syntax highlighting. Read-only is what keeps the reader small — and why a PDF opens here at all.
 
 **A meter that spans vendors.** The strip along the bottom shows how much of each vendor's plan you have left, side by side:
 
@@ -33,6 +33,8 @@ Each vendor gives this up differently, so Deskwork meets each where it is. **Cod
 With real quota on both sides the router stops guessing from token share and says the actionable thing: *"claude 84% used, codex only 19% — send the next one to codex."* It stays quiet when there is no real gap.
 
 Click the strip (or `cmd-shift-u`) for the detail: quota bars per vendor, which desk ate what, and a fourteen-day history split by vendor.
+
+**Desks it finds for you.** Agent definitions already in `.claude/agents` or `.github/agents` are offered as desks, one click each — creating an agent surfaces a desk. So are hosts from `~/.ssh/config`: a remote box is exactly what a desk is for, and it connects by alias so ssh applies your own identity files and jump hosts.
 
 **A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
 

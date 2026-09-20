@@ -34,9 +34,12 @@ final class ReaderView: NSView {
         layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
 
         tabBar.orientation = .horizontal
-        tabBar.spacing = 1
+        tabBar.spacing = 4
         tabBar.alignment = .centerY
-        tabBar.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 6)
+        // gravityAreas packs left. The default distribution spreads slack
+        // between items, so bolding the active tab shoved the others right.
+        tabBar.distribution = .gravityAreas
+        tabBar.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
         tabScroll.documentView = tabBar
         tabScroll.hasHorizontalScroller = false
         tabScroll.drawsBackground = false
@@ -53,7 +56,7 @@ final class ReaderView: NSView {
             tabScroll.topAnchor.constraint(equalTo: topAnchor, constant: 4),
             tabScroll.leadingAnchor.constraint(equalTo: leadingAnchor),
             tabScroll.trailingAnchor.constraint(equalTo: trailingAnchor),
-            tabScroll.heightAnchor.constraint(equalToConstant: 26),
+            tabScroll.heightAnchor.constraint(equalToConstant: 30),
             titleBar.topAnchor.constraint(equalTo: tabScroll.bottomAnchor, constant: 2),
             titleBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             titleBar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
@@ -127,30 +130,65 @@ final class ReaderView: NSView {
     private func rebuildTabs() {
         tabBar.arrangedSubviews.forEach { tabBar.removeArrangedSubview($0); $0.removeFromSuperview() }
         for (i, t) in tabs.enumerated() {
-            let on = i == activeIndex
-            let b = NSButton(title: t.url.lastPathComponent, target: self, action: #selector(tabClicked(_:)))
-            b.tag = i
-            b.bezelStyle = .inline
-            b.isBordered = false
-            // Transient tabs read as italic, the way a preview tab does.
-            let size: CGFloat = 11.5
-            b.font = t.transient
-                ? NSFontManager.shared.convert(.systemFont(ofSize: size), toHaveTrait: .italicFontMask)
-                : .systemFont(ofSize: size, weight: on ? .semibold : .regular)
-            b.contentTintColor = on ? .controlAccentColor : .secondaryLabelColor
-            b.toolTip = t.url.path
-            let x = NSButton(title: "×", target: self, action: #selector(tabClosed(_:)))
-            x.tag = i; x.bezelStyle = .inline; x.isBordered = false
-            x.font = .systemFont(ofSize: 11)
-            x.contentTintColor = .tertiaryLabelColor
-            let cell = NSStackView(views: [b, x])
-            cell.orientation = .horizontal; cell.spacing = 0
-            tabBar.addArrangedSubview(cell)
+            tabBar.addArrangedSubview(chip(index: i, tab: t, active: i == activeIndex))
         }
+        // Absorb the slack so tabs stay packed to the left.
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        spacer.widthAnchor.constraint(greaterThanOrEqualToConstant: 0).isActive = true
+        tabBar.addArrangedSubview(spacer)
+
         tabBar.layoutSubtreeIfNeeded()
         tabBar.frame = NSRect(x: 0, y: 0,
                               width: max(tabBar.fittingSize.width, tabScroll.bounds.width),
-                              height: 26)
+                              height: 30)
+    }
+
+    /// A tab needs to look like a tab. The first build was bare text on the
+    /// window background and was genuinely hard to see.
+    private func chip(index i: Int, tab t: Tab, active: Bool) -> NSView {
+        let box = NSView()
+        box.wantsLayer = true
+        box.layer?.cornerRadius = 5
+        box.layer?.backgroundColor = active
+            ? NSColor.controlAccentColor.withAlphaComponent(0.16).cgColor
+            : NSColor.quaternaryLabelColor.withAlphaComponent(0.5).cgColor
+        box.layer?.borderWidth = active ? 1 : 0
+        box.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.55).cgColor
+
+        let label = NSButton(title: t.url.lastPathComponent, target: self, action: #selector(tabClicked(_:)))
+        label.tag = i
+        label.bezelStyle = .inline
+        label.isBordered = false
+        let base = NSFont.systemFont(ofSize: 11.5, weight: active ? .semibold : .regular)
+        label.font = t.transient
+            ? NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask)
+            : base
+        label.contentTintColor = active ? .controlAccentColor : .labelColor
+        label.toolTip = t.transient
+            ? "\(t.url.path)\n\nOpened by a desk. Click to keep it."
+            : t.url.path
+
+        let x = NSButton(title: "×", target: self, action: #selector(tabClosed(_:)))
+        x.tag = i; x.bezelStyle = .inline; x.isBordered = false
+        x.font = .systemFont(ofSize: 12)
+        x.contentTintColor = .tertiaryLabelColor
+
+        let row = NSStackView(views: [label, x])
+        row.orientation = .horizontal
+        row.spacing = 1
+        row.edgeInsets = NSEdgeInsets(top: 3, left: 9, bottom: 3, right: 5)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: box.topAnchor),
+            row.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+            row.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+        ])
+        box.setContentHuggingPriority(.required, for: .horizontal)
+        return box
     }
 
     // MARK: - content

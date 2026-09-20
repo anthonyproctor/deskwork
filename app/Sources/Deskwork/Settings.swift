@@ -17,6 +17,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private var editing: Int?
     private var projectDir = FileManager.default.currentDirectoryPath
     private let discoveredStack = NSStackView()
+    private let hostsStack = NSStackView()
 
     convenience init(projectDir: String = FileManager.default.currentDirectoryPath) {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 880, height: 700),
@@ -123,6 +124,16 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             + "with that agent."))
         refreshDiscovered()
 
+        rtLines.append(caps("SSH HOSTS"))
+        hostsStack.orientation = .vertical
+        hostsStack.alignment = .leading
+        hostsStack.spacing = 3
+        rtLines.append(hostsStack)
+        rtLines.append(note("Hosts from ~/.ssh/config with no desk yet. A remote box is exactly "
+            + "what a desk is for — it holds state between visits. Connects by alias, so ssh "
+            + "applies identity files and jump hosts from your own config."))
+        refreshHosts()
+
         rtLines.append(caps("AGENT MAIL"))
         let box = Mailbox.load()
         rtLines.append(note("Threads are appended to \((box.dir as NSString).abbreviatingWithTildeInPath)."
@@ -210,6 +221,35 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         refreshDiscovered()
     }
 
+    private func refreshHosts() {
+        hostsStack.subviews.forEach { $0.removeFromSuperview() }
+        let found = SSHHosts.undesked(desks: desks)
+        if found.isEmpty {
+            let l = NSTextField(labelWithString:
+                SSHHosts.all().isEmpty ? "no ~/.ssh/config hosts found" : "every host already has a desk")
+            l.font = .systemFont(ofSize: 11); l.textColor = .tertiaryLabelColor
+            hostsStack.addArrangedSubview(l)
+            return
+        }
+        for h in found.prefix(20) {
+            let b = NSButton(title: "＋  \(h.alias)   \(h.blurb)", target: self,
+                             action: #selector(addHost(_:)))
+            b.bezelStyle = .inline; b.isBordered = false; b.alignment = .left
+            b.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+            b.contentTintColor = .controlAccentColor
+            b.toolTip = h.command
+            b.identifier = NSUserInterfaceItemIdentifier(h.alias)
+            hostsStack.addArrangedSubview(b)
+        }
+    }
+
+    @objc private func addHost(_ sender: NSButton) {
+        guard let alias = sender.identifier?.rawValue,
+              let h = SSHHosts.all().first(where: { $0.alias == alias }) else { return }
+        desks.append(SSHHosts.desk(from: h))
+        table.reloadData(); refreshHosts()
+    }
+
     @objc private func addOrUpdate() {
         let n = name.stringValue.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { NSSound.beep(); return }
@@ -232,7 +272,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         guard desks.indices.contains(table.selectedRow) else { return }
         desks.remove(at: table.selectedRow)
         table.reloadData()
-        refreshDiscovered()
+        refreshDiscovered(); refreshHosts()
     }
 
     @objc private func save() {

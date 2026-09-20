@@ -63,6 +63,9 @@ case "agents":
         return o
     })
 
+case "hosts":
+    out(SSHHosts.all().map { ["alias": $0.alias, "target": $0.blurb, "command": $0.command] })
+
 case "formats":
     out([
         "desks":    DeskConfig.path,
@@ -79,6 +82,7 @@ default:
 
       desks              configured desks and how each launches
       agents [dir]       agent definitions on disk that could become desks
+      hosts              ssh hosts that could become desks
       limits             remaining quota per vendor, stale entries dropped
       usage [--days N]   consumption by vendor and by desk (default: this week)
       formats            where every file Deskwork reads or writes lives
