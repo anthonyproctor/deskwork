@@ -228,6 +228,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let refresh = NSMenuItem(title: "Refresh Files", action: #selector(refreshTree), keyEquivalent: "r")
         refresh.target = self
         deskMenu.addItem(refresh)
+        let undo = NSMenuItem(title: "Undo Move", action: #selector(undoMove), keyEquivalent: "z")
+        undo.target = self
+        deskMenu.addItem(undo)
         let flip = NSMenuItem(title: "Tree on Top", action: #selector(toggleTreePosition), keyEquivalent: "t")
         flip.target = self
         deskMenu.addItem(flip)
@@ -340,6 +343,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     }
 
     @objc func refreshTree() { tree.refresh() }
+    @objc func undoMove() { tree.undoLastMove() }
 
     /// The cross-vendor bridge: drive the mailbox rather than invent a protocol.
     var settings: SettingsWindow?

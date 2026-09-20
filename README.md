@@ -34,6 +34,8 @@ With real quota on both sides the router stops guessing from token share and say
 
 Click the strip (or `cmd-shift-u`) for the detail: quota bars per vendor, which desk ate what, and a fourteen-day history split by vendor.
 
+**A tree you can rearrange.** Drag files into folders, Finder-style, including from Finder itself. Moving files is the one destructive thing the window can do, so it names what moves and where before doing it, refuses a folder into its own subtree, never overwrites on a name collision, and `cmd-z` puts the last move back. Agents are writing in that tree — a silent move is how you lose work you cannot find again.
+
 **Desks it finds for you.** Agent definitions already in `.claude/agents` or `.github/agents` are offered as desks, one click each — creating an agent surfaces a desk. So are hosts from `~/.ssh/config`: a remote box is exactly what a desk is for, and it connects by alias so ssh applies your own identity files and jump hosts.
 
 **A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
@@ -106,6 +108,8 @@ cwd     = "~/notes"
 |---|---|
 | `cmd-1` … `cmd-9` | jump to a desk |
 | `cmd-r` | refresh the folder tree |
+| `cmd-z` | undo the last file move |
+| `cmd-shift-a` | agents |
 | `cmd-t` | move the tree above or below the desk list |
 | `cmd-shift-u` | usage detail |
 | `cmd-shift-m` | agent mail |
