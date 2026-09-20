@@ -132,6 +132,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
 
         tree.onOpen = { [weak self] url in self?.openReader(url) }
+        meter.onClick = { [weak self] in self?.openMeter() }
 
         sidebar.collapsed = Set(ui.collapsed)
         sidebar.build(desks: desks)
@@ -203,6 +204,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         flip.target = self
         deskMenu.addItem(flip)
         deskMenu.addItem(.separator())
+        let usage = NSMenuItem(title: "Usage…", action: #selector(openMeter), keyEquivalent: "u")
+        usage.keyEquivalentModifierMask = [.command, .shift]
+        usage.target = self
+        deskMenu.addItem(usage)
         let mail = NSMenuItem(title: "Agent Mail…", action: #selector(openMailbox), keyEquivalent: "m")
         mail.keyEquivalentModifierMask = [.command, .shift]
         mail.target = self
@@ -242,6 +247,13 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if let v = visible, let i = desks.firstIndex(where: { $0.name == v.desk.name }) {
             sidebar.select(i)
         }
+    }
+
+    var meterPanel: MeterPanel?
+    @objc func openMeter() {
+        if meterPanel == nil { meterPanel = MeterPanel() } else { meterPanel?.reload() }
+        meterPanel?.showWindow(nil)
+        meterPanel?.window?.makeKeyAndOrderFront(nil)
     }
 
     var mailPanel: MailboxPanel?

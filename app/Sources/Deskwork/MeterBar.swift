@@ -8,6 +8,9 @@ final class MeterBar: NSView {
     private let hint = NSTextField(labelWithString: "")
     private var lastScan = Date.distantPast
     private var timer: Timer?
+    var onClick: (() -> Void)?
+
+    override func mouseDown(with e: NSEvent) { onClick?() }
 
     override init(frame: NSRect) {
         super.init(frame: frame)

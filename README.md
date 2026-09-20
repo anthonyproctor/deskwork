@@ -32,6 +32,8 @@ Each vendor gives this up differently, so Deskwork meets each where it is. **Cod
 
 With real quota on both sides the router stops guessing from token share and says the actionable thing: *"claude 84% used, codex only 19% — send the next one to codex."* It stays quiet when there is no real gap.
 
+Click the strip (or `cmd-shift-u`) for the detail: quota bars per vendor, which desk ate what, and a fourteen-day history split by vendor.
+
 **A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
 
 ## Requirements
@@ -89,6 +91,7 @@ cwd     = "~/notes"
 | `cmd-1` … `cmd-9` | jump to a desk |
 | `cmd-r` | refresh the folder tree |
 | `cmd-t` | move the tree above or below the desk list |
+| `cmd-shift-u` | usage detail |
 | `cmd-shift-m` | agent mail |
 | `cmd-,` | settings |
 
@@ -117,7 +120,6 @@ Not built yet:
 - No syntax highlighting.
 - Desks die when the app quits; they do not outlive it.
 - One terminal per desk, no splits.
-- The meter is a summary strip, not a full pane. No per-desk breakdown or history chart yet.
 - Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
 
 ## Reading
