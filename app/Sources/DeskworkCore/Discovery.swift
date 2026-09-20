@@ -39,6 +39,51 @@ public struct DiscoveredAgent {
 
 public enum Discovery {
 
+    /// Codex has no agent DEFINITIONS. Its `agents` subcommand browses running
+    /// sessions, and what it actually offers is profiles: named config bundles
+    /// in ~/.codex/config.toml selected with -p. Different concept, same role —
+    /// a named way of running the CLI — so they are discovered as desks too,
+    /// and labelled honestly as profiles rather than pretending otherwise.
+    public static func codexProfiles() -> [DiscoveredAgent] {
+        let path = NSString(string: "~/.codex/config.toml").expandingTildeInPath
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
+        var out: [DiscoveredAgent] = []
+        var name: String?
+        var model: String?
+        func flush() {
+            if let n = name {
+                out.append(DiscoveredAgent(name: n, runtime: "codex",
+                                           description: "codex profile",
+                                           model: model, path: path, isProjectLevel: false))
+            }
+            name = nil; model = nil
+        }
+        for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            var line = String(raw)
+            if let h = line.firstIndex(of: "#") { line = String(line[line.startIndex..<h]) }
+            line = line.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[") {
+                flush()
+                let header = line.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+                // [profiles.<name>] — quoted or bare.
+                if header.hasPrefix("profiles.") {
+                    name = String(header.dropFirst("profiles.".count))
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                }
+                continue
+            }
+            guard name != nil, let eq = line.firstIndex(of: "=") else { continue }
+            let k = String(line[line.startIndex..<eq]).trimmingCharacters(in: .whitespaces)
+            if k == "model" {
+                model = String(line[line.index(after: eq)...])
+                    .trimmingCharacters(in: .whitespaces)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            }
+        }
+        flush()
+        return out.sorted { $0.name < $1.name }
+    }
+
     public static func agents(in projectDir: String) -> [DiscoveredAgent] {
         var out: [DiscoveredAgent] = []
         let home = NSHomeDirectory()
@@ -49,6 +94,7 @@ public enum Discovery {
                     suffix: ".md", runtime: "claude", projectLevel: false)
         out += scan(dir: (projectDir as NSString).appendingPathComponent(".github/agents"),
                     suffix: ".agent.md", runtime: "copilot", projectLevel: true)
+        out += codexProfiles()
 
         // A project agent shadows a user one of the same name, which is how the
         // vendors resolve them too.
@@ -63,8 +109,14 @@ public enum Discovery {
     }
 
     public static func desk(from a: DiscoveredAgent, cwd: String) -> Desk {
-        Desk(name: a.name, agent: a.name, runtime: a.runtime,
-             cwd: cwd, group: "discovered")
+        // A codex profile is selected with -p, not --agent, so it cannot go in
+        // the agent field without producing a command that does not work.
+        if a.runtime == "codex" {
+            return Desk(name: a.name, runtime: "codex", cwd: cwd,
+                        command: "codex -p \(a.name)", group: "discovered")
+        }
+        return Desk(name: a.name, agent: a.name, runtime: a.runtime,
+                    cwd: cwd, group: "discovered")
     }
 
     private static func scan(dir: String, suffix: String, runtime: String,

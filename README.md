@@ -36,7 +36,9 @@ Click the strip (or `cmd-shift-u`) for the detail: quota bars per vendor, which 
 
 **A tree you can rearrange.** Drag files into folders, Finder-style, including from Finder itself. Moving files is the one destructive thing the window can do, so it names what moves and where before doing it, refuses a folder into its own subtree, never overwrites on a name collision, and `cmd-z` puts the last move back. Agents are writing in that tree — a silent move is how you lose work you cannot find again.
 
-**Desks it finds for you.** Agent definitions already in `.claude/agents` or `.github/agents` are offered as desks, one click each — creating an agent surfaces a desk. So are hosts from `~/.ssh/config`: a remote box is exactly what a desk is for, and it connects by alias so ssh applies your own identity files and jump hosts.
+**Desks it finds for you.** Agent definitions in `.claude/agents` and `.github/agents` are offered as desks, one click each — creating an agent surfaces a desk. So are **Codex profiles** from `~/.codex/config.toml`, because Codex has no agent definitions; its analogue is a named profile selected with `-p`, and Deskwork labels them as profiles rather than pretending they are the same thing. So are hosts from `~/.ssh/config`: a remote box is exactly what a desk is for, and it connects by alias so ssh applies your own identity files and jump hosts.
+
+Each desk shows which vendor is behind it, and each runtime can have a **home** — the general desk it opens on and where vendor-owned work gets routed. A Claude home and a Codex home coexist.
 
 **A cross-vendor bridge.** Put a question to an agent from a different company and get an answer back with the whole conversation as context. It is a mailbox, not a protocol — see below.
 
