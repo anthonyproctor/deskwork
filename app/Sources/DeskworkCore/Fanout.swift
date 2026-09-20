@@ -223,22 +223,38 @@ extension Mailbox {
             let path = (runDir as NSString)
                 .appendingPathComponent(String(format: "%02d-%@.md", i + 1, slice.label))
 
-            let framed = """
-            You are reviewing one slice of a larger question, working in `\(slice.cwd)`.
+            // The frame has to say READ THE FILES, not just name the directory.
+            // A headless agent handed a question and a path can answer from the
+            // question alone and produce something fluent with nothing behind
+            // it — which is the worst failure available here, because it reads
+            // exactly like a review. Naming the files up front also means the
+            // human's message can be the question and nothing else.
+            let listing = (try? FileManager.default
+                .contentsOfDirectory(atPath: slice.cwd).sorted().prefix(40)
+                .joined(separator: ", ")) ?? ""
 
+            let framed = """
+            Your working directory is `\(slice.cwd)`. Read the files in it before \
+            you answer. Everything below refers to what is in that directory, and \
+            nowhere else.
+
+            \(listing.isEmpty ? "" : "It contains: \(listing)\n")
             ## The question
 
             \(question)
 
-            ## Your slice
+            ## How to answer
 
-            `\(slice.label)`
+            You are one of \(slices.count) readers, each looking at a different \
+            directory of the same project: \(slices.map(\.label).joined(separator: ", ")). \
+            Your slice is `\(slice.label)`. The answers get reconciled afterwards.
 
-            Answer for THIS SLICE ONLY. Another reader is looking at the others and \
-            your answers will be reconciled afterwards, so do not speculate about \
-            what is outside your directory — say "outside my slice" and move on. \
-            Be specific about files and lines. If the slice raises nothing worth \
-            reporting, say so in one line rather than finding something to say.
+            - Answer for YOUR SLICE ONLY. Do not speculate about the others — say \
+            "outside my slice" and move on.
+            - Ground every point in a file you actually opened. Cite it as \
+            `file:line`. A claim with no file behind it is worse than no claim.
+            - If the slice raises nothing worth reporting, say so in one line \
+            rather than finding something to say.
             """
 
             runOne(rt: rt, prompt: framed, cwd: slice.cwd, thread: path,
