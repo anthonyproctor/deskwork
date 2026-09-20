@@ -22,6 +22,10 @@ Deskwork calls one of those a **desk**, and makes the desk the unit.
 
 **It never reimplements an agent.** Deskwork launches `claude`, `codex`, `gemini` or `copilot` in a real pty. Your agent definitions, hooks, memory files and model pins all apply, because nothing is intercepting them. This is the point: ACP-based editors run a Claude Code bundled inside the Agent SDK rather than the CLI on your machine, which is why your own agents do not exist there.
 
+**Drag a file onto a desk and its path is typed.** SwiftTerm has no drag support, so this had to be added — and in a tool built for talking to agents it is not a nicety: showing an agent a screenshot means handing it a path, and there was no way to produce one without leaving the app. Paths are escaped for the shell, so `report (final).pdf` arrives intact.
+
+**Pasting a screenshot works too.** `cmd-ctrl-shift-4` puts an image on the clipboard and nowhere else; paste it into a desk and Deskwork writes it to `~/.local/share/deskwork/pasted/` and types that path instead. Pasting text is untouched, and a file copied in Finder still pastes as a path the normal way.
+
 **It tells you when a desk answered.** The point of desks is running several agents at once, which means you are never watching more than one of them — so a desk that finishes while you are elsewhere gets a **green dot** in the rail, and the Dock icon carries a count of how many are waiting. A desk mid-thought shows a dim ring instead, so "working" and "done" are not the same signal.
 
 No CLI announces that it has finished answering; all that reaches Deskwork is bytes on a pty, so "finished" is inferred from bytes stopping for two seconds. Looking at the desk is the only thing that clears the dot — not hovering, not bringing the app forward. A badge that clears itself is worse than none, because you stop trusting it was ever set.

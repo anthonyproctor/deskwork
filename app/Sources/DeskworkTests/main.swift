@@ -436,6 +436,46 @@ do {
           UsageCache.fingerprint("/nope/missing.jsonl") == nil)
 }
 
+// MARK: - dropping a file onto a desk
+//
+// The path goes onto a command line, so anything that escapes wrong either
+// breaks the command or, worse, runs part of the filename. Real filenames are
+// the test cases here, not invented ones.
+
+do {
+    eq("an ordinary path needs no escaping",
+       ShellPath.escape("/Users/x/notes.md"), "/Users/x/notes.md")
+    eq("a space is escaped",
+       ShellPath.escape("/Users/x/My File.png"), "/Users/x/My\\ File.png")
+
+    // Parentheses are ordinary in a filename and are NOT ordinary to zsh.
+    eq("parentheses are escaped",
+       ShellPath.escape("/x/report (final).pdf"), "/x/report\\ \\(final\\).pdf")
+
+    // The ones that would actually execute something rather than just fail.
+    check("a dollar sign is escaped", ShellPath.escape("/x/$HOME.txt").contains("\\$"))
+    check("a backtick is escaped", ShellPath.escape("/x/`whoami`.txt").contains("\\`"))
+    check("a semicolon is escaped", ShellPath.escape("/x/a;rm -rf b").contains("\\;"))
+    check("an ampersand is escaped", ShellPath.escape("/x/a&b").contains("\\&"))
+    check("a quote is escaped", ShellPath.escape("/x/it's here.txt").contains("\\'"))
+    check("a backslash is escaped", ShellPath.escape("/x/a\\b").contains("\\\\"))
+
+    // Globs must reach the program as literals, not be expanded by the shell.
+    check("an asterisk is escaped", ShellPath.escape("/x/a*.log").contains("\\*"))
+
+    // Non-ASCII names are common and must not be mangled; escaping them is
+    // harmless, dropping or re-encoding them would not be.
+    check("a unicode name survives", ShellPath.escape("/x/café.png").contains("caf"))
+    check("an emoji name survives", !ShellPath.escape("/x/🎉.png").isEmpty)
+
+    // The trailing space is what stops a second drop gluing onto the first.
+    check("a dropped path ends with a space",
+          ShellPath.line(["/x/a.png"]).hasSuffix(" "))
+    eq("several paths are separated",
+       ShellPath.line(["/x/a.png", "/x/b.png"]), "/x/a.png /x/b.png ")
+    eq("dropping nothing types nothing", ShellPath.line([]), "")
+}
+
 print("\n\(passed) passed, \(failures.count) failed")
 if !failures.isEmpty {
     print("\nfailures:")

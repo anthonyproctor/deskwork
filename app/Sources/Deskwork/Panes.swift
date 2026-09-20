@@ -33,6 +33,80 @@ final class DeskTerminalView: LocalProcessTerminalView {
         super.dataReceived(slice: slice)
         onOutput?()
     }
+
+    // MARK: - getting a file INTO the conversation
+    //
+    // SwiftTerm has no drag support at all, so dropping a file on a desk did
+    // nothing. Every real terminal inserts the path instead, and in a tool
+    // built for talking to agents that is not a nicety: showing an agent a
+    // screenshot means handing it a path, and there was no way to produce one
+    // without leaving the app.
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        registerForDraggedTypes([.fileURL])
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        urls(from: sender).isEmpty ? [] : .copy
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        !urls(from: sender).isEmpty
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let paths = urls(from: sender).map { ShellPath.escape($0.path) }
+        guard !paths.isEmpty else { return false }
+        // A trailing space, so a second drop does not glue two paths together
+        // and so the path is finished as an argument either way.
+        send(txt: paths.joined(separator: " ") + " ")
+        window?.makeFirstResponder(self)
+        return true
+    }
+
+    private func urls(from sender: NSDraggingInfo) -> [URL] {
+        sender.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+    }
+
+    /// Paste, with one addition: an IMAGE on the clipboard becomes a file and
+    /// the path is pasted instead.
+    ///
+    /// cmd-ctrl-shift-4 puts a screenshot on the clipboard and nowhere else, so
+    /// without this the fastest way to capture something is also the one way
+    /// you cannot hand it to an agent. Text pasting is untouched.
+    override func paste(_ sender: Any) {
+        guard let path = DeskTerminalView.imageFileFromClipboard() else {
+            super.paste(sender)
+            return
+        }
+        send(txt: ShellPath.escape(path) + " ")
+    }
+
+    /// Write a clipboard image to disk and return its path. Nil when the
+    /// clipboard holds no image, which is the ordinary case.
+    static func imageFileFromClipboard() -> String? {
+        let pb = NSPasteboard.general
+        // A file COPIED in Finder is already a path; let normal paste have it.
+        if pb.canReadObject(forClasses: [NSURL.self],
+                            options: [.urlReadingFileURLsOnly: true]) { return nil }
+        guard let img = NSImage(pasteboard: pb),
+              let tiff = img.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return nil }
+
+        let dir = NSString(string: "~/.local/share/deskwork/pasted").expandingTildeInPath
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd-HHmmss"
+        let path = (dir as NSString)
+            .appendingPathComponent("pasted-\(f.string(from: Date())).png")
+        guard (try? png.write(to: URL(fileURLWithPath: path))) != nil else { return nil }
+        return path
+    }
+
+    // Path escaping lives in DeskworkCore/ShellPath, under test.
 }
 
 // MARK: - a pane
