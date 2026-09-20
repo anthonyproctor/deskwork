@@ -1,0 +1,52 @@
+name: Bug
+description: Something behaves differently from how it reads
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most of this project's bugs so far have been silent — an empty pane, a
+        truncated command, a vendor quietly vanishing from the meter. If
+        something looks subtly wrong rather than broken, that is worth filing.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      placeholder: |
+        1. Open the … desk
+        2. …
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The Deskwork menu shows it, or run `deskwork-cli formats`
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Which runtime
+      multiple: true
+      options: [claude, codex, gemini, copilot, grok, ollama, shell, not runtime specific]
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant config
+      description: |
+        A desk from `~/.config/deskwork/desks.toml` if one is involved.
+        **Redact paths and names you do not want public** — desk names tend to
+        be personal.
+      render: toml

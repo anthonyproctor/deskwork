@@ -1,0 +1,43 @@
+name: Feature request
+description: Something Deskwork should be able to do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [ROADMAP.md](../../blob/main/ROADMAP.md) first — particularly the
+        "Not building" section, which explains what has already been considered
+        and rejected, and why. Disagreeing with one of those reasons is a
+        perfectly good issue; it just starts from a different place.
+
+        **Voting:** 👍 on an existing issue counts. Issues are ranked by
+        reactions, not by comment volume.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do that you cannot do now
+      description: The problem, not the solution. The solution is usually the second idea.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: How you work around it today
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - desks and switching
+        - the reader or file tree
+        - the meter, quota or router
+        - the cross-vendor bridge
+        - discovery (agents, profiles, ssh)
+        - a new runtime
+        - packaging, install or updates
+        - something else

@@ -1,0 +1,52 @@
+name: Add a runtime
+description: Support another agent CLI
+labels: ["runtime"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Deskwork never reimplements an agent — it launches the vendor's own CLI
+        in a real pty. So adding one is mostly a matter of answering these.
+
+  - type: input
+    id: name
+    attributes:
+      label: Which CLI, and where it lives
+    validations:
+      required: true
+
+  - type: input
+    id: interactive
+    attributes:
+      label: How it starts interactively
+      placeholder: e.g. `thing --project .`
+    validations:
+      required: true
+
+  - type: input
+    id: headless
+    attributes:
+      label: How it answers one prompt and exits
+      description: Needed for the bridge. e.g. `claude -p "…"`, `codex exec "…"`
+  - type: input
+    id: readonly
+    attributes:
+      label: How to make it read-only, if it can be
+      description: |
+        A vendor flag, not a polite request in the prompt.
+        e.g. `--permission-mode plan`, `--sandbox read-only`.
+        "It cannot" is a fine answer — Deskwork says so in the UI rather than
+        implying a guarantee.
+  - type: textarea
+    id: agents
+    attributes:
+      label: Does it have agents or profiles on disk
+      description: Where, and in what format. This is what makes discovery possible.
+  - type: textarea
+    id: quota
+    attributes:
+      label: Does it write remaining quota anywhere local
+      description: |
+        Codex writes it into its session rollout; Claude only tells its
+        statusline. If neither, you can still publish it yourself — see
+        [docs/FORMATS.md](../../blob/main/docs/FORMATS.md).

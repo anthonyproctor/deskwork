@@ -180,6 +180,14 @@ Plain executable, not XCTest — XCTest ships with Xcode, and this project build
 
 Every test is a regression for a fault that actually shipped, not an invented case.
 
+## Contributing
+
+Bugs and features in [Issues](../../issues/new/choose); ideas, questions and polls in [Discussions](../../discussions). **👍 on an issue is the vote** — priorities are ranked by reactions, and every priority in the roadmap is currently one person's guess.
+
+Security touching process execution, file access or the bridge goes to a [private advisory](../../security/advisories/new) rather than an issue.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), which includes the five AppKit and parsing traps that have each already cost an hour.
+
 ## Reading
 
 - [DESIGN.md](DESIGN.md) — the thesis, why existing tools cannot host it, the architecture, the milestones
