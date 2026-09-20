@@ -46,13 +46,22 @@ jobs:
           fi
           echo "clean"
 
-      # Nothing from anyone's workspace belongs in this repo.
+      # Nothing from anyone's workspace belongs in this repo. This repo sits
+      # beside a workspace holding medical, financial and client files, and the
+      # rule separating them has so far been attention. Attention is not a
+      # control.
+      #
+      # Checks TRACKED files only. The first version scanned the working tree
+      # after building, so it read .build/checkouts — dependency sources full
+      # of absolute runner paths — and failed on someone else's code.
       - name: no private paths committed
         run: |
-          if grep -rInE '/Users/[a-z]|\.claude/agents/[a-z-]+\.md' \
-               --include='*.swift' --include='*.toml' --include='*.md' \
-               . | grep -v '^\./docs/' | grep -v 'README' | grep -v '~/'; then
-            echo "::error::an absolute home path or private agent name is committed"
+          hits=$(git ls-files -z '*.swift' '*.toml' '*.md' '*.yml' '*.sh' \
+                 | xargs -0 grep -InE '/Users/[a-z]' 2>/dev/null \
+                 | grep -v '/Users/<' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::an absolute home path is committed"
             exit 1
           fi
           echo "clean"
