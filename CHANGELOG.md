@@ -16,11 +16,18 @@ opens this file.
   the Welcome screen, and it can be turned off in Settings. See "What
   Coldfall sends" in the README.
 
+- **MCP Servers…** on a desk's right-click menu switches off MCP servers from
+  its folder's `.mcp.json` for that desk alone, so a desk that never reads
+  mail doesn't start a mail server. claude.ai connectors and plugins are left
+  alone. Saved as `mcp_off` in desks.toml. Claude desks for now.
+
 ### Changed
 - Settings is split into Desks, Appearance, Agents and Updates tabs, sized to
   fit the screen. It used to be one column taller than a laptop display.
 
 ### Fixed
+- Editing a desk in Settings no longer drops what the form doesn't show: its
+  agent, model and whether it's the default.
 - Double-clicking the title strip a second time now puts the window back.
 - Release downloads no longer contain the path of the folder they were built
   in. The zips for 0.1.0, 0.2.0 and 0.3.0 have been replaced with cleaned

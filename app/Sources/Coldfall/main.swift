@@ -186,6 +186,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onRevealAgent = { [weak self] i in self?.revealAgent(i) }
         sidebar.onSelect = { [weak self] i in self?.show(i) }
         sidebar.onRenameDesk = { [weak self] i in self?.renameDesk(i) }
+        sidebar.onMcpDesk = { [weak self] i in self?.editMcp(i) }
         sidebar.onStopDesk = { [weak self] i in self?.stopDesk(i) }
         sidebar.onMoveDesk = { [weak self] i, d in self?.moveDesk(i, to: d) }
         sidebar.onMoveGroup = { [weak self] g, b in self?.moveGroup(g, before: b) }
@@ -642,6 +643,46 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
     }
     var stoppedNote: NSView?
+
+    /// Which of the folder's MCP servers this desk starts. Saved at once;
+    /// takes effect the next time the desk starts.
+    func editMcp(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        let d = desks[i]
+        let servers = McpTrim.servers(cwd: d.resolvedCwd)
+        let a = NSAlert()
+        a.messageText = "MCP servers for \(d.name)"
+        guard !servers.isEmpty else {
+            a.informativeText = "This desk's folder has no .mcp.json, so there are no local MCP servers to switch off. "
+                + "claude.ai connectors and plugins are managed in Claude itself."
+            a.runModal(); return
+        }
+        var info = "Each one is a separate program this desk starts, with its own memory. "
+            + "Untick the ones this desk doesn't need. claude.ai connectors and plugins aren't affected. "
+            + "Takes effect the next time the desk starts."
+        if let c = d.command, !c.isEmpty, !McpTrim.commandHonors(c) {
+            info += "\n\nThis desk runs its own command, which doesn't pass the choice on to Claude yet. "
+                + "Add --settings \"$\(McpTrim.envKey)\" to the claude line in that script when the variable is set."
+        }
+        a.informativeText = info
+        let boxes = servers.map { s -> NSButton in
+            let b = NSButton(checkboxWithTitle: s, target: nil, action: nil)
+            b.state = d.mcpOff.contains(s) ? .off : .on
+            return b
+        }
+        let stack = NSStackView(views: boxes)
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
+        stack.frame = NSRect(x: 0, y: 0, width: 280, height: CGFloat(boxes.count) * 24)
+        a.accessoryView = stack
+        a.addButton(withTitle: "Save"); a.addButton(withTitle: "Cancel")
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        // Keep entries for servers not in .mcp.json right now, so a server
+        // that comes back later is still off for this desk.
+        let listed = Set(servers)
+        desks[i].mcpOff = d.mcpOff.filter { !listed.contains($0) }
+            + zip(servers, boxes).filter { $0.1.state == .off }.map(\.0)
+        DeskConfig.write(desks)
+    }
 
     /// The changelog lives in the repo, so the app and GitHub read one file.
     @objc func openChangelog() {

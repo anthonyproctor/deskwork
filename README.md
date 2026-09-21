@@ -112,6 +112,12 @@ agent   = "backend"       # an agent profile the CLI already knows
 runtime = "claude"        # claude | codex | gemini | copilot | grok | ollama
 cwd     = "~/src/api"
 
+[desk.api-docs]
+group   = "work"
+runtime = "claude"
+cwd     = "~/src/api"
+mcp_off = ["browser"]     # MCP servers from ~/src/api/.mcp.json this desk doesn't start
+
 [desk.review]
 group   = "work"
 runtime = "codex"         # a second vendor, kept for cross-checking
@@ -128,6 +134,12 @@ cwd     = "~/src/api"
 #   command = "ssh box 'ollama run llama3'"
 command = "~/bin/desk notes"
 cwd     = "~/notes"
+```
+
+**Trimming MCP servers.** Every Claude desk starts every MCP server in its folder's `.mcp.json`, each a separate process with its own memory. Right-click a desk and choose **MCP Servers…** to switch off the ones it doesn't need; it's saved as `mcp_off`. claude.ai connectors and plugins aren't affected. A desk with its own command gets the choice in `COLDFALL_CLAUDE_SETTINGS`, and passes it on with one line in its script:
+
+```sh
+if [ -n "${COLDFALL_CLAUDE_SETTINGS:-}" ]; then set -- "$@" --settings "$COLDFALL_CLAUDE_SETTINGS"; fi
 ```
 
 ## Look

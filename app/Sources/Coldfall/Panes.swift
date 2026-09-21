@@ -212,6 +212,9 @@ final class Pane {
         // Hooks and desk-scoped behaviour key off this, same as the shell wrapper.
         env.append("CLAUDE_DESK=\(desk.name)")
         env.append("COLDFALL=1")
+        // For a desk whose own command starts Claude: the trimmed servers,
+        // for it to pass on (see McpTrim). Built-in desks get the flag directly.
+        if let s = McpTrim.settingsJSON(off: desk.mcpOff) { env.append("\(McpTrim.envKey)=\(s)") }
         return env
     }
 }

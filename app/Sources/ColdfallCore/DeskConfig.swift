@@ -20,6 +20,9 @@ public struct Desk {
     public var model: String?
     public var cwd: String?
     public var command: String?     // escape hatch: run this verbatim instead
+    /// MCP servers from the folder's .mcp.json switched off for this desk
+    /// (see McpTrim). Empty means all of them, as before.
+    public var mcpOff: [String] = []
     /// Desks are not a flat list. `study` belongs under `school` next to `mba`.
     /// Ungrouped desks sit at the top, above the first group header.
     public var group: String?
@@ -65,6 +68,9 @@ public struct Desk {
             var parts = ["claude"]
             if let a = agent, !a.isEmpty { parts += ["--agent", a] }
             if let s = claudeSession, !s.isEmpty { parts += ["--resume", s] } else { parts += ["-n", name] }
+            // Names are checked to letters, digits, - _ . so the JSON has no
+            // single quote to break out of.
+            if let s = McpTrim.settingsJSON(off: mcpOff) { parts += ["--settings", "'\(s)'"] }
             return parts.joined(separator: " ")
         case "codex":  return codexResume ? "codex resume --last" : "codex"
         case "gemini": return "gemini"
@@ -279,6 +285,7 @@ public enum DeskConfig {
                 current?.declaredRuntime = true
                 explicitRuntime = true
             case "model":   current?.model = val
+            case "mcp_off": current?.mcpOff = TomlText.stringArray(val) ?? []
             case "cwd":     current?.cwd = val
             case "command": current?.command = val
             case "group":   current?.group = val
@@ -401,6 +408,9 @@ public enum DeskConfig {
             }
             if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
             if let m = d.model { out += "model = \"\(TomlText.escape(m))\"\n" }
+            if !d.mcpOff.isEmpty {
+                out += "mcp_off = [" + d.mcpOff.map { "\"\(TomlText.escape($0))\"" }.joined(separator: ", ") + "]\n"
+            }
         }
         try? FileManager.default.createDirectory(
             atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)

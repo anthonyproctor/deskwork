@@ -357,7 +357,9 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     @objc private func addOrUpdate() {
         let n = name.stringValue.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { NSSound.beep(); return }
-        var d = Desk(name: n)
+        // Start from the desk being edited, so what this form does not show
+        // (agent, model, default, trimmed MCP servers) survives the edit.
+        var d = desks.first(where: { $0.name == n }) ?? Desk(name: n)
         d.group = group.stringValue.isEmpty ? nil : group.stringValue
         d.cwd = cwd.stringValue.isEmpty ? nil : cwd.stringValue
         d.command = command.stringValue.isEmpty ? nil : command.stringValue

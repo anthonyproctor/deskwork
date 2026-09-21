@@ -978,6 +978,57 @@ do {
           WindowFill.toggle(frame: screen, visible: screen, saved: screen).next != screen)
 }
 
+// MARK: - trimming a desk's MCP servers
+
+do {
+    eq("a TOML string list", TomlText.stringArray(#"["gmail", "chrome-devtools"]"#), ["gmail", "chrome-devtools"])
+    eq("an empty one", TomlText.stringArray("[]"), [])
+    eq("escapes inside", TomlText.stringArray(#"["a\"b"]"#), [#"a"b"#])
+    eq("not a list", TomlText.stringArray(#""gmail""#), nil)
+    eq("a bare word is not a string", TomlText.stringArray("[gmail]"), nil)
+    eq("an unfinished string", TomlText.stringArray(#"["gmail]"#), nil)
+
+    check("ordinary server names pass", McpTrim.validName("chrome-devtools") && McpTrim.validName("mcp_1.x"))
+    check("a quote cannot reach the shell", !McpTrim.validName("x'; rm -rf ~; '"))
+    check("nor a space", !McpTrim.validName("a b"))
+    eq("settings switch off exactly the named servers, sorted, once",
+       McpTrim.settingsJSON(off: ["gmail", "chrome-devtools", "gmail"]),
+       #"{"disabledMcpjsonServers":["chrome-devtools","gmail"]}"#)
+    eq("an unsafe name is dropped, not quoted", McpTrim.settingsJSON(off: ["bad'name", "gmail"]),
+       #"{"disabledMcpjsonServers":["gmail"]}"#)
+    eq("nothing off, no setting", McpTrim.settingsJSON(off: []), nil)
+
+    let dir = NSTemporaryDirectory() + "coldfall-mcp-\(UUID().uuidString)"
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(atPath: dir) }
+    try? #"{"mcpServers":{"gmail":{"command":"x"},"mission-control":{"command":"node"},"bad name":{}}}"#
+        .write(toFile: dir + "/.mcp.json", atomically: true, encoding: .utf8)
+    eq("a desk can trim the servers in its folder's .mcp.json", McpTrim.servers(cwd: dir), ["gmail", "mission-control"])
+    eq("a folder without one has none", McpTrim.servers(cwd: dir + "/nowhere"), [])
+
+    var d = Desk(name: "golf", runtime: "claude", cwd: "/srv/demo")
+    d.mcpOff = ["gmail", "chrome-devtools"]
+    eq("a built-in desk starts Claude with them off", d.launchCommand(),
+       #"claude -n golf --settings '{"disabledMcpjsonServers":["chrome-devtools","gmail"]}'"#)
+    eq("and keeps them off when it resumes", d.launchCommand(claudeSession: "abc"),
+       #"claude --resume abc --settings '{"disabledMcpjsonServers":["chrome-devtools","gmail"]}'"#)
+    eq("an untrimmed desk is unchanged", Desk(name: "golf", runtime: "claude").launchCommand(), "claude -n golf")
+
+    let f = dir + "/desks.toml"
+    DeskConfig.write([d], to: f)
+    eq("the choice survives a save", DeskConfig.load(path: f).first?.mcpOff, ["gmail", "chrome-devtools"])
+    DeskConfig.write([Desk(name: "golf")], to: f)
+    check("and an untrimmed desk writes no line for it",
+          !((try? String(contentsOfFile: f, encoding: .utf8)) ?? "").contains("mcp_off"))
+
+    try? "#!/bin/sh\nexec claude \"$@\"\n".write(toFile: dir + "/plain", atomically: true, encoding: .utf8)
+    try? "#!/bin/sh\nexec claude ${COLDFALL_CLAUDE_SETTINGS:+--settings \"$COLDFALL_CLAUDE_SETTINGS\"} \"$@\"\n"
+        .write(toFile: dir + "/aware", atomically: true, encoding: .utf8)
+    check("a script that ignores the setting is noticed", !McpTrim.commandHonors(dir + "/plain hub"))
+    check("one that passes it on is too", McpTrim.commandHonors(dir + "/aware hub"))
+    check("a command that is not a file cannot be vouched for", !McpTrim.commandHonors("claude --agent x"))
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

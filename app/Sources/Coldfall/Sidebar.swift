@@ -13,6 +13,7 @@ final class SidebarView: NSView {
     var onMakeDefault: ((Int) -> Void)?
     var onRenameDesk: ((Int) -> Void)?
     var onStopDesk: ((Int) -> Void)?
+    var onMcpDesk: ((Int) -> Void)?
     var onMoveDesk: ((Int, DeskDrop) -> Void)?
     /// A group dragged by its header: the group, and the group it now sits
     /// before (nil for last).
@@ -132,6 +133,9 @@ final class SidebarView: NSView {
                     ? nil : { [weak self] in self?.onMakeDefault?(i) }
                 r.onRename = { [weak self] in self?.onRenameDesk?(i) }
                 r.onStop = { [weak self] in self?.onStopDesk?(i) }
+                // Claude only for now: it is the vendor whose way of switching
+                // single servers off has been checked (see McpTrim).
+                r.onMcp = d.runtime == "claude" ? { [weak self] in self?.onMcpDesk?(i) } : nil
                 r.onDragMoved = { [weak self] p in self?.dragMoved(from: i, to: p) }
                 r.onDragEnded = { [weak self] p in self?.dragEnded(from: i, at: p) }
                 r.status = status[d.name] ?? DeskStatus()
