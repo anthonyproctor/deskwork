@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-09-21
+
+Hide a desk without losing it.
+
 ### Added
 - **Hide Desk** on a desk's right-click menu takes it out of the rail and
   cmd-1 to cmd-9 but keeps it, with its settings and conversation, as
@@ -186,7 +190,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.0...v0.3.1
