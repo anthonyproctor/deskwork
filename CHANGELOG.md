@@ -8,6 +8,11 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- **What This Desk Has…** on a desk's right-click menu lists its MCP servers
+  (and which run on this Mac), hooks (commands that run by themselves),
+  skills and plugins, read from Claude, Codex or Gemini's own files.
+
 ### Fixed
 - Renaming a desk Coldfall starts itself no longer loses its conversation. It
   remembers the conversation's id (as `session` in desks.toml) and reopens it

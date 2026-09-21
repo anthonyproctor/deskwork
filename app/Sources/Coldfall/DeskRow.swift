@@ -38,6 +38,7 @@ final class DeskRow: NSView {
     var onRename: (() -> Void)?
     var onStop: (() -> Void)?
     var onMcp: (() -> Void)?
+    var onInventory: (() -> Void)?
     /// Drag to reorder. Points are in the row's superview (the rail).
     var onDragMoved: ((NSPoint) -> Void)?
     var onDragEnded: ((NSPoint) -> Void)?
@@ -237,6 +238,12 @@ final class DeskRow: NSView {
         let rn = NSMenuItem(title: "Rename Desk…", action: #selector(rename), keyEquivalent: "")
         rn.target = self
         m.addItem(rn)
+        if onInventory != nil {
+            let iv = NSMenuItem(title: "What This Desk Has…", action: #selector(inventory), keyEquivalent: "")
+            iv.target = self
+            iv.toolTip = "Its MCP servers, hooks, skills and plugins, read from disk."
+            m.addItem(iv)
+        }
         if onMcp != nil {
             let mc = NSMenuItem(title: "MCP Servers…", action: #selector(mcp), keyEquivalent: "")
             mc.target = self
@@ -259,6 +266,7 @@ final class DeskRow: NSView {
     @objc private func rename() { onRename?() }
     @objc private func stop() { onStop?() }
     @objc private func mcp() { onMcp?() }
+    @objc private func inventory() { onInventory?() }
     @objc private func reveal() { onReveal?() }
     @objc private func makeDefault() { onMakeDefault?() }
 }

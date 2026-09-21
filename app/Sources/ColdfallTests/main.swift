@@ -1066,6 +1066,61 @@ do {
     eq("anything but an id is ignored, never run", DeskConfig.load(path: f).first?.session, nil)
 }
 
+// MARK: - what a desk has
+
+do {
+    let root = NSTemporaryDirectory() + "coldfall-inv-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let home = root + "/home", cwd = root + "/srv/demo"
+    let fm = FileManager.default
+    func put(_ path: String, _ text: String) {
+        try? fm.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try? text.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+    put(cwd + "/.mcp.json", #"{"mcpServers":{"mail":{"command":"/srv/demo/bin/mail-server"},"docs":{"type":"http","url":"https://docs.example.com/mcp"}}}"#)
+    put(home + "/.claude.json", #"{"mcpServers":{"notes":{"command":"npx"}},"projects":{"\#(cwd)":{"mcpServers":{"trading":{"command":"node"}}}}}"#)
+    put(cwd + "/.claude/skills/tax-notice/SKILL.md", "---\nname: tax-notice\ndescription: File a tax notice and log it.\n---\nbody")
+    put(home + "/.claude/skills/synced/writing/SKILL.md", "---\nname: writing\ndescription: \"Plain writing.\"\n---\n")
+    put(home + "/.claude/skills/not-a-skill/readme.txt", "x")
+    put(cwd + "/.claude/settings.json", #"{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"python3 /srv/demo/hooks/brief.py --quiet"}]}]}}"#)
+    let pdir = home + "/.claude/plugins/cache/market/helper/1.2.0"
+    put(home + "/.claude/settings.json", #"{"enabledPlugins":{"helper@market":true,"off@market":false}}"#)
+    put(home + "/.claude/plugins/installed_plugins.json",
+        #"{"version":2,"plugins":{"helper@market":[{"installPath":"\#(pdir)","version":"1.2.0"}]}}"#)
+    put(pdir + "/skills/deploy/SKILL.md", "---\nname: deploy\ndescription: Ship it.\n---\n")
+    put(pdir + "/hooks/hooks.json", #"{"hooks":{"PostToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"node \"${CLAUDE_PLUGIN_ROOT}/hooks/telemetry.mjs\""}]}]}}"#)
+    put(pdir + "/.mcp.json", #"{"mcpServers":{"helper":{"type":"http","url":"https://mcp.helper.dev"}}}"#)
+
+    var desk = Desk(name: "demo", runtime: "claude", cwd: cwd)
+    desk.mcpOff = ["mail"]
+    let inv = Inventory.of(desk, home: home)
+    let mcp = Dictionary(uniqueKeysWithValues: inv.mcp.map { ($0.name, $0) })
+    eq("servers from the folder, you and plugins", Set(mcp.keys), ["mail", "docs", "notes", "trading", "helper"])
+    eq("a local server says it runs on this Mac", mcp["mail"]?.detail, "runs mail-server on this Mac")
+    eq("a remote one says where", mcp["docs"]?.detail, "remote, docs.example.com")
+    eq("a trimmed server is marked off", mcp["mail"]?.off, true)
+    eq("a server from a plugin says so", mcp["helper"]?.source, "plugin helper")
+    eq("skills from the folder, you (synced too) and plugins",
+       Set(inv.skills.map(\.name)), ["tax-notice", "writing", "deploy"])
+    eq("a skill's description is its detail", inv.skills.first { $0.name == "tax-notice" }?.detail, "File a tax notice and log it.")
+    eq("quotes around a description are dropped", inv.skills.first { $0.name == "writing" }?.detail, "Plain writing.")
+    eq("only enabled plugins, with what they carry", inv.plugins.map(\.detail), ["v1.2.0: 1 skill, 1 hook, 1 MCP server"])
+    let hooks = inv.hooks.map { "\($0.name) \($0.detail) \($0.source)" }.sorted()
+    eq("hooks name their event and script, not the whole command", hooks,
+       ["PostToolUse telemetry.mjs plugin helper", "SessionStart brief.py this folder"])
+    check("claude.ai connectors are mentioned, not invented", inv.notes.contains { $0.contains("claude.ai connectors") })
+
+    put(home + "/.codex/config.toml", "model = \"x\"\n[mcp_servers.search]\ncommand = \"s\"\n[mcp_servers.search.env]\nK = \"v\"\n")
+    put(cwd + "/AGENTS.md", "rules")
+    let cx = Inventory.of(Desk(name: "cx", runtime: "codex", cwd: cwd), home: home)
+    eq("Codex servers from config.toml, once each", cx.mcp.map(\.name), ["search"])
+    check("and it says Codex reads AGENTS.md", cx.notes.contains { $0.contains("AGENTS.md") })
+    check("a shell desk has nothing, and says why",
+          Inventory.of(Desk(name: "sh", runtime: "shell"), home: home).isEmpty)
+    check("an empty home finds nothing and doesn't fail",
+          Inventory.of(Desk(name: "x", runtime: "claude", cwd: root + "/none"), home: root + "/none").isEmpty)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

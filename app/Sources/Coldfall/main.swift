@@ -187,6 +187,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onSelect = { [weak self] i in self?.show(i) }
         sidebar.onRenameDesk = { [weak self] i in self?.renameDesk(i) }
         sidebar.onMcpDesk = { [weak self] i in self?.editMcp(i) }
+        sidebar.onInventoryDesk = { [weak self] i in self?.showInventory(i) }
         sidebar.onStopDesk = { [weak self] i in self?.stopDesk(i) }
         sidebar.onMoveDesk = { [weak self] i, d in self?.moveDesk(i, to: d) }
         sidebar.onMoveGroup = { [weak self] g, b in self?.moveGroup(g, before: b) }
@@ -258,6 +259,28 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 }
                 if let png = rep.representation(using: .png, properties: [:]) {
                     try? png.write(to: URL(fileURLWithPath: out))
+                }
+                // `--inventory <desk>`: that desk's "What This Desk Has", to
+                // <out>-inventory.png.
+                if let k = CommandLine.arguments.firstIndex(of: "--inventory"), k + 1 < CommandLine.arguments.count,
+                   let d = self?.desks.first(where: { $0.name == CommandLine.arguments[k + 1] }) {
+                    let iw = InventoryWindow(desk: d, inventory: Inventory.of(d))
+                    guard let iv = iw.window?.contentView else { exit(1) }
+                    iv.wantsLayer = true
+                    iv.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        iv.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+                    }
+                    iv.layoutSubtreeIfNeeded()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        _ = iw
+                        guard let irep = iv.bitmapImageRepForCachingDisplay(in: iv.bounds) else { exit(1) }
+                        iv.cacheDisplay(in: iv.bounds, to: irep)
+                        if let png = irep.representation(using: .png, properties: [:]) {
+                            try? png.write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-inventory.png"))
+                        }
+                        exit(0)
+                    }
+                    return
                 }
                 // `--settings <tab>`: the Settings window on that tab, to
                 // <out>-settings.png. Never saved, never shown.
@@ -643,6 +666,14 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
     }
     var stoppedNote: NSView?
+
+    var inventoryWindow: InventoryWindow?
+    func showInventory(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        inventoryWindow = InventoryWindow(desk: desks[i], inventory: Inventory.of(desks[i]))
+        inventoryWindow?.showWindow(nil)
+        inventoryWindow?.window?.makeKeyAndOrderFront(nil)
+    }
 
     /// Which of the folder's MCP servers this desk starts. Saved at once;
     /// takes effect the next time the desk starts.
