@@ -5,3 +5,6 @@
 target/
 node_modules/
 .venv/
+
+# Release zips from scripts/release-zip.sh.
+dist/

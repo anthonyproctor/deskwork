@@ -25,7 +25,13 @@ swift build -c release
 ./.build/release/Coldfall --snapshot /tmp/shot.png --desks demo.toml  # made-up desks, not the real ones
 ./.build/release/Coldfall --snapshot /tmp/shot.png --reader-hidden    # as if the reader were toggled off
 ../scripts/build-app.sh                                        # ~/Applications/Project Coldfall.app
+../scripts/release-zip.sh                                      # the zip a GitHub release ships
 ```
+
+A release zip always comes from `scripts/release-zip.sh`, never a hand-made
+zip of the local bundle. The local bundle carries the builder's home path (in
+Info.plist and in debug symbols) and a personal signing certificate; the
+script strips all of it and refuses to finish if any home path is left.
 
 `COLDFALL_SNAPSHOT_DEBUG=1` prints measured frames with a snapshot.
 

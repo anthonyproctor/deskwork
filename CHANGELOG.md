@@ -8,6 +8,12 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- Release downloads no longer contain the path of the folder they were built
+  in. The zips for 0.1.0, 0.2.0 and 0.3.0 have been replaced with cleaned
+  copies of the same builds. New releases are made with
+  `scripts/release-zip.sh`, which checks for this before it finishes.
+
 ## [0.3.0] - 2026-09-21
 
 Desks pick up where they left off, and the rail shows which ones are waiting
