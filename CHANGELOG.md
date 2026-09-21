@@ -14,6 +14,10 @@ opens this file.
 - Drag desks in the rail to reorder them. Dropping a desk among another group's
   desks, or on a group's header, moves it into that group. cmd-1 to cmd-9
   follow the new order.
+- **Needs you**: when desks are waiting on you, a line at the top of the rail
+  names them, oldest wait first. Click it, or press cmd-0, to go to the one
+  that has waited longest. A folded group shows how many of its desks are
+  waiting, so folding one no longer hides them.
 - Desks Coldfall starts itself now pick up where they left off. A Claude desk
   reopens its own conversation (the newest one carrying the desk's name), and
   a Codex desk reopens its latest conversation in the desk's folder. Desks
@@ -39,6 +43,8 @@ opens this file.
   Cursor style desk rows (status, name, time since last output).
 
 ### Fixed
+- A stopped desk no longer leaves a `<defunct>` process behind until the app
+  quits.
 - **Stop Desk…** now ends the agent too. It used to end only the shell, which
   ignores that signal, so the agent kept running unseen, still holding its
   memory, and starting the desk again opened the same conversation a second

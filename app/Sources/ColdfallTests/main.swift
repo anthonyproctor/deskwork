@@ -883,6 +883,26 @@ do {
 }
 
 
+// MARK: - needs you
+
+do {
+    let t0 = Date(timeIntervalSince1970: 1_000_000)
+    let e = [NeedsYou.Entry(name: "hub", activity: .ready, lastOutput: t0.addingTimeInterval(60)),
+             NeedsYou.Entry(name: "money", activity: .working, lastOutput: t0),
+             NeedsYou.Entry(name: "career", activity: .ready, lastOutput: t0),
+             NeedsYou.Entry(name: "golf", activity: .quiet, lastOutput: nil),
+             NeedsYou.Entry(name: "study", activity: .ready, lastOutput: t0.addingTimeInterval(60))]
+    let q = NeedsYou.queue(e)
+    eq("only waiting desks, oldest wait first, ties by name", q, ["career", "hub", "study"])
+    eq("cmd-0 goes to the oldest", NeedsYou.next(in: q, current: "golf"), "career")
+    eq("and never to the desk already on screen", NeedsYou.next(in: q, current: "career"), "hub")
+    eq("nothing waiting, nowhere to go", NeedsYou.next(in: [], current: nil), nil)
+    eq("one desk reads as a sentence", NeedsYou.summary(["career"]), "career needs you")
+    eq("several are counted and named", NeedsYou.summary(q), "3 need you: career, hub, study")
+    eq("a long queue is cut short", NeedsYou.summary(q + ["work"]), "4 need you: career, hub, study, …")
+    eq("an empty queue says nothing", NeedsYou.summary([]), nil)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

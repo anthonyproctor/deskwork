@@ -65,3 +65,48 @@ public struct ActivityState {
         return unseen ? .ready : .quiet
     }
 }
+
+/// The desks waiting on you, gathered in one place.
+///
+/// A green check on each row is not enough once there are a dozen desks: a
+/// waiting desk can sit inside a folded group or below the scroll. So the
+/// rail lists them at the top and cmd-0 walks them, oldest wait first — the
+/// desk that has been waiting longest is the one most likely forgotten.
+public enum NeedsYou {
+
+    public struct Entry: Equatable {
+        public let name: String
+        public let activity: DeskActivity
+        public let lastOutput: Date?
+        public init(name: String, activity: DeskActivity, lastOutput: Date?) {
+            self.name = name; self.activity = activity; self.lastOutput = lastOutput
+        }
+    }
+
+    /// Waiting desks, oldest wait first. Ties go by name so the order holds
+    /// still between ticks.
+    public static func queue(_ entries: [Entry]) -> [String] {
+        entries.filter { $0.activity == .ready }
+            .sorted {
+                let a = $0.lastOutput ?? .distantPast, b = $1.lastOutput ?? .distantPast
+                return a != b ? a < b : $0.name < $1.name
+            }
+            .map(\.name)
+    }
+
+    /// Where cmd-0 goes from `current`: the oldest waiting desk. The desk on
+    /// screen never waits (looking at it clears it), so there is nothing to
+    /// skip and pressing again moves on as each one is seen.
+    public static func next(in queue: [String], current: String?) -> String? {
+        queue.first { $0 != current }
+    }
+
+    /// The line at the top of the rail: "career needs you", "3 need you:
+    /// career, hub, money". Nil when nothing is waiting.
+    public static func summary(_ queue: [String], limit: Int = 3) -> String? {
+        guard !queue.isEmpty else { return nil }
+        if queue.count == 1 { return "\(queue[0]) needs you" }
+        let shown = queue.prefix(limit).joined(separator: ", ")
+        return "\(queue.count) need you: \(shown)" + (queue.count > limit ? ", …" : "")
+    }
+}

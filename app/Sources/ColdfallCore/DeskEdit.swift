@@ -202,6 +202,13 @@ public enum ProcessTree {
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + grace) {
             let alive = Set(read().map(\.pid))
             for p in pids where alive.contains(p) { kill(p, SIGKILL) }
+            // The shell is our own child. Once the terminal has let go of it,
+            // nothing else collects its exit, and it lingers as <defunct>
+            // until the app quits. Collect it here.
+            if let shell = pids.last {
+                var st: Int32 = 0
+                for _ in 0..<10 where waitpid(shell, &st, WNOHANG) == 0 { usleep(200_000) }
+            }
         }
     }
 

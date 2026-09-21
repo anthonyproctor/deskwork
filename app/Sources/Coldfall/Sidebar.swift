@@ -18,6 +18,8 @@ final class SidebarView: NSView {
     /// before (nil for last).
     var onMoveGroup: ((String, String?) -> Void)?
     var onSortDesks: (() -> Void)?
+    /// The "needs you" line was clicked: go to this desk.
+    var onJumpToWaiting: ((String) -> Void)?
 
     /// Group headers by the group they head, for drops onto a header.
     private var headers: [(group: String, view: GroupHeader)] = []
@@ -35,8 +37,22 @@ final class SidebarView: NSView {
 
     /// Per-desk status, keyed by name. Set by the controller each tick.
     var status: [String: DeskStatus] = [:] {
-        didSet { for r in rows.values { r.status = status[r.deskName] ?? DeskStatus() } }
+        didSet {
+            for r in rows.values { r.status = status[r.deskName] ?? DeskStatus() }
+            let q = NeedsYou.queue(status.map {
+                NeedsYou.Entry(name: $0.key, activity: $0.value.activity, lastOutput: $0.value.lastOutput)
+            })
+            // The line and the header counts change the layout, so a change
+            // in who is waiting rebuilds. Not mid-drag: that would pull the
+            // row out from under the pointer. The next tick catches up.
+            if q != waiting, dropLine.superview == nil, let d = lastDesks {
+                waiting = q
+                build(desks: d)
+            }
+        }
     }
+    /// Desks waiting on you, oldest first, as last drawn.
+    private(set) var waiting: [String] = []
     /// Advanced by the controller so a working desk's spinner turns.
     var tick = 0 {
         didSet {
@@ -72,6 +88,15 @@ final class SidebarView: NSView {
         addSubview(title)
         y += 24
 
+        if let text = NeedsYou.summary(waiting), let first = waiting.first {
+            let strip = NeedsYouStrip(frame: NSRect(x: 10, y: y, width: w - 20, height: 26))
+            strip.autoresizingMask = [.width]
+            strip.configure(text)
+            strip.onClick = { [weak self] in self?.onJumpToWaiting?(first) }
+            addSubview(strip)
+            y += 34
+        }
+
         for g in DeskOrder.groups(desks) {
             let members = desks.enumerated().filter { $0.element.group == g }
             if members.isEmpty { continue }
@@ -80,7 +105,9 @@ final class SidebarView: NSView {
                 let isDown = !collapsed.contains(g)
                 let h = GroupHeader(frame: NSRect(x: 10, y: y, width: w - 20, height: 20))
                 h.autoresizingMask = [.width]
-                h.configure(title: g, expanded: isDown)
+                // Folded, a group would hide a waiting desk entirely.
+                let inside = isDown ? 0 : members.filter { waiting.contains($0.element.name) }.count
+                h.configure(title: g, expanded: isDown, waiting: inside)
                 h.onClick = { [weak self] in self?.onToggleGroup?(g) }
                 h.onRename = { [weak self] in self?.onRenameGroup?(g) }
                 h.onSort = { [weak self] in self?.onSortDesks?() }
@@ -275,8 +302,16 @@ final class GroupHeader: NSView {
     required init?(coder: NSCoder) { fatalError() }
     convenience init() { self.init(frame: .zero) }
 
-    func configure(title: String, expanded: Bool) {
-        label.stringValue = (expanded ? "▾ " : "▸ ") + title.uppercased()
+    func configure(title: String, expanded: Bool, waiting: Int = 0) {
+        let s = NSMutableAttributedString(string: (expanded ? "▾ " : "▸ ") + title.uppercased(), attributes: [
+            .font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: Theme.ui.dimText,
+        ])
+        if waiting > 0 {
+            s.append(NSAttributedString(string: "  ● \(waiting)", attributes: [
+                .font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.systemGreen,
+            ]))
+        }
+        label.attributedStringValue = s
     }
 
     // A click folds the group; a drag of more than a few points moves it.
@@ -315,3 +350,30 @@ final class GroupHeader: NSView {
 
 /// Right-click a desk to remove it. The natural gesture, and it keeps the
 /// distinction visible: removing a desk removes the shortcut, not the agent.
+
+/// "2 need you: career, hub" at the top of the rail. Click to go to the one
+/// that has waited longest.
+final class NeedsYouStrip: NSView {
+    var onClick: (() -> Void)?
+    private let label = NSTextField(labelWithString: "")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.14).cgColor
+        label.font = .systemFont(ofSize: 12, weight: .medium)
+        label.textColor = .systemGreen
+        label.lineBreakMode = .byTruncatingTail
+        label.frame = NSRect(x: 10, y: 5, width: frame.width - 20, height: 16)
+        label.autoresizingMask = [.width]
+        addSubview(label)
+        toolTip = "Go to the desk that has waited longest (⌘0)"
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(_ text: String) { label.stringValue = "● " + text }
+
+    override func mouseUp(with e: NSEvent) { onClick?() }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+}

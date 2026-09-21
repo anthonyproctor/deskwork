@@ -181,6 +181,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onMoveDesk = { [weak self] i, d in self?.moveDesk(i, to: d) }
         sidebar.onMoveGroup = { [weak self] g, b in self?.moveGroup(g, before: b) }
         sidebar.onSortDesks = { [weak self] in self?.sortDesks() }
+        sidebar.onJumpToWaiting = { [weak self] n in self?.showDesk(named: n) }
 
         // Set the appearance BEFORE showing: every semantic colour in the app
         // resolves off it, so flipping after the fact repaints everything.
@@ -389,6 +390,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             it.tag = i; it.target = self
             deskMenu.addItem(it)
         }
+        let waitingItem = NSMenuItem(title: "Go to Desk That Needs You", action: #selector(jumpToWaiting), keyEquivalent: "0")
+        waitingItem.target = self
+        deskMenu.addItem(waitingItem)
         deskMenu.addItem(.separator())
         let refresh = NSMenuItem(title: "Refresh Files", action: #selector(refreshTree), keyEquivalent: "r")
         refresh.target = self
@@ -443,6 +447,15 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     }
 
     @objc func jump(_ sender: NSMenuItem) { show(sender.tag) }
+
+    /// cmd-0: the desk that has waited longest for you.
+    @objc func jumpToWaiting() {
+        guard let name = NeedsYou.next(in: sidebar.waiting, current: visible?.desk.name) else { NSSound.beep(); return }
+        showDesk(named: name)
+    }
+    func showDesk(named name: String) {
+        if let i = desks.firstIndex(where: { $0.name == name }) { show(i) }
+    }
     /// Removing a desk removes the shortcut. It does NOT delete the agent
     /// definition and it does NOT stop a running session — both said out loud,
     /// because guessing wrong about either would be somebody's bad afternoon.
