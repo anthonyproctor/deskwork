@@ -12,26 +12,19 @@ final class SidebarView: NSView {
     var onRevealAgent: ((Int) -> Void)?
     var onMakeDefault: ((Int) -> Void)?
 
-    private var buttons: [Int: NSButton] = [:]
+    private var rows: [Int: DeskRow] = [:]
     private var selected = -1
     private(set) var contentHeight: CGFloat = 0
     var collapsed: Set<String> = []
 
     override var isFlipped: Bool { true }   // lay out top-down inside the scroll view
 
-    /// Per-desk activity, keyed by name. Set by the controller each tick.
-    var activity: [String: DeskActivity] = [:] {
-        didSet { if let i = lastSelected { select(i) } }
+    /// Per-desk status, keyed by name. Set by the controller each tick.
+    var status: [String: DeskStatus] = [:] {
+        didSet { for r in rows.values { r.status = status[r.deskName] ?? DeskStatus() } }
     }
-    /// Advanced by the controller so a working desk SPINS. A static glyph and
-    /// a hung desk look identical, which is the thing this is here to answer.
-    var tick = 0
-
-    /// Braille spinner: reads as motion at a glance without stealing attention
-    /// from the green dot, which is the state you actually have to act on.
-    private static let spin = ["\u{280B}", "\u{2819}", "\u{2839}", "\u{2838}",
-                               "\u{283C}", "\u{2834}", "\u{2826}", "\u{2827}",
-                               "\u{2807}", "\u{280F}"]
+    /// Advanced by the controller so a working desk's spinner turns.
+    var tick = 0 { didSet { for r in rows.values { r.tick = tick } } }
 
     private(set) var lastDesks: [Desk]?
     private(set) var lastSelected: Int?
@@ -39,15 +32,28 @@ final class SidebarView: NSView {
     func build(desks: [Desk]) {
         lastDesks = desks
         subviews.forEach { $0.removeFromSuperview() }
-        buttons = [:]
+        rows = [:]
+
+        // Size from the scroll view's VISIBLE width, not our own. The first
+        // build runs before the window has finished sizing, so our own width
+        // was a stale, narrower number — rows stopped a hundred points short of
+        // the rail and the "2m" floated mid-row instead of sitting flush right.
+        let visible = enclosingScrollView?.contentView.bounds.width ?? bounds.width
+        let w = max(visible, 190)
+        var y: CGFloat = 10
+
+        // What this region is, before any of its rows.
+        let title = SectionTitle("Desks")
+        title.frame = NSRect(x: 14, y: y, width: w - 28, height: 16)
+        title.translatesAutoresizingMaskIntoConstraints = true
+        title.autoresizingMask = [.width]
+        addSubview(title)
+        y += 24
 
         var order: [String?] = [nil]
         for d in desks where d.group != nil && !order.contains(where: { $0 == d.group }) {
             order.append(d.group)
         }
-
-        var y: CGFloat = 10
-        let w = max(bounds.width, 190)
 
         for g in order {
             let members = desks.enumerated().filter { $0.element.group == g }
@@ -56,6 +62,7 @@ final class SidebarView: NSView {
             if let g {
                 let isDown = !collapsed.contains(g)
                 let h = GroupHeader(frame: NSRect(x: 10, y: y, width: w - 20, height: 20))
+                h.autoresizingMask = [.width]
                 h.configure(title: g, expanded: isDown)
                 h.onClick = { [weak self] in self?.onToggleGroup?(g) }
                 h.onRename = { [weak self] in self?.onRenameGroup?(g) }
@@ -65,27 +72,22 @@ final class SidebarView: NSView {
             }
 
             for (i, d) in members {
-                let b = DeskButton(frame: NSRect(x: g == nil ? 12 : 22, y: y,
-                                                 width: w - (g == nil ? 22 : 32), height: 22))
-                b.onRemove = { [weak self] in self?.onRemoveDesk?(i) }
-                b.onReveal = d.agent == nil ? nil : { [weak self] in self?.onRevealAgent?(i) }
-                b.onMakeDefault = d.isDefault ? nil : { [weak self] in self?.onMakeDefault?(i) }
-                b.runtimeName = d.runtime
-                b.isDefaultDesk = d.isDefault
-                b.title = d.name
-                b.deskRuntime = d.runtime
-                b.target = self; b.action = #selector(tapped(_:))
-                b.tag = i
-                b.bezelStyle = .inline
-                b.isBordered = false
-                b.contentTintColor = .labelColor
-                b.alignment = .left
-                b.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-                addSubview(b)
-                buttons[i] = b
-                y += 23
+                let indent: CGFloat = g == nil ? 4 : 12
+                let r = DeskRow(desk: d)
+                r.frame = NSRect(x: indent, y: y, width: w - indent - 4, height: DeskRow.height)
+                r.autoresizingMask = [.width]   // stretches with the rail; time stays flush right
+                r.onClick = { [weak self] in self?.select(i); self?.onSelect?(i) }
+                r.onRemove = { [weak self] in self?.onRemoveDesk?(i) }
+                r.onReveal = d.agent == nil ? nil : { [weak self] in self?.onRevealAgent?(i) }
+                r.onMakeDefault = d.isDefault || d.runtime == "shell"
+                    ? nil : { [weak self] in self?.onMakeDefault?(i) }
+                r.status = status[d.name] ?? DeskStatus()
+                r.tick = tick
+                addSubview(r)
+                rows[i] = r
+                y += DeskRow.height + 2
             }
-            y += 6
+            y += 8
         }
 
         contentHeight = y + 10
@@ -93,72 +95,60 @@ final class SidebarView: NSView {
         if selected >= 0 { select(selected) }
     }
 
-    @objc private func tapped(_ sender: NSButton) { select(sender.tag); onSelect?(sender.tag) }
+    /// The rail's real width is only known after the window lays out. Rebuild
+    /// once it is, so the very first paint is not the narrow one.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let d = lastDesks { DispatchQueue.main.async { self.build(desks: d) } }
+    }
+
+    /// Track the visible width of the scroll view we sit in.
+    ///
+    /// A scroll view does NOT resize its document view when it resizes, so an
+    /// autoresizing mask on this view does nothing. That was the second bug:
+    /// the first build caught a stale narrow width and the time floated
+    /// mid-row; stretching by mask then left the rows WIDER than the rail, and
+    /// the time was laid out off-screen entirely. Following the clip view's
+    /// frame keeps this view exactly as wide as what is visible, and the rows'
+    /// own masks carry that down to them.
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: nil)
+        guard let clip = superview as? NSClipView else { return }
+        clip.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(self, selector: #selector(clipResized),
+                                               name: NSView.frameDidChangeNotification, object: clip)
+    }
+
+    /// Lay every child out to the current width, explicitly.
+    ///
+    /// Measured in a snapshot: the rail was correctly 240 wide while its rows
+    /// were still 422 — built while the window was wider, and never shrunk.
+    /// Rather than depend on autoresizing masks that evidently did not apply
+    /// here, every width change re-lays the children out by hand. Rows keep a
+    /// small right gutter; titles and group headers keep a margin matching
+    /// their left inset.
+    override func resizeSubviews(withOldSize old: NSSize) {
+        for v in subviews {
+            let w = v is DeskRow ? bounds.width - v.frame.minX - 4
+                                 : bounds.width - 2 * v.frame.minX
+            v.setFrameSize(NSSize(width: max(0, w), height: v.frame.height))
+        }
+    }
+
+    @objc private func clipResized() {
+        guard let clip = superview as? NSClipView else { return }
+        let w = max(clip.bounds.width, 190)
+        if abs(frame.width - w) > 0.5 { setFrameSize(NSSize(width: w, height: frame.height)) }
+    }
 
     func select(_ i: Int) {
         lastSelected = i
         selected = i
-        for (j, b) in buttons {
-            let on = j == i
-            let rt = (b as? DeskButton)?.deskRuntime ?? "shell"
-            let bare = b.title
-                .replacingOccurrences(of: "● ", with: "").replacingOccurrences(of: "○ ", with: "")
-                .components(separatedBy: "  ").first ?? b.title
-
-            // Vendor is an attribute of a desk, not a place to file it. Showing
-            // it inline means groups can stay about PURPOSE — money, work,
-            // school — instead of becoming a list of logos.
-            let title = NSMutableAttributedString(
-                string: (on ? "● " : "○ ") + bare,
-                attributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: 13, weight: on ? .bold : .regular),
-                    // An inactive desk is still a thing you read. secondary
-                    // washed the whole rail out.
-                    .foregroundColor: {
-                    // A desk that has finished colours its NAME, not just a
-                    // dot after it. Scanning a list of fifteen rows, a 6-point
-                    // glyph at the end of the line is not what the eye lands
-                    // on — the word is.
-                    if case .ready = activity[bare] ?? .quiet, !on { return NSColor.systemGreen }
-                    return on ? Theme.ui.accent : Theme.ui.text
-                }(),
-                ])
-            if rt != "shell" {
-                // Mark the home so the concept is visible, not just a menu item.
-                let isHome = (b as? DeskButton)?.isDefaultDesk == true
-                title.append(NSAttributedString(
-                    string: "  " + rt + (isHome ? " home" : ""),
-                    attributes: [
-                        .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium),
-                        .foregroundColor: Theme.ui.dimText,
-                    ]))
-            }
-            // The activity badge: a desk that answered while you were looking
-            // somewhere else. AFTER the vendor label and in colour rather than a
-            // new glyph in front, because the LEADING dot already means
-            // "selected" and two dots with different meanings in one row is how
-            // you get a badge nobody can read.
-            switch activity[bare] ?? .quiet {
-            case .quiet: break
-            case .working:
-                let g = SidebarView.spin[tick % SidebarView.spin.count]
-                title.append(NSAttributedString(string: "  " + g, attributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .bold),
-                    .foregroundColor: Theme.ui.accent]))
-            case .ready:
-                title.append(NSAttributedString(string: "  \u{25CF} done", attributes: [
-                    .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
-                    .foregroundColor: NSColor.systemGreen]))
-            }
-            b.attributedTitle = title
-        }
+        for (j, r) in rows { r.selected = (j == i) }
     }
-}
 
-/// Click to collapse, right-click (or the ⋯ menu) to rename.
-extension SidebarView {
-    /// Repaint after a light/dark flip. Every row builds its attributed string
-    /// from the theme, so rebuilding them is the whole job.
+    /// Repaint after a light/dark flip.
     func restyle() {
         guard let d = lastDesks else { return }
         build(desks: d)
@@ -200,39 +190,3 @@ final class GroupHeader: NSView {
 
 /// Right-click a desk to remove it. The natural gesture, and it keeps the
 /// distinction visible: removing a desk removes the shortcut, not the agent.
-final class DeskButton: NSButton {
-    var onRemove: (() -> Void)?
-    var onReveal: (() -> Void)?
-    var onMakeDefault: (() -> Void)?
-    var runtimeName: String = ""
-    var isDefaultDesk = false
-    var deskRuntime: String = "shell"
-
-    override func rightMouseDown(with e: NSEvent) {
-        let m = NSMenu()
-        if onReveal != nil {
-            let r = NSMenuItem(title: "Reveal Agent Definition", action: #selector(reveal), keyEquivalent: "")
-            r.target = self
-            m.addItem(r)
-            m.addItem(.separator())
-        }
-        if let _ = onMakeDefault {
-            let g = NSMenuItem(title: "Make this the \(runtimeName) home",
-                               action: #selector(makeDefault), keyEquivalent: "")
-            g.target = self
-            g.toolTip = "The home desk for a vendor is where Project Coldfall sends work that belongs "
-                + "to the vendor rather than to one agent — creating an agent, managing them. "
-                + "One per vendor. The home marked default also opens when Project Coldfall starts."
-            m.addItem(g)
-            m.addItem(.separator())
-        }
-        let d = NSMenuItem(title: "Remove Desk…", action: #selector(remove), keyEquivalent: "")
-        d.target = self
-        m.addItem(d)
-        NSMenu.popUpContextMenu(m, with: e, for: self)
-    }
-    @objc private func remove() { onRemove?() }
-    @objc private func reveal() { onReveal?() }
-    @objc private func makeDefault() { onMakeDefault?() }
-
-}

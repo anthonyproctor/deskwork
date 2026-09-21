@@ -119,6 +119,60 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         // resolves off it, so flipping after the fact repaints everything.
         Theme.apply(to: window)
         Theme.paint(host, Theme.ui.editor)
+
+        // `--snapshot <file.png>`: lay the window out, save a picture of it,
+        // and quit — WITHOUT starting any desk process and without ever
+        // putting a window on screen.
+        //
+        // This exists because the user runs their own agent sessions inside
+        // this app, so relaunching it to check a UI change ends the very
+        // conversation doing the checking. A separate copy that never starts a
+        // desk and never shows a window can be looked at safely. Sample
+        // statuses are filled in so every row state is visible at once.
+        if let k = CommandLine.arguments.firstIndex(of: "--snapshot"),
+           k + 1 < CommandLine.arguments.count {
+            let out = CommandLine.arguments[k + 1]
+            let i = DeskConfig.startup(in: desks)
+            if desks.indices.contains(i) {
+                sidebar.select(i)
+                tree.setRoot(desks[i].resolvedCwd)
+            }
+            var sample: [String: DeskStatus] = [:]
+            let now = Date()
+            for (n, d) in desks.enumerated() {
+                switch n % 4 {
+                case 0: sample[d.name] = DeskStatus(activity: .ready, lastOutput: now.addingTimeInterval(-120), running: true)
+                case 1: sample[d.name] = DeskStatus(activity: .working, lastOutput: now, running: true)
+                case 2: sample[d.name] = DeskStatus(activity: .quiet, lastOutput: now.addingTimeInterval(-3600), running: true)
+                default: sample[d.name] = DeskStatus()
+                }
+            }
+            sidebar.status = sample
+            window.setContentSize(NSSize(width: 1180, height: 780))
+            window.contentView?.layoutSubtreeIfNeeded()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let v = self?.window.contentView,
+                      let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { exit(1) }
+                v.cacheDisplay(in: v.bounds, to: rep)
+                if let me = self, ProcessInfo.processInfo.environment["COLDFALL_SNAPSHOT_DEBUG"] != nil {
+                    let clip = me.deskScroll.contentView
+                    let rows = me.sidebar.subviews.compactMap { $0 as? DeskRow }.prefix(2).map { "\($0.frame)" }
+                    let lines = [
+                        "deskScroll.frame \(me.deskScroll.frame)",
+                        "clip.bounds      \(clip.bounds)",
+                        "sidebar.frame    \(me.sidebar.frame)",
+                        "rows             \(rows)",
+                    ]
+                    FileHandle.standardError.write((lines.joined(separator: "\n") + "\n").data(using: .utf8)!)
+                }
+                if let png = rep.representation(using: .png, properties: [:]) {
+                    try? png.write(to: URL(fileURLWithPath: out))
+                }
+                exit(0)
+            }
+            return
+        }
+
         window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         installMenu()
@@ -527,15 +581,15 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func watchDeskActivity() {
         activityTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
             guard let self else { return }
-            var map: [String: DeskActivity] = [:]
+            var map: [String: DeskStatus] = [:]
             var waiting = 0
             for (name, s) in self.sessions {
                 let a = s.activity
-                map[name] = a
+                map[name] = DeskStatus(activity: a, lastOutput: s.lastOutput, running: s.started)
                 if case .ready = a { waiting += 1 }
             }
             self.sidebar.tick &+= 1
-            self.sidebar.activity = map
+            self.sidebar.status = map
 
             // The dock badge is the half that works when Coldfall is not the
             // front app, which is exactly when you have walked away from a desk.

@@ -43,6 +43,7 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
     /// matters is the one immediately after the drag you did not mean.
     private var lastMove: (from: URL, to: URL)?
     private let outline = NSOutlineView()
+    private let rootLabel = NSTextField(labelWithString: "")
     private var root: FileNode?
 
     override init(frame: NSRect) {
@@ -64,6 +65,21 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         outline.setDraggingSourceOperationMask([.move], forLocal: true)
         outline.setDraggingSourceOperationMask([], forLocal: false)
 
+        // What this region is, and which folder it is showing — VS Code's
+        // EXPLORER title over the workspace name. Without it the tree was a
+        // list of names with nothing to say whose names they were, and the
+        // folder changes whenever you switch desks.
+        let title = SectionTitle("Explorer")
+        addSubview(title)
+        rootLabel.translatesAutoresizingMaskIntoConstraints = false
+        rootLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        rootLabel.textColor = Theme.ui.text
+        rootLabel.lineBreakMode = .byTruncatingMiddle
+        addSubview(rootLabel)
+
+        outline.rowHeight = 22
+        outline.indentationPerLevel = 12
+
         let scroll = NSScrollView()
         scroll.documentView = outline
         scroll.hasVerticalScroller = true
@@ -71,7 +87,12 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         scroll.translatesAutoresizingMaskIntoConstraints = false
         addSubview(scroll)
         NSLayoutConstraint.activate([
-            scroll.topAnchor.constraint(equalTo: topAnchor),
+            title.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            rootLabel.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 6),
+            rootLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            rootLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
+            scroll.topAnchor.constraint(equalTo: rootLabel.bottomAnchor, constant: 4),
             scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
             scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -84,6 +105,8 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
 
     func setRoot(_ path: String) {
         root = FileNode(url: URL(fileURLWithPath: path))
+        rootLabel.stringValue = (path as NSString).lastPathComponent
+        rootLabel.toolTip = (path as NSString).abbreviatingWithTildeInPath
         outline.reloadData()
     }
 
@@ -201,23 +224,43 @@ final class FileTreeView: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         let id = NSUserInterfaceItemIdentifier("cell")
         let cell = v.makeView(withIdentifier: id, owner: self) as? NSTableCellView ?? {
             let c = NSTableCellView(); c.identifier = id
+            let icon = NSImageView()
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            icon.imageScaling = .scaleProportionallyDown
+            c.addSubview(icon); c.imageView = icon
             let t = NSTextField(labelWithString: "")
-            t.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+            // A proportional face at 13, VS Code's explorer size. Monospace
+            // suits code, not a list of names, and read as cramped here.
+            t.font = .systemFont(ofSize: 13)
             t.lineBreakMode = .byTruncatingMiddle
             t.translatesAutoresizingMaskIntoConstraints = false
             c.addSubview(t); c.textField = t
             NSLayoutConstraint.activate([
-                t.leadingAnchor.constraint(equalTo: c.leadingAnchor, constant: 2),
+                icon.leadingAnchor.constraint(equalTo: c.leadingAnchor, constant: 2),
+                icon.centerYAnchor.constraint(equalTo: c.centerYAnchor),
+                icon.widthAnchor.constraint(equalToConstant: 15),
+                icon.heightAnchor.constraint(equalToConstant: 15),
+                t.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 5),
                 t.trailingAnchor.constraint(equalTo: c.trailingAnchor, constant: -2),
                 t.centerYAnchor.constraint(equalTo: c.centerYAnchor),
             ])
             return c
         }()
-        cell.textField?.stringValue = (n.isDir ? "▸ " : "   ") + n.name
+        // The disclosure control is the outline view's own, which turns when a
+        // folder opens. A typed ▸ used to sit in front of every folder and
+        // never changed, whatever state the folder was in.
+        cell.textField?.stringValue = n.name
         cell.textField?.textColor = Theme.ui.text
+        let symbol = n.isDir ? "folder.fill" : "doc.text"
+        let img = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        cell.imageView?.image = img
+        cell.imageView?.contentTintColor = n.isDir ? Theme.ui.accent.withAlphaComponent(0.85) : Theme.ui.dimText
         return cell
     }
 
     /// Repaint after a light/dark flip.
-    func restyle() { outline.reloadData() }
+    func restyle() {
+        rootLabel.textColor = Theme.ui.text
+        outline.reloadData()
+    }
 }

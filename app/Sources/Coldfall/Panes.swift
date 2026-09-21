@@ -307,6 +307,8 @@ final class DeskSession {
 
     /// What the rail should draw right now.
     var activity: DeskActivity { activityState.activity() }
+    /// When this desk last wrote anything, for the rail's "2m".
+    var lastOutput: Date? { activityState.lastOutput }
     var focusedPane: Pane { panes[min(focused, panes.count - 1)] }
     var started: Bool { panes[0].started }
 
