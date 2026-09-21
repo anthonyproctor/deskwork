@@ -67,3 +67,11 @@ that is what caught the two bugs that followed it.
 
 Comments explain **why**, especially where the obvious approach was rejected
 and what went wrong. The code says what it does.
+
+## The CLA
+
+First pull request asks you to sign a [Contributor License Agreement](CLA.md). A bot posts a comment; you reply with one line and are never asked again.
+
+It does not take your copyright — you keep it and can reuse your own work anywhere. It grants a licence broad enough that the project can relicense later without tracking down every past contributor, which is the thing that quietly strands projects that skip it.
+
+The document says plainly that this includes the power to release under a different licence in future, and why you might reasonably decline on those grounds. Every version already published stays MIT permanently; nothing can close source that is already open.
