@@ -960,8 +960,14 @@ do {
     eq("the macOS version", sent?["os"], "15.6.1")
 
     eq("a reply names the latest release",
-       UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"https://github.com/o/r/releases/tag/v0.4.0"}"#.utf8)),
-       UpdateCheck.Reply(latest: "v0.4.0", url: "https://github.com/o/r/releases/tag/v0.4.0"))
+       UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"https://github.com/anthonyproctor/project-coldfall/releases/tag/v0.4.0"}"#.utf8)),
+       UpdateCheck.Reply(latest: "v0.4.0", url: "https://github.com/anthonyproctor/project-coldfall/releases/tag/v0.4.0"))
+    eq("a link to another site is dropped",
+       UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"https://evil.example/releases"}"#.utf8))?.url, nil)
+    eq("so is one that only looks like GitHub",
+       UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"https://github.com.evil.example/anthonyproctor/project-coldfall/x"}"#.utf8))?.url, nil)
+    eq("and another repository",
+       UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"https://github.com/someone/else/releases"}"#.utf8))?.url, nil)
     eq("a link that is not https is dropped",
        UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"javascript:alert(1)"}"#.utf8))?.url, nil)
     eq("anything else is not a reply", UpdateCheck.parse(Data("<html>".utf8)), nil)
@@ -1260,6 +1266,45 @@ do {
        ["-", "money", "work", "personal", "school"])
     check("ungrouped desks always stay on top",
           DeskOrder.liveGroups(list, waiting: ["cpa": t0], used: ["golf": t0]).first! == nil)
+}
+
+// MARK: - nothing from desks.toml runs as a command
+
+do {
+    eq("a plain word passes through", Shell.quote("golf"), "golf")
+    eq("a path passes through", Shell.quote("/srv/demo/app-1.2"), "/srv/demo/app-1.2")
+    eq("a space is quoted", Shell.quote("/srv/my app"), "'/srv/my app'")
+    eq("a command separator is quoted", Shell.quote("x; rm -rf ~"), "'x; rm -rf ~'")
+    eq("command substitution is quoted", Shell.quote("$(touch /tmp/owned)"), "'$(touch /tmp/owned)'")
+    eq("a quote inside is closed, escaped and reopened", Shell.quote("it's"), #"'it'\''s'"#)
+    eq("a newline stays inside the quotes", Shell.quote("a\nb"), "'a\nb'")
+    eq("empty is still one word", Shell.quote(""), "''")
+    let evil = Desk(name: "x; touch /tmp/owned", agent: "a$(id)", runtime: "claude")
+    eq("a hostile name and agent are quoted in the launch line", evil.launchCommand(),
+       "claude --agent 'a$(id)' -n 'x; touch /tmp/owned'")
+    eq("a hostile model too", Desk(name: "m", runtime: "ollama", model: "llama3; id").launchCommand(),
+       "ollama run 'llama3; id'")
+    eq("and an unknown runtime", Desk(name: "u", runtime: "tool;id").launchCommand(), "'tool;id'")
+    eq("a desk's own command is still run as written",
+       Desk(name: "s", runtime: "shell", command: "exec zsh -l").launchCommand(), "exec zsh -l")
+
+    let me = ProcessTree.startTime(getpid())
+    check("this process has a start time", me != nil)
+    eq("and it holds still", ProcessTree.startTime(getpid()), me)
+    eq("a pid that doesn't exist has none", ProcessTree.startTime(999_999), nil)
+}
+
+// MARK: - config files too big to be real are skipped
+
+do {
+    let dir = NSTemporaryDirectory() + "coldfall-big-\(UUID().uuidString)"
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(atPath: dir) }
+    let pad = String(repeating: " ", count: 2_100_000)
+    try? ("{\"mcpServers\":{\"x\":{}}}" + pad).write(toFile: dir + "/.mcp.json", atomically: true, encoding: .utf8)
+    eq("an oversized .mcp.json is not read", McpTrim.servers(cwd: dir), [])
+    try? "{\"mcpServers\":{\"x\":{}}}".write(toFile: dir + "/.mcp.json", atomically: true, encoding: .utf8)
+    eq("a normal one is", McpTrim.servers(cwd: dir), ["x"])
 }
 
 // MARK: - the suite must not touch a real home directory

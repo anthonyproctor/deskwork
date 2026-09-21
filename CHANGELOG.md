@@ -8,6 +8,20 @@ opens this file.
 
 ## [Unreleased]
 
+### Security
+- Values read from desks.toml (a desk's name, agent, model, runtime and
+  folder) are quoted before they reach the shell. A desk or folder name
+  containing `;`, `$( )` or a quote could otherwise have run as a command.
+- Stop Desk's final kill checks each process is still the one it saw, by its
+  start time, so a process that reused an ended one's number is never hit.
+- The update check only opens release links on this project's GitHub page.
+
+### Fixed
+- Starting a desk no longer reads session files on the main thread, so the
+  app can't stall on a Mac with a long history. Config files too big to be
+  real are skipped instead of read.
+- A desk's memory figure no longer lingers after it stops or restarts.
+
 ### Added
 - A landing page, at the same address as the update check. Its source is
   `server/public/`; the pictures are of made-up desks.

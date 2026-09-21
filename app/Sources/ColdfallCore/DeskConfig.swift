@@ -91,8 +91,9 @@ public struct Desk {
             return command ?? "exec $SHELL -l"
         case "claude":
             var parts = ["claude"]
-            if let a = agent, !a.isEmpty { parts += ["--agent", a] }
-            if let s = claudeSession, !s.isEmpty { parts += ["--resume", s] } else { parts += ["-n", name] }
+            // Every value from desks.toml is quoted: see Shell.quote.
+            if let a = agent, !a.isEmpty { parts += ["--agent", Shell.quote(a)] }
+            if let s = claudeSession, !s.isEmpty { parts += ["--resume", Shell.quote(s)] } else { parts += ["-n", Shell.quote(name)] }
             // Names are checked to letters, digits, - _ . so the JSON has no
             // single quote to break out of.
             if let s = McpTrim.settingsJSON(off: mcpOff) { parts += ["--settings", "'\(s)'"] }
@@ -104,12 +105,12 @@ public struct Desk {
         case "copilot": return "copilot"
         case "ollama":
             // `ollama run <model>` is interactive; the model is required.
-            return "ollama run \(model ?? "llama3")"
+            return "ollama run \(Shell.quote(model ?? "llama3"))"
         case "grok":
             var parts = ["grok"]
-            if let m = model, !m.isEmpty { parts += ["-m", m] }
+            if let m = model, !m.isEmpty { parts += ["-m", Shell.quote(m)] }
             return parts.joined(separator: " ")
-        default: return runtime
+        default: return Shell.quote(runtime)
         }
     }
 

@@ -171,8 +171,13 @@ public struct Inventory: Equatable {
 
     // MARK: - reading
 
+    /// Config files are small. One far larger than any real one is skipped
+    /// rather than read into memory: a folder can hold anything.
+    static let maxConfigBytes = 2_000_000
+
     static func json(at path: String) -> [String: Any]? {
-        guard let d = FileManager.default.contents(atPath: path) else { return nil }
+        let size = ((try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber)?.intValue ?? 0
+        guard size <= maxConfigBytes, let d = FileManager.default.contents(atPath: path) else { return nil }
         return (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
     }
 

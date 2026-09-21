@@ -37,3 +37,22 @@ public enum ShellPath {
         paths.isEmpty ? "" : paths.map(escape).joined(separator: " ") + " "
     }
 }
+
+/// One word for a shell command line, however it came in.
+///
+/// Launch commands are typed into a login shell, so anything read from
+/// desks.toml (a desk's name, agent, model, runtime, folder) that reached it
+/// unquoted could run as code: a desk named `x; rm -rf ~` would. Plain words
+/// pass through as they are, so ordinary commands read as before; anything
+/// else is single-quoted, with any single quote inside closed, escaped and
+/// reopened. A newline inside single quotes is just a character.
+public enum Shell {
+    public static func quote(_ word: String) -> String {
+        let safe = !word.isEmpty && word.unicodeScalars.allSatisfy {
+            ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0)
+                || "@%+=:,./_-".unicodeScalars.contains($0)
+        }
+        if safe { return word }
+        return "'" + word.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}

@@ -189,7 +189,9 @@ final class Pane {
 
         // Land in the desk's directory, then launch its CLI. No `clear` here —
         // wiping the screen would throw away the only feedback there is.
-        let dir = desk.resolvedCwd.replacingOccurrences(of: " ", with: "\\ ")
+        // Quoted whole: a folder name can hold ; $() or a newline, and only
+        // escaping spaces let those run as commands.
+        let dir = Shell.quote(desk.resolvedCwd)
         let line = command.map { "cd \(dir) && \($0)\n" } ?? "cd \(dir)\n"
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
             self?.term.send(txt: line)
@@ -331,11 +333,33 @@ final class DeskSession {
 
     /// End every pane's process. The session is finished after this.
     func terminateAll() {
+        ended = true
         for p in panes where p.started { p.end() }
     }
 
+    /// Finding the conversation to reopen reads session files, which can be
+    /// many on a busy Mac, so it happens off the main thread. A desk stopped
+    /// in the meantime is not started when the answer comes back.
+    private var resolving = false
+    private var ended = false
+
     func startIfNeeded() {
-        panes[0].start(desk: desk, command: desk.resumingLaunchCommand())
+        guard !started, !resolving else { return }
+        let d = desk
+        guard d.resumesItself else { startPanes(d.launchCommand()); return }
+        resolving = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let cmd = d.resumingLaunchCommand()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.resolving = false
+                if !self.ended { self.startPanes(cmd) }
+            }
+        }
+    }
+
+    private func startPanes(_ command: String) {
+        panes[0].start(desk: desk, command: command)
         for p in panes.dropFirst() { p.start(desk: desk, command: nil) }
     }
 

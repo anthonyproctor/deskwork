@@ -211,6 +211,15 @@ public enum ProcessTree {
         return out
     }
 
+    /// When process `pid` started, in microseconds, or nil when there is no
+    /// such process. With the pid, it names one process for good.
+    public static func startTime(_ pid: Int32) -> UInt64? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard pid > 0, proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return UInt64(info.pbi_start_tvsec) * 1_000_000 + UInt64(info.pbi_start_tvusec)
+    }
+
     /// The live `ps` table.
     public static func read() -> [Row] {
         let p = Process()
@@ -233,11 +242,17 @@ public enum ProcessTree {
     /// killed. `pids` should come from `descendants`, taken before any of it.
     public static func end(_ pids: [Int32], grace: TimeInterval = 3) {
         guard !pids.isEmpty else { return }
+        // Who each pid is now, so the kill below never lands on a stranger:
+        // a process that exits during the grace period can have its number
+        // reused, and a bare number would then name somebody else's process.
+        let started = Dictionary(uniqueKeysWithValues: pids.map { ($0, startTime($0)) })
         for p in pids.dropLast() { kill(p, SIGTERM) }
         if let shell = pids.last { kill(shell, SIGHUP) }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + grace) {
-            let alive = Set(read().map(\.pid))
-            for p in pids where alive.contains(p) { kill(p, SIGKILL) }
+            for p in pids {
+                guard let then = started[p] ?? nil, let now = startTime(p), now == then else { continue }
+                kill(p, SIGKILL)
+            }
             // The shell is our own child. Once the terminal has let go of it,
             // nothing else collects its exit, and it lingers as <defunct>
             // until the app quits. Collect it here.

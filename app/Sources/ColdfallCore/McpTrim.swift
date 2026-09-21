@@ -36,9 +36,7 @@ public enum McpTrim {
 
     /// The servers a desk can trim: those in its folder's .mcp.json.
     public static func servers(cwd: String) -> [String] {
-        let path = (cwd as NSString).appendingPathComponent(".mcp.json")
-        guard let d = FileManager.default.contents(atPath: path),
-              let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+        guard let o = Inventory.json(at: (cwd as NSString).appendingPathComponent(".mcp.json")),
               let s = o["mcpServers"] as? [String: Any] else { return [] }
         return s.keys.filter(validName).sorted()
     }

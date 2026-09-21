@@ -219,7 +219,11 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if let k = CommandLine.arguments.firstIndex(of: "--snapshot"),
            k + 1 < CommandLine.arguments.count {
             let out = CommandLine.arguments[k + 1]
-            let i = DeskConfig.startup(in: desks)
+            // `--select <desk>`: show that desk instead of the startup one.
+            let picked = CommandLine.arguments.firstIndex(of: "--select")
+                .flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil }
+                .flatMap { n in desks.firstIndex { $0.name == n } }
+            let i = picked ?? DeskConfig.startup(in: desks)
             if desks.indices.contains(i) {
                 sidebar.select(i)
                 tree.setRoot(desks[i].resolvedCwd)
@@ -228,6 +232,27 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 termHeader.set(desk: d.name,
                                detail: d.runtime == "shell" ? "shell" : d.runtime + (d.isDefault ? " home" : ""),
                                panes: 1)
+            }
+            // `--terminal <file>`: that desk's terminal showing the file's
+            // text, as captured from a real command. Nothing is started.
+            if let k = CommandLine.arguments.firstIndex(of: "--terminal"), k + 1 < CommandLine.arguments.count,
+               desks.indices.contains(i),
+               let text = try? String(contentsOfFile: CommandLine.arguments[k + 1], encoding: .utf8) {
+                let s = DeskSession(desk: desks[i])
+                sessions[desks[i].name] = s
+                host.addSubview(s.container)
+                s.container.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    s.container.topAnchor.constraint(equalTo: host.topAnchor),
+                    s.container.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+                    s.container.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+                    s.container.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+                ])
+                s.panes.first?.term.feed(text: text.replacingOccurrences(of: "\n", with: "\r\n"))
+            }
+            // `--open <file>`: that file in the reader.
+            if let k = CommandLine.arguments.firstIndex(of: "--open"), k + 1 < CommandLine.arguments.count {
+                openReader(URL(fileURLWithPath: CommandLine.arguments[k + 1]))
             }
             // `--palette <query>` also renders the quick-open box with that
             // query typed in, to <out>-palette.png.
@@ -300,7 +325,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 // <out>-inventory.png.
                 if let k = CommandLine.arguments.firstIndex(of: "--inventory"), k + 1 < CommandLine.arguments.count,
                    let d = self?.desks.first(where: { $0.name == CommandLine.arguments[k + 1] }) {
-                    let inv = Inventory.of(d)
+                    // COLDFALL_DEMO_HOME: read a made-up home folder, for pictures.
+                    let home = ProcessInfo.processInfo.environment["COLDFALL_DEMO_HOME"] ?? NSHomeDirectory()
+                    let inv = Inventory.of(d, home: home)
                     let iw = InventoryWindow(desk: d, inventory: inv, changes: InventorySeen.load(d.name).map { inv.changes(since: $0) })
                     guard let iv = iw.window?.contentView else { exit(1) }
                     iv.wantsLayer = true
@@ -333,11 +360,37 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                     wv.layoutSubtreeIfNeeded()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                         _ = ww
-                        guard let wrep = wv.bitmapImageRepForCachingDisplay(in: wv.bounds) else { exit(1) }
+                        // At 2x: a window that never reaches a screen draws at
+                        // 1x, which is blurry on the page it ends up on.
+                        guard let wrep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                pixelsWide: Int(wv.bounds.width * 2), pixelsHigh: Int(wv.bounds.height * 2),
+                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { exit(1) }
+                        wrep.size = wv.bounds.size
                         wv.cacheDisplay(in: wv.bounds, to: wrep)
                         if let png = wrep.representation(using: .png, properties: [:]) {
                             try? png.write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-welcome.png"))
                         }
+                        exit(0)
+                    }
+                    return
+                }
+                // `--mcp <desk>`: that desk's MCP Servers chooser, to
+                // <out>-mcp.png.
+                if let k = CommandLine.arguments.firstIndex(of: "--mcp"), k + 1 < CommandLine.arguments.count,
+                   let me = self, let d = me.desks.first(where: { $0.name == CommandLine.arguments[k + 1] }) {
+                    let (a, _) = me.mcpAlert(for: d, servers: McpTrim.servers(for: d))
+                    a.layout()
+                    guard let av = a.window.contentView else { exit(1) }
+                    av.wantsLayer = true
+                    av.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        av.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        guard let arep = av.bitmapImageRepForCachingDisplay(in: av.bounds) else { exit(1) }
+                        av.cacheDisplay(in: av.bounds, to: arep)
+                        try? arep.representation(using: .png, properties: [:])?
+                            .write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-mcp.png"))
                         exit(0)
                     }
                     return
@@ -873,6 +926,22 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 : "Codex has no MCP servers set up in ~/.codex/config.toml, so there's nothing to switch off."
             a.runModal(); return
         }
+        let (alert, boxes) = mcpAlert(for: d, servers: servers)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        // Keep entries for servers not in .mcp.json right now, so a server
+        // that comes back later is still off for this desk.
+        let listed = Set(servers)
+        desks[i].mcpOff = d.mcpOff.filter { !listed.contains($0) }
+            + zip(servers, boxes).filter { $0.1.state == .off }.map(\.0)
+        DeskConfig.write(desks)
+    }
+
+    /// The chooser itself, with a checkbox per server. Separate so a
+    /// snapshot can draw it without running it.
+    func mcpAlert(for d: Desk, servers: [String]) -> (NSAlert, [NSButton]) {
+        let claude = d.runtime == "claude"
+        let a = NSAlert()
+        a.messageText = "MCP servers for \(d.name)"
         var info = "Each one is a separate program this desk starts, with its own memory. "
             + "Untick the ones this desk doesn't need. "
             + (claude ? "claude.ai connectors and plugins aren't affected. " : "")
@@ -894,13 +963,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         stack.frame = NSRect(x: 0, y: 0, width: 280, height: CGFloat(boxes.count) * 24)
         a.accessoryView = stack
         a.addButton(withTitle: "Save"); a.addButton(withTitle: "Cancel")
-        guard a.runModal() == .alertFirstButtonReturn else { return }
-        // Keep entries for servers not in .mcp.json right now, so a server
-        // that comes back later is still off for this desk.
-        let listed = Set(servers)
-        desks[i].mcpOff = d.mcpOff.filter { !listed.contains($0) }
-            + zip(servers, boxes).filter { $0.1.state == .off }.map(\.0)
-        DeskConfig.write(desks)
+        return (a, boxes)
     }
 
     /// The changelog lives in the repo, so the app and GitHub read one file.
@@ -1158,22 +1221,20 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         memoryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self else { return }
             let roots = self.sessions.mapValues(\.pids)
-            guard !roots.isEmpty else { return }
+            // Nothing running: nothing to show, rather than the last numbers.
+            guard !roots.isEmpty else { self.memory = [:]; return }
             DispatchQueue.global(qos: .utility).async {
-                let p = Process()
-                p.executableURL = URL(fileURLWithPath: "/bin/ps")
-                p.arguments = ["-axo", "pid=,ppid=,rss="]
-                let out = Pipe(); p.standardOutput = out; p.standardError = FileHandle.nullDevice
-                guard (try? p.run()) != nil else { return }
-                let data = out.fileHandleForReading.readDataToEndOfFile()
-                p.waitUntilExit()
-                let rows = ProcessTree.parse(String(decoding: data, as: UTF8.self))
+                let rows = ProcessTree.read()
                 var m: [String: String] = [:]
                 for (name, pids) in roots {
                     let kb = pids.reduce(0) { $0 + ProcessTree.totalKB(root: $1, in: rows) }
                     if let l = ProcessTree.label(kb: kb) { m[name] = l }
                 }
-                DispatchQueue.main.async { self.memory = m }
+                DispatchQueue.main.async {
+                    // Only desks still running the same processes: one stopped,
+                    // renamed or restarted meanwhile keeps no stale number.
+                    self.memory = m.filter { name, _ in self.sessions[name].map { $0.pids == roots[name] } ?? false }
+                }
             }
         }
     }

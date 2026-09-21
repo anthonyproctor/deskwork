@@ -117,7 +117,14 @@ public enum UpdateCheck {
     public static func parse(_ data: Data) -> Reply? {
         guard let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let latest = o["latest"] as? String, split(latest) != nil else { return nil }
-        let url = (o["url"] as? String).flatMap { $0.hasPrefix("https://") ? $0 : nil }
+        // Only a release page on GitHub: the link is opened in the browser,
+        // so a reply from anywhere else, or a URL that only starts with
+        // https://, is dropped.
+        let url = (o["url"] as? String).flatMap { s -> String? in
+            guard let c = URLComponents(string: s), c.scheme == "https", c.host == "github.com",
+                  c.path.hasPrefix("/anthonyproctor/project-coldfall/") else { return nil }
+            return s
+        }
         return Reply(latest: latest, url: url)
     }
 
