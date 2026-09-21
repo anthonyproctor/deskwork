@@ -236,7 +236,7 @@ Threads land in `~/.local/share/coldfall/mail/`. If you already have a handoff s
 
 It runs and it is useful. It is also early.
 
-Working: desks, groups, the folder tree, the reader, the bridge, the cross-vendor meter, settings, first run.
+Working: desks that resume their conversation, groups, the folder tree, the reader, the bridge, the cross-vendor meter, per-desk MCP servers, settings, first run.
 
 Not built yet:
 

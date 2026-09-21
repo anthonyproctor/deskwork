@@ -16,13 +16,29 @@ rearrange. A reader with tabs that open themselves when an agent writes a file.
 A cross-vendor meter reading real quota, with a router that speaks only when
 there is something to act on. A mailbox bridge between vendors. Discovery of
 agents, Codex profiles and SSH hosts. Settings, first run, an app bundle,
-a headless CLI, 33 tests, CI, and self-update from inside the app.
+a headless CLI, tests, CI, and self-update from inside the app.
 
 Splits, so a desk can hold the agent and a shell at once. Fan-out, so one
 question can be asked of a dozen directories at once and reconciled into one
 answer, priced against real quota before it runs.
 
 Six runtimes: claude, codex, gemini, copilot, grok, ollama.
+
+Added 2026-09-21, after a first night of real use:
+
+- **Desks resume.** A desk Coldfall starts itself reopens its own conversation
+  after a stop or a relaunch, and keeps it through a rename. Stop Desk ends the
+  whole process tree; it used to leave the agent running unseen.
+- **Needs you.** Waiting desks are named at the top of the rail, oldest first,
+  with `cmd-0` to jump and counts on folded groups.
+- **Arranging desks.** Rename, drag, drag a group by its header, sort A to Z.
+- **Per-desk MCP servers.** Switch a folder's servers off for one desk, so a
+  desk that never reads mail doesn't start a mail server.
+- **What This Desk Has.** A desk's MCP servers, hooks, skills and plugins, read
+  from each vendor's own files.
+- **A first run for someone with no agent CLI**, with install steps.
+- **An update check**, which is also the only way installs are counted. What it
+  sends is in the README; the server is in `server/`.
 
 ---
 
@@ -86,7 +102,16 @@ scope, not deferred.
 Worth noting that Claude Code already has `--remote-control`, so for one vendor
 this exists. What is missing is the cross-vendor version and the desk model.
 
-### 5. Better highlighting
+### 5. A safer way to add skills
+
+People find skills through social posts and paste them in. Reviewing five
+popular ones turned up the things worth knowing before installing: hooks that
+run on every tool call, telemetry on by default, a background worker that
+leaks processes, and instructions that coach the agent around a denied
+permission. None of it was in the README. An install screen that shows those
+facts, built on What This Desk Has, is the next real feature.
+
+### 6. Better highlighting
 
 The reader's highlighter is regex over comments, strings, keywords and numbers.
 It is honest about being shallow and returns plain text rather than guessing on
@@ -183,7 +208,7 @@ second UI to maintain, to reach a use case an SSH session already serves.
 drove this project into existence — a fork would begin already holding the
 problem it exists to solve. It would also mean inheriting 1.5 million lines to
 keep a file tree, since an editor's real value is the LSP and completions this
-tool deliberately does not want. Project Coldfall is about 2,300 lines.
+tool deliberately does not want. Project Coldfall is about 12,000 lines, tests included.
 
 **An editor.** Agents write, you read. That single decision is why the reader is
 a hundred lines and why a PDF opens at all.
