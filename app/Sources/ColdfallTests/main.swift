@@ -341,6 +341,27 @@ do {
           after.contains("setting = \"keep me\""))
     check("and still writes the desks", after.contains("[desk.one]"))
 
+    // Headers from older builds, stacked by earlier saves, collapse to one;
+    // a comment the user wrote stays.
+    let hf = f + ".headers"
+    try? """
+    # Project Coldfall desks. Written by Project Coldfall; safe to edit by hand.
+
+    # Project Coldfall desks. Written by Project Coldfall; safe to edit by hand.
+
+    # Deskwork desks. Written by Deskwork; safe to edit by hand.
+    # my own note
+
+    [desk.one]
+    runtime = "claude"
+    """.write(toFile: hf, atomically: true, encoding: .utf8)
+    DeskConfig.write(DeskConfig.load(path: hf), to: hf)
+    DeskConfig.write(DeskConfig.load(path: hf), to: hf)
+    let hdr = (try? String(contentsOfFile: hf, encoding: .utf8)) ?? ""
+    eq("stacked headers collapse to one", hdr.components(separatedBy: "Written by").count - 1, 1)
+    check("and a hand-written comment survives", hdr.contains("# my own note"))
+    check("and the desks are still there", DeskConfig.load(path: hf).map(\.name) == ["one"])
+
     let t = DeskConfig.themeSettings(path: f)
     eq("the theme still parses after a save", t.palette, "gruvbox")
     eq("including the mode", t.mode, "light")
@@ -728,6 +749,31 @@ do {
     eq("end of the ungrouped section is ungrouped",
        DeskOrder.move(list, from: 3, to: .endOfGroup(nil)).first { $0.name == "d" }?.group ?? "none", "none")
     eq("a drop onto itself changes nothing", n(DeskOrder.move(list, from: 2, to: .before(2))), "abcd")
+
+    // A group scattered through the file, as a hand edit leaves it.
+    let messy = [Desk(name: "hub"), Desk(name: "cpa", group: "money"), Desk(name: "work", group: "work"),
+                 Desk(name: "zed"), Desk(name: "market", group: "money"), Desk(name: "golf", group: "Personal"),
+                 Desk(name: "desk10", group: "work"), Desk(name: "desk2", group: "work")]
+    let ns = { (ds: [Desk]) in ds.map(\.name).joined(separator: " ") }
+    eq("groups follow first appearance, ungrouped first",
+       DeskOrder.groups(messy).map { $0 ?? "-" }, ["-", "money", "work", "Personal"])
+    eq("grouped gathers each group's desks together",
+       ns(DeskOrder.grouped(messy)), "hub zed cpa market work desk10 desk2 golf")
+    eq("A to Z: ungrouped on top, groups by name ignoring case, desks by name, numbers natural",
+       ns(DeskOrder.sortedAZ(messy)), "hub zed cpa market golf desk2 desk10 work")
+    check("sorting keeps every desk", DeskOrder.sortedAZ(messy).count == messy.count)
+    check("and every desk keeps its group",
+          DeskOrder.sortedAZ(messy).allSatisfy { d in messy.first { $0.name == d.name }?.group == d.group })
+    eq("a group moves as a block", ns(DeskOrder.moveGroup(messy, "Personal", before: "money")),
+       "hub zed golf cpa market work desk10 desk2")
+    eq("moving a group last", ns(DeskOrder.moveGroup(messy, "money", before: nil)),
+       "hub zed work desk10 desk2 golf cpa market")
+    eq("moving before itself only tidies", ns(DeskOrder.moveGroup(messy, "work", before: "work")),
+       ns(DeskOrder.grouped(messy)))
+    eq("an unknown group changes nothing but the tidy",
+       ns(DeskOrder.moveGroup(messy, "nope", before: nil)), ns(DeskOrder.grouped(messy)))
+    eq("an unknown target puts the group last", ns(DeskOrder.moveGroup(messy, "money", before: "nope")),
+       "hub zed work desk10 desk2 golf cpa market")
 
     let ps = ProcessTree.parse("""
       100     1   2000

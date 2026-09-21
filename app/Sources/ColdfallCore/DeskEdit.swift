@@ -75,6 +75,51 @@ public enum DeskOrder {
         rest.insert(moving, at: min(max(0, at), rest.count))
         return rest
     }
+
+    /// Groups in the order the rail shows them: ungrouped desks first, then
+    /// each group where its first desk appears in the list.
+    public static func groups(_ desks: [Desk]) -> [String?] {
+        var order: [String?] = [nil]
+        for d in desks where d.group != nil && !order.contains(where: { $0 == d.group }) {
+            order.append(d.group)
+        }
+        return order
+    }
+
+    /// The list in the order the rail shows it, each group's desks together.
+    ///
+    /// The rail gathers a group's desks under one header wherever they sit in
+    /// the file, but cmd-1..9 follow the file. Saving this order keeps the two
+    /// the same, and gives a group one contiguous run that can move as a block.
+    public static func grouped(_ desks: [Desk]) -> [Desk] {
+        groups(desks).flatMap { g in desks.filter { $0.group == g } }
+    }
+
+    /// Groups A to Z, and the desks in each group A to Z. Ungrouped desks stay
+    /// on top, sorted among themselves. Case and digits compare the way Finder
+    /// does, so "desk2" comes before "desk10".
+    public static func sortedAZ(_ desks: [Desk]) -> [Desk] {
+        func less(_ a: String, _ b: String) -> Bool {
+            a.localizedStandardCompare(b) == .orderedAscending
+        }
+        let named = groups(desks).compactMap { $0 }.sorted(by: less)
+        return ([nil] + named).flatMap { g in
+            desks.filter { $0.group == g }.sorted { less($0.name, $1.name) }
+        }
+    }
+
+    /// The list after moving every desk in `group` so the group sits just
+    /// before `before`, or last when `before` is nil. Ungrouped desks always
+    /// stay on top, so they are neither moved nor a target.
+    public static func moveGroup(_ desks: [Desk], _ group: String, before: String?) -> [Desk] {
+        guard group != before else { return grouped(desks) }
+        var order = groups(desks).compactMap { $0 }
+        guard let from = order.firstIndex(of: group) else { return grouped(desks) }
+        order.remove(at: from)
+        let at = before.flatMap { order.firstIndex(of: $0) } ?? order.count
+        order.insert(group, at: at)
+        return ([nil] + order.map(Optional.some)).flatMap { g in desks.filter { $0.group == g } }
+    }
 }
 
 /// Memory per desk, from one `ps` table.

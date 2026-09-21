@@ -22,7 +22,8 @@ swift build -c release
 ./.build/release/coldfall-test
 ./.build/release/Coldfall --snapshot /tmp/shot.png            # render the window, start nothing
 ./.build/release/Coldfall --snapshot /tmp/shot.png --palette hub   # plus quick open
-./scripts/build-app.sh                                         # ~/Applications/Project Coldfall.app
+./.build/release/Coldfall --snapshot /tmp/shot.png --desks demo.toml  # made-up desks, not the real ones
+../scripts/build-app.sh                                        # ~/Applications/Project Coldfall.app
 ```
 
 `COLDFALL_SNAPSHOT_DEBUG=1` prints measured frames with a snapshot.

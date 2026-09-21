@@ -14,9 +14,15 @@ final class SidebarView: NSView {
     var onRenameDesk: ((Int) -> Void)?
     var onStopDesk: ((Int) -> Void)?
     var onMoveDesk: ((Int, DeskDrop) -> Void)?
+    /// A group dragged by its header: the group, and the group it now sits
+    /// before (nil for last).
+    var onMoveGroup: ((String, String?) -> Void)?
+    var onSortDesks: (() -> Void)?
 
     /// Group headers by the group they head, for drops onto a header.
     private var headers: [(group: String, view: GroupHeader)] = []
+    /// Each named group's extent, header to last row, top to bottom.
+    private var spans: [(group: String, minY: CGFloat, maxY: CGFloat)] = []
     /// The line showing where a dragged desk will land.
     private let dropLine = NSView()
 
@@ -48,6 +54,7 @@ final class SidebarView: NSView {
         subviews.forEach { $0.removeFromSuperview() }
         rows = [:]
         headers = []
+        spans = []
 
         // Size from the scroll view's VISIBLE width, not our own. The first
         // build runs before the window has finished sizing, so our own width
@@ -65,12 +72,7 @@ final class SidebarView: NSView {
         addSubview(title)
         y += 24
 
-        var order: [String?] = [nil]
-        for d in desks where d.group != nil && !order.contains(where: { $0 == d.group }) {
-            order.append(d.group)
-        }
-
-        for g in order {
+        for g in DeskOrder.groups(desks) {
             let members = desks.enumerated().filter { $0.element.group == g }
             if members.isEmpty { continue }
 
@@ -81,11 +83,15 @@ final class SidebarView: NSView {
                 h.configure(title: g, expanded: isDown)
                 h.onClick = { [weak self] in self?.onToggleGroup?(g) }
                 h.onRename = { [weak self] in self?.onRenameGroup?(g) }
+                h.onSort = { [weak self] in self?.onSortDesks?() }
+                h.onDragMoved = { [weak self] p in self?.groupDragMoved(g, to: p) }
+                h.onDragEnded = { [weak self] p in self?.groupDragEnded(g, at: p) }
                 addSubview(h)
                 headers.append((g, h))
                 y += 22
-                if !isDown { y += 4; continue }
+                if !isDown { spans.append((g, h.frame.minY, y)); y += 4; continue }
             }
+            let top = y - 22
 
             for (i, d) in members {
                 let indent: CGFloat = g == nil ? 4 : 12
@@ -107,6 +113,7 @@ final class SidebarView: NSView {
                 rows[i] = r
                 y += DeskRow.height + 2
             }
+            if let g { spans.append((g, top, y)) }
             y += 8
         }
 
@@ -196,6 +203,45 @@ final class SidebarView: NSView {
         onMoveDesk?(from, d)
     }
 
+    // MARK: - drag a group by its header
+
+    /// Where a dragged group lands: before the first group whose middle is
+    /// below the pointer, or last. Nil when that is where it already is.
+    private func groupDrop(at p: NSPoint, moving g: String) -> (before: String?, y: CGFloat)? {
+        guard let from = spans.firstIndex(where: { $0.group == g }) else { return nil }
+        var target = spans.count
+        for (k, s) in spans.enumerated() where p.y < (s.minY + s.maxY) / 2 { target = k; break }
+        // Dropping just above itself or just below itself is no move.
+        if target == from || target == from + 1 { return nil }
+        if target == spans.count { return (nil, spans[spans.count - 1].maxY + 3) }
+        return (spans[target].group, spans[target].minY - 4)
+    }
+
+    private func groupDragMoved(_ g: String, to p: NSPoint) {
+        guard let (_, y) = groupDrop(at: p, moving: g) else { dropLine.removeFromSuperview(); return }
+        dropLine.wantsLayer = true
+        dropLine.layer?.backgroundColor = Theme.ui.accent.cgColor
+        dropLine.frame = NSRect(x: 10, y: y - 1, width: bounds.width - 20, height: 2)
+        if dropLine.superview == nil { addSubview(dropLine) }
+        if let e = NSApp.currentEvent { autoscroll(with: e) }
+    }
+
+    private func groupDragEnded(_ g: String, at p: NSPoint) {
+        dropLine.removeFromSuperview()
+        guard let (before, _) = groupDrop(at: p, moving: g) else { return }
+        onMoveGroup?(g, before)
+    }
+
+    /// Right-click on empty rail: the one action that is about the whole list.
+    override func rightMouseDown(with e: NSEvent) {
+        let m = NSMenu()
+        let it = NSMenuItem(title: "Sort Desks A to Z", action: #selector(sortAll), keyEquivalent: "")
+        it.target = self
+        m.addItem(it)
+        NSMenu.popUpContextMenu(m, with: e, for: self)
+    }
+    @objc private func sortAll() { onSortDesks?() }
+
     func select(_ i: Int) {
         lastSelected = i
         selected = i
@@ -213,6 +259,9 @@ final class SidebarView: NSView {
 final class GroupHeader: NSView {
     var onClick: (() -> Void)?
     var onRename: (() -> Void)?
+    var onSort: (() -> Void)?
+    var onDragMoved: ((NSPoint) -> Void)?
+    var onDragEnded: ((NSPoint) -> Void)?
     private let label = NSTextField(labelWithString: "")
 
     override init(frame: NSRect) {
@@ -230,15 +279,37 @@ final class GroupHeader: NSView {
         label.stringValue = (expanded ? "▾ " : "▸ ") + title.uppercased()
     }
 
-    override func mouseDown(with e: NSEvent) { onClick?() }
+    // A click folds the group; a drag of more than a few points moves it.
+    private var downAt: NSPoint?
+    private var dragging = false
+
+    override func mouseDown(with e: NSEvent) { downAt = e.locationInWindow; dragging = false }
+
+    override func mouseDragged(with e: NSEvent) {
+        guard let start = downAt, onDragMoved != nil else { return }
+        let p = e.locationInWindow
+        if !dragging, hypot(p.x - start.x, p.y - start.y) > 4 { dragging = true; alphaValue = 0.45 }
+        if dragging, let sv = superview { onDragMoved?(sv.convert(p, from: nil)) }
+    }
+
+    override func mouseUp(with e: NSEvent) {
+        defer { downAt = nil; dragging = false; alphaValue = 1 }
+        if dragging, let sv = superview { onDragEnded?(sv.convert(e.locationInWindow, from: nil)) }
+        else if downAt != nil { onClick?() }
+    }
+
     override func rightMouseDown(with e: NSEvent) {
         let m = NSMenu()
         let it = NSMenuItem(title: "Rename Group…", action: #selector(rename), keyEquivalent: "")
         it.target = self
         m.addItem(it)
+        let s = NSMenuItem(title: "Sort Desks A to Z", action: #selector(sort), keyEquivalent: "")
+        s.target = self
+        m.addItem(s)
         NSMenu.popUpContextMenu(m, with: e, for: self)
     }
     @objc private func rename() { onRename?() }
+    @objc private func sort() { onSort?() }
 }
 
 

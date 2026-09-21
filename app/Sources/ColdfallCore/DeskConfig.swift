@@ -347,8 +347,23 @@ public enum DeskConfig {
         write(desks, theme: theme, to: path)
     }
 
+    static let header = "# Project Coldfall desks. Written by Project Coldfall; safe to edit by hand."
+
+    /// A header line this writer, or an older one, put at the top of the file.
+    static func isHeader(_ line: String) -> Bool {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        return t.hasPrefix("#") && t.contains(" desks. Written by ") && t.hasSuffix("safe to edit by hand.")
+    }
+
     private static func writeBody(_ desks: [Desk], head: String, to path: String) {
-        var out = "# Project Coldfall desks. Written by Project Coldfall; safe to edit by hand.\n"
+        var out = header + "\n"
+        // The kept head starts with the header from the last save, and older
+        // builds wrote their own under the old name. Drop those rather than
+        // stacking one more copy on every save.
+        let head = head.components(separatedBy: "\n")
+            .filter { !isHeader($0) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         if !head.isEmpty { out += "\n" + head + "\n" }
         for d in desks {
             out += "\n[desk.\(d.name)]\n"

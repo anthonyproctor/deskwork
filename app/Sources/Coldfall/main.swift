@@ -36,11 +36,19 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     let palette = Palette()
 
     func applicationDidFinishLaunching(_ n: Notification) {
-        desks = DeskConfig.load()
+        // In the rail's order, so cmd-1..9 match what is on screen even when
+        // a group's desks are scattered through the file.
+        desks = DeskOrder.grouped(DeskConfig.load())
+        // `--snapshot ... --desks <file.toml>`: picture a made-up desk list
+        // instead of the real one. Only with --snapshot, which never saves.
+        let args = CommandLine.arguments
+        if args.contains("--snapshot"), let k = args.firstIndex(of: "--desks"), k + 1 < args.count {
+            desks = DeskOrder.grouped(DeskConfig.load(path: args[k + 1]))
+        }
         let firstRun = desks.isEmpty || !ui.seenWelcome
         if desks.isEmpty {
             DeskConfig.writeStarter()
-            desks = DeskConfig.load()
+            desks = DeskOrder.grouped(DeskConfig.load())
         }
         if desks.isEmpty {
             desks = [Desk(name: "shell", command: "exec zsh -l")]
@@ -171,6 +179,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onRenameDesk = { [weak self] i in self?.renameDesk(i) }
         sidebar.onStopDesk = { [weak self] i in self?.stopDesk(i) }
         sidebar.onMoveDesk = { [weak self] i, d in self?.moveDesk(i, to: d) }
+        sidebar.onMoveGroup = { [weak self] g, b in self?.moveGroup(g, before: b) }
+        sidebar.onSortDesks = { [weak self] in self?.sortDesks() }
 
         // Set the appearance BEFORE showing: every semantic colour in the app
         // resolves off it, so flipping after the fact repaints everything.
@@ -386,6 +396,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         // No key equivalent: cmd-z lives in the Edit menu and reaches undoMove()
         // through the responder chain below. Two menu items sharing cmd-z would
         // leave which one fires up to AppKit.
+        let sortAZ = NSMenuItem(title: "Sort Desks A to Z", action: #selector(sortDesks), keyEquivalent: "")
+        sortAZ.target = self
+        deskMenu.addItem(sortAZ)
         let undo = NSMenuItem(title: "Undo Move", action: #selector(undoMove), keyEquivalent: "")
         undo.target = self
         deskMenu.addItem(undo)
@@ -585,10 +598,32 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// Drag in the rail. Saved at once, and the menu is rebuilt so cmd-1..9
     /// follow the order on screen.
     func moveDesk(_ i: Int, to drop: DeskDrop) {
-        let before = desks.map { "\($0.name)|\($0.group ?? "")" }
-        let moved = DeskOrder.move(desks, from: i, to: drop)
-        guard moved.map({ "\($0.name)|\($0.group ?? "")" }) != before else { return }
-        desks = moved
+        reorder(DeskOrder.grouped(DeskOrder.move(desks, from: i, to: drop)))
+    }
+
+    /// Drag a group's header: the whole group moves.
+    func moveGroup(_ g: String, before: String?) {
+        reorder(DeskOrder.moveGroup(desks, g, before: before))
+    }
+
+    /// Groups and desks A to Z, once. Dragging afterwards still works, so this
+    /// asks first: the order it replaces is not kept anywhere.
+    @objc func sortDesks() {
+        let sorted = DeskOrder.sortedAZ(desks)
+        guard sorted.map(\.name) != desks.map(\.name) else { return }
+        let a = NSAlert()
+        a.messageText = "Sort desks A to Z?"
+        a.informativeText = "Groups and the desks in each group are sorted by name. Ungrouped desks stay on top. You can still drag desks and groups afterwards."
+        a.addButton(withTitle: "Sort"); a.addButton(withTitle: "Cancel")
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        reorder(sorted)
+    }
+
+    /// Save a new order, and rebuild the menu so cmd-1..9 follow the rail.
+    private func reorder(_ next: [Desk]) {
+        let key = { (ds: [Desk]) in ds.map { "\($0.name)|\($0.group ?? "")" } }
+        guard key(next) != key(desks) else { return }
+        desks = next
         DeskConfig.write(desks)
         sidebar.build(desks: desks)
         installMenu()
@@ -698,7 +733,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 
     /// Config changed under us: rebuild the rail, keep running desks alive.
     func reloadDesks() {
-        let fresh = DeskConfig.load()
+        let fresh = DeskOrder.grouped(DeskConfig.load())
         guard !fresh.isEmpty else { return }
         desks = fresh
         sidebar.build(desks: desks)

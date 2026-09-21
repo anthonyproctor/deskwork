@@ -14,6 +14,11 @@ opens this file.
 - Drag desks in the rail to reorder them. Dropping a desk among another group's
   desks, or on a group's header, moves it into that group. cmd-1 to cmd-9
   follow the new order.
+- Drag a group's header to move the whole group, desks and all.
+- **Sort Desks A to Z**: right-click a group header or empty space in the rail,
+  or use the Desks menu. Groups sort by name, and so do the desks in each
+  group. Ungrouped desks stay on top. It sorts once, so you can still drag
+  afterwards.
 - **Stop Desk…** on right-click ends a desk's processes and frees their memory.
   Click the desk to start it again.
 - Each running desk shows its memory in the rail, measured across its whole
@@ -30,6 +35,10 @@ opens this file.
   Cursor style desk rows (status, name, time since last output).
 
 ### Fixed
+- cmd-1 to cmd-9 now match the rail even when a group's desks are scattered
+  through `desks.toml`.
+- Saving `desks.toml` no longer stacks another copy of the header comment at
+  the top each time.
 - The rail no longer repaints every row three times a second while nothing
   changes.
 - Saving desks.toml dropped a desk's `model`, so any edit from the rail would
