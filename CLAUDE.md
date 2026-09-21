@@ -23,6 +23,7 @@ swift build -c release
 ./.build/release/Coldfall --snapshot /tmp/shot.png            # render the window, start nothing
 ./.build/release/Coldfall --snapshot /tmp/shot.png --palette hub   # plus quick open
 ./.build/release/Coldfall --snapshot /tmp/shot.png --desks demo.toml  # made-up desks, not the real ones
+./.build/release/Coldfall --snapshot /tmp/shot.png --reader-hidden    # as if the reader were toggled off
 ../scripts/build-app.sh                                        # ~/Applications/Project Coldfall.app
 ```
 

@@ -45,6 +45,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if args.contains("--snapshot"), let k = args.firstIndex(of: "--desks"), k + 1 < args.count {
             desks = DeskOrder.grouped(DeskConfig.load(path: args[k + 1]))
         }
+        // `--snapshot ... --reader-hidden`: as if the reader were toggled off.
+        // Not saved; snapshots never write the user's layout.
+        if args.contains("--snapshot"), args.contains("--reader-hidden") { ui.readerHidden = true }
         let firstRun = desks.isEmpty || !ui.seenWelcome
         if desks.isEmpty {
             DeskConfig.writeStarter()
@@ -137,7 +140,11 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             // The reader takes about a third, never less than it needs to be
             // readable, never so much that the terminal is squeezed.
             let readerW = max(300, min(520, w * 0.34))
-            self.split.setPosition(w - readerW, ofDividerAt: 1)
+            if self.readerPane.superview === self.split {
+                self.split.setPosition(w - readerW, ofDividerAt: 1)
+            } else {
+                self.readerWidth = readerW    // for when it is shown
+            }
             // Desks get a third of the rail, the tree keeps the rest.
             let want = self.ui.treeOnTop ? h * 0.5 : min(self.sidebar.contentHeight, h * 0.45)
             self.rail.setPosition(max(120, min(want, h - 120)), ofDividerAt: 0)
@@ -1068,8 +1075,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         ui.readerPoppedOut = true
         // The pane collapses, but the user's hidden/shown preference is left
         // alone so docking back restores it.
-        readerPane.isHidden = true
-        split.adjustSubviews()
+        placeReaderPane(shown: false)
         ui.save()
         refreshToggles()
         readerWindow?.makeKeyAndOrderFront(nil)
@@ -1100,6 +1106,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         ui.railHidden = rail.isHidden
         ui.save()
         split.adjustSubviews()
+        split.needsDisplay = true
         refreshToggles()
     }
 
@@ -1109,11 +1116,38 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     }
 
     func setReaderPaneHidden(_ h: Bool) {
-        readerPane.isHidden = h
+        placeReaderPane(shown: !h)
         ui.readerHidden = h
         ui.save()
-        split.adjustSubviews()
         refreshToggles()
+    }
+
+    /// The reader's width when it was last on screen, to put it back at.
+    private var readerWidth: CGFloat = 0
+
+    /// Put the reader pane in the split, or take it out.
+    ///
+    /// Hiding it in place was not enough: the split view kept drawing the
+    /// divider for the hidden pane where it used to be, a dark line down the
+    /// middle of the terminal. Out of the split, there is no divider to draw.
+    func placeReaderPane(shown: Bool) {
+        readerPane.isHidden = !shown
+        let inSplit = readerPane.superview === split
+        if !shown, inSplit {
+            if readerPane.frame.width > 0 { readerWidth = readerPane.frame.width }
+            split.removeArrangedSubview(readerPane)
+            readerPane.removeFromSuperview()
+            split.adjustSubviews()
+        } else if shown, !inSplit {
+            split.addArrangedSubview(readerPane)
+            split.adjustSubviews()
+            let w = split.bounds.width
+            let want = readerWidth > 0 ? readerWidth : max(300, min(520, w * 0.34))
+            split.setPosition(w - want, ofDividerAt: 1)
+        } else {
+            split.adjustSubviews()
+        }
+        split.needsDisplay = true
     }
 
     @objc func toggleMeter() {
@@ -1144,7 +1178,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if ui.readerPoppedOut {
             popOutReader()
         } else {
-            readerPane.isHidden = ui.readerHidden
+            placeReaderPane(shown: !ui.readerHidden)
         }
         split.adjustSubviews()
         refreshToggles()

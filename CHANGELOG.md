@@ -43,6 +43,8 @@ opens this file.
   Cursor style desk rows (status, name, time since last output).
 
 ### Fixed
+- Hiding the reader no longer leaves a dark line down the terminal where its
+  edge used to be.
 - A stopped desk no longer leaves a `<defunct>` process behind until the app
   quits.
 - **Stop Desk…** now ends the agent too. It used to end only the shell, which
