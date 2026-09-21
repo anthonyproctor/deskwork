@@ -591,7 +591,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             let no = NSAlert(); no.messageText = "Not renamed"; no.informativeText = why; no.runModal()
             return
         }
-        desks[i].name = new
+        desks[i] = desks[i].renamed(from: old, to: new)
         if let s = sessions.removeValue(forKey: old) { s.desk.name = new; sessions[new] = s }
         DeskConfig.write(desks)
         sidebar.build(desks: desks)

@@ -8,6 +8,11 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- Renaming a desk Coldfall starts itself no longer loses its conversation. It
+  remembers the conversation's id (as `session` in desks.toml) and reopens it
+  under the new name.
+
 ## [0.3.1] - 2026-09-21
 
 Trim what each desk runs, and a cleaner Settings.

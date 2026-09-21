@@ -1029,6 +1029,43 @@ do {
     check("a command that is not a file cannot be vouched for", !McpTrim.commandHonors("claude --agent x"))
 }
 
+// MARK: - renaming a desk keeps its conversation
+
+do {
+    let root = NSTemporaryDirectory() + "coldfall-rename-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let dir = Resume.claudeProjectDir(for: "/srv/demo", root: root)
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    let id = "3f2b8c1e-7a4d-4e5f-9b6c-1d2e3f4a5b6c"
+    try? #"{"type":"custom-title","customTitle":"notes"}"#.write(toFile: dir + "/\(id).jsonl", atomically: true, encoding: .utf8)
+
+    let before = Desk(name: "notes", runtime: "claude", cwd: "/srv/demo")
+    eq("before, the desk finds its conversation by name",
+       before.resumingLaunchCommand(claudeRoot: root), "claude --resume \(id)")
+    let after = before.renamed(from: "notes", to: "journal", claudeRoot: root)
+    eq("renaming remembers that conversation", after.session, id)
+    eq("so the renamed desk still reopens it",
+       after.resumingLaunchCommand(claudeRoot: root), "claude --resume \(id)")
+    eq("a second rename keeps the same one",
+       after.renamed(from: "journal", to: "diary", claudeRoot: root).session, id)
+    eq("a desk with nothing to resume remembers nothing",
+       Desk(name: "fresh", runtime: "claude", cwd: "/srv/demo").renamed(from: "fresh", to: "new", claudeRoot: root).session, nil)
+    let scripted = Desk(name: "hub", runtime: "claude", cwd: "/srv/demo", command: "/srv/demo/desk hub")
+    eq("a desk with its own command is left to it",
+       scripted.renamed(from: "hub", to: "home", claudeRoot: root).session, nil)
+
+    var gone = after
+    gone.session = "00000000-0000-4000-8000-000000000000"
+    eq("a remembered conversation that no longer exists falls back to the name",
+       gone.resumingLaunchCommand(claudeRoot: root), "claude -n journal")
+
+    let f = root + "/desks.toml"
+    DeskConfig.write([after], to: f)
+    eq("the id survives a save", DeskConfig.load(path: f).first?.session, id)
+    try? "[desk.x]\nruntime = \"claude\"\nsession = \"x'; rm -rf ~\"\n".write(toFile: f, atomically: true, encoding: .utf8)
+    eq("anything but an id is ignored, never run", DeskConfig.load(path: f).first?.session, nil)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

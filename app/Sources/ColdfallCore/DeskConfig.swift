@@ -23,6 +23,11 @@ public struct Desk {
     /// MCP servers from the folder's .mcp.json switched off for this desk
     /// (see McpTrim). Empty means all of them, as before.
     public var mcpOff: [String] = []
+    /// The Claude conversation this desk reopens, by id. Set when a built-in
+    /// desk is renamed: its conversation is titled with the OLD name, so the
+    /// lookup by name would stop finding it. Unset, the desk finds its
+    /// conversation by name, as before.
+    public var session: String?
     /// Desks are not a flat list. `study` belongs under `school` next to `mba`.
     /// Ungrouped desks sit at the top, above the first group header.
     public var group: String?
@@ -40,6 +45,18 @@ public struct Desk {
         (command ?? "").isEmpty && (runtime == "claude" || runtime == "codex")
     }
 
+    /// This desk renamed from `old`. A built-in Claude desk keeps its
+    /// conversation by remembering its id, looked up under the old name now,
+    /// while that name still finds it.
+    public func renamed(from old: String, to new: String, claudeRoot: String = Resume.claudeProjectsRoot) -> Desk {
+        var d = self
+        d.name = new
+        if resumesItself, runtime == "claude", d.session == nil {
+            d.session = Resume.claudeSession(named: old, cwd: resolvedCwd, root: claudeRoot)
+        }
+        return d
+    }
+
     /// The command to start this desk, reopening its earlier conversation
     /// when there is one. Looks on disk, so call it off the main thread for
     /// a desk with a long history.
@@ -47,6 +64,11 @@ public struct Desk {
                                       codexRoot: String = Resume.codexSessionsRoot) -> String {
         guard resumesItself else { return launchCommand() }
         if runtime == "claude" {
+            // A remembered conversation first, while it still exists; then
+            // the newest one titled with the desk's name.
+            if let s = session, Resume.claudeTranscriptExists(s, cwd: resolvedCwd, root: claudeRoot) {
+                return launchCommand(claudeSession: s)
+            }
             return launchCommand(claudeSession: Resume.claudeSession(named: name, cwd: resolvedCwd, root: claudeRoot))
         }
         return launchCommand(codexResume: Resume.codexHasSession(cwd: resolvedCwd, root: codexRoot))
@@ -286,6 +308,7 @@ public enum DeskConfig {
                 explicitRuntime = true
             case "model":   current?.model = val
             case "mcp_off": current?.mcpOff = TomlText.stringArray(val) ?? []
+            case "session": current?.session = UUID(uuidString: val) != nil ? val.lowercased() : nil
             case "cwd":     current?.cwd = val
             case "command": current?.command = val
             case "group":   current?.group = val
@@ -408,6 +431,7 @@ public enum DeskConfig {
             }
             if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
             if let m = d.model { out += "model = \"\(TomlText.escape(m))\"\n" }
+            if let s = d.session { out += "session = \"\(TomlText.escape(s))\"\n" }
             if !d.mcpOff.isEmpty {
                 out += "mcp_off = [" + d.mcpOff.map { "\"\(TomlText.escape($0))\"" }.joined(separator: ", ") + "]\n"
             }

@@ -66,6 +66,13 @@ public enum Resume {
         return nil
     }
 
+    /// Whether Claude still has conversation `id` for `cwd`.
+    public static func claudeTranscriptExists(_ id: String, cwd: String, root: String = claudeProjectsRoot) -> Bool {
+        guard UUID(uuidString: id) != nil else { return false }
+        let path = (claudeProjectDir(for: cwd, root: root) as NSString).appendingPathComponent(id + ".jsonl")
+        return FileManager.default.fileExists(atPath: path)
+    }
+
     public static var codexSessionsRoot: String {
         NSString(string: "~/.codex/sessions").expandingTildeInPath
     }
