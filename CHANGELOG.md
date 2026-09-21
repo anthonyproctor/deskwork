@@ -8,19 +8,31 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-09-21
+
+Security fixes, live desks.toml, and a rail that can keep busy groups on top.
+
 ### Added
+- **Keep Active Groups on Top**, from the rail's right-click menu or the
+  Desks menu, off by default. Groups with a desk that needs you rise first,
+  then the most recently used; idle ones sink. It only reorders when the
+  pointer isn't over the rail, at most every 30 seconds, so nothing moves
+  under a click. Your own order is kept underneath: cmd-1 to cmd-9 stay on
+  it, and turning this off puts the rail back.
 - Coldfall picks up changes to desks.toml while it runs, from an agent, a
   script or an editor. A desk renamed on disk keeps its running terminal
   under the new name.
+- A landing page, at https://project-coldfall.vercel.app. Its source is
+  `server/public/`; the pictures are of made-up desks.
 
 ### Security
+- Values read from desks.toml (a desk's name, agent, model, runtime and
+  folder) are quoted before they reach the shell. A desk or folder name
+  containing `;`, `$( )` or a quote could otherwise have run as a command.
 - Saving from the app no longer overwrites an edit someone else made to
   desks.toml. If the file changed first, the app loads that version and asks
   you to redo your change; Settings won't save over a file edited while it
   was open.
-- Values read from desks.toml (a desk's name, agent, model, runtime and
-  folder) are quoted before they reach the shell. A desk or folder name
-  containing `;`, `$( )` or a quote could otherwise have run as a command.
 - Stop Desk's final kill checks each process is still the one it saw, by its
   start time, so a process that reused an ended one's number is never hit.
 - The update check only opens release links on this project's GitHub page.
@@ -32,18 +44,7 @@ opens this file.
   app can't stall on a Mac with a long history. Config files too big to be
   real are skipped instead of read.
 - A desk's memory figure no longer lingers after it stops or restarts.
-
-### Added
-- A landing page, at the same address as the update check. Its source is
-  `server/public/`; the pictures are of made-up desks.
-
-### Added
-- **Keep Active Groups on Top**, from the rail's right-click menu or the
-  Desks menu, off by default. Groups with a desk that needs you rise first,
-  then the most recently used; idle ones sink. It only reorders when the
-  pointer isn't over the rail, at most every 30 seconds, so nothing moves
-  under a click. Your own order is kept underneath: cmd-1 to cmd-9 stay on
-  it, and turning this off puts the rail back.
+- Agent mail's read-only and scope notes always name the vendor you picked.
 
 ## [0.3.4] - 2026-09-21
 
@@ -227,7 +228,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.1...v0.3.2
