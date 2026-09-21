@@ -12,6 +12,8 @@ public struct UIState: Codable {
     public var meterHidden: Bool = false
     /// "Keep Active Groups on Top" in the rail.
     public var liveRail: Bool = false
+    /// Agents whose "add a desk" offer was waved off with Not now.
+    public var dismissedOffers: [String] = []
 
     public init() {}
 
@@ -33,6 +35,7 @@ public struct UIState: Codable {
         readerPoppedOut = try c.decodeIfPresent(Bool.self, forKey: .readerPoppedOut) ?? false
         meterHidden     = try c.decodeIfPresent(Bool.self, forKey: .meterHidden) ?? false
         liveRail        = try c.decodeIfPresent(Bool.self, forKey: .liveRail) ?? false
+        dismissedOffers = try c.decodeIfPresent([String].self, forKey: .dismissedOffers) ?? []
     }
 
     public static var path: String { NSString(string: "~/.config/coldfall/ui.json").expandingTildeInPath }

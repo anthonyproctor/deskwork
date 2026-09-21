@@ -8,6 +8,14 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- An agent installed after the first run gets offered a desk. When Coldfall
+  finds Copilot, Gemini or another supported CLI with no desk (at launch,
+  when you switch back to the app, and every minute), the top of the rail
+  says "Copilot is installed. Give it a desk?" with Add desk and Not now.
+- Coldfall finds CLIs wherever your login shell would, including ones
+  installed with npm under nvm, not just in a few fixed folders.
+
 ## [0.3.5] - 2026-09-21
 
 Security fixes, live desks.toml, and a rail that can keep busy groups on top.

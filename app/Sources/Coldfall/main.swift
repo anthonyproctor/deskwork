@@ -184,6 +184,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.collapsed = Set(ui.collapsed)
         sidebar.liveOn = ui.liveRail
         sidebar.onToggleLive = { [weak self] in self?.toggleLiveRail() }
+        sidebar.onAddOffer = { [weak self] rt in self?.addOfferedDesk(rt) }
+        sidebar.onDismissOffer = { [weak self] rt in self?.dismissOffer(rt) }
         sidebar.build(desks: desks)
         sidebar.onToggleGroup = { [weak self] g in self?.toggleGroup(g) }
         sidebar.onRenameGroup = { [weak self] g in self?.renameGroup(g) }
@@ -288,6 +290,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 sidebar.build(desks: desks)
             }
             sidebar.status = sample
+            // `--offer <runtime>`: the rail offering a desk for that agent.
+            if let k = CommandLine.arguments.firstIndex(of: "--offer"), k + 1 < CommandLine.arguments.count {
+                sidebar.offers = [CommandLine.arguments[k + 1]]
+            }
             // `--meter-demo`: the usage meter with made-up numbers.
             if CommandLine.arguments.contains("--meter-demo") {
                 meter.showDemo(summary: "claude wk 72%→sat 11 am · 5h 18%     codex wk 12%→mon 8 pm     gemini 1.4M",
@@ -498,6 +504,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         watchDeskMemory()
         watchLiveRail()
         watchDeskConfig()
+        watchNewAgents()
         // The update sheet names what a relaunch is about to end. Only the
         // controller knows which desks have live processes.
         SelfUpdate.runningDesks = { [weak self] in
@@ -887,6 +894,44 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         guard order != sidebar.groupOrder else { return }
         sidebar.groupOrder = order
         refreshRail()
+    }
+
+    // MARK: - agents installed after the first run
+
+    var offerTimer: Timer?
+
+    /// Look for installed agents with no desk now, whenever the app comes
+    /// back to the front (you may have just installed one in Terminal), and
+    /// once a minute.
+    func watchNewAgents() {
+        DeskConfig.warmLoginShellPath { [weak self] in self?.checkOffers() }
+        checkOffers()
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                               queue: .main) { [weak self] _ in self?.checkOffers() }
+        offerTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.checkOffers() }
+    }
+
+    func checkOffers() {
+        let dismissed = Set(ui.dismissedOffers)
+        let snapshot = desks
+        DispatchQueue.global(qos: .utility).async {
+            let missing = AgentOffer.missing(installed: AgentOffer.installed(), desks: snapshot, dismissed: dismissed)
+            DispatchQueue.main.async { [weak self] in self?.sidebar.offers = missing }
+        }
+    }
+
+    func addOfferedDesk(_ runtime: String) {
+        let d = AgentOffer.desk(for: runtime, in: desks)
+        desks.append(d)
+        guard persist() else { return }
+        desks = DeskOrder.grouped(desks)
+        sidebar.offers.removeAll { $0 == runtime }
+        refreshRail()
+    }
+
+    func dismissOffer(_ runtime: String) {
+        if !ui.dismissedOffers.contains(runtime) { ui.dismissedOffers.append(runtime); ui.save() }
+        sidebar.offers.removeAll { $0 == runtime }
     }
 
     /// Out of the rail and cmd-1..9, kept in desks.toml. A running desk is

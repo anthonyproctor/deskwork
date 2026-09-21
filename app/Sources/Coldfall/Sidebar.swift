@@ -46,6 +46,10 @@ final class SidebarView: NSView {
     var onSortDesks: (() -> Void)?
     /// The "needs you" line was clicked: go to this desk.
     var onJumpToWaiting: ((String) -> Void)?
+    /// Installed agents with no desk yet, offered at the top of the rail.
+    var offers: [String] = [] { didSet { if offers != oldValue, let d = lastDesks { build(desks: d) } } }
+    var onAddOffer: ((String) -> Void)?
+    var onDismissOffer: ((String) -> Void)?
 
     /// Group headers by the group they head, for drops onto a header.
     private var headers: [(group: String, view: GroupHeader)] = []
@@ -113,6 +117,16 @@ final class SidebarView: NSView {
         title.autoresizingMask = [.width]
         addSubview(title)
         y += 24
+
+        for rt in offers {
+            let o = OfferStrip(frame: NSRect(x: 10, y: y, width: w - 20, height: 50))
+            o.autoresizingMask = [.width]
+            o.configure(title: AgentOffer.shortName(rt))
+            o.onAdd = { [weak self] in self?.onAddOffer?(rt) }
+            o.onDismiss = { [weak self] in self?.onDismissOffer?(rt) }
+            addSubview(o)
+            y += 58
+        }
 
         if let text = NeedsYou.summary(waiting), let first = waiting.first {
             let strip = NeedsYouStrip(frame: NSRect(x: 10, y: y, width: w - 20, height: 26))
@@ -483,4 +497,41 @@ final class HiddenHeader: NSView {
         label.stringValue = (expanded ? "▾ " : "▸ ") + "\(count) HIDDEN"
     }
     override func mouseDown(with e: NSEvent) { onClick?() }
+}
+
+/// "Copilot is installed, with no desk. Add desk · Not now"
+final class OfferStrip: NSView {
+    var onAdd: (() -> Void)?
+    var onDismiss: (() -> Void)?
+    private let label = NSTextField(labelWithString: "")
+    private let add = NSButton(title: "Add desk", target: nil, action: nil)
+    private let later = NSButton(title: "Not now", target: nil, action: nil)
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.backgroundColor = Theme.ui.accent.withAlphaComponent(0.13).cgColor
+        label.font = .systemFont(ofSize: 11.5, weight: .medium)
+        label.textColor = Theme.ui.text
+        label.lineBreakMode = .byTruncatingTail
+        for b in [add, later] { b.bezelStyle = .rounded; b.controlSize = .small; b.target = self }
+        add.bezelColor = Theme.ui.accent
+        add.keyEquivalent = ""
+        add.action = #selector(addTapped); later.action = #selector(laterTapped)
+        let buttons = NSStackView(views: [add, later]); buttons.spacing = 6
+        let stack = NSStackView(views: [label, buttons])
+        stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
+        stack.frame = bounds.insetBy(dx: 10, dy: 6)
+        stack.autoresizingMask = [.width, .height]
+        addSubview(stack)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(title: String) {
+        label.stringValue = "\(title) is installed. Give it a desk?"
+        toolTip = "Add a desk that runs \(title), or hide this with Not now."
+    }
+    @objc private func addTapped() { onAdd?() }
+    @objc private func laterTapped() { onDismiss?() }
 }

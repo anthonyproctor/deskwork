@@ -177,11 +177,41 @@ public enum DeskConfig {
         let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")
             .split(separator: ":").map(String.init)
             + [NSString(string: "~/.local/bin").expandingTildeInPath, "/opt/homebrew/bin", "/usr/local/bin"]
+            + loginShellPath
         for p in paths {
             let full = (p as NSString).appendingPathComponent(bin)
             if FileManager.default.isExecutableFile(atPath: full) { return full }
         }
         return nil
+    }
+
+    /// The PATH your login shell sets up, where Terminal would find a tool.
+    ///
+    /// An app opened from the Dock gets a bare PATH, so a CLI installed with
+    /// npm under nvm, or anywhere a shell profile adds, was invisible to it.
+    /// Asked once, off the main thread, via `warmLoginShellPath`; empty until
+    /// then, so `which` never waits on a shell.
+    public private(set) static var loginShellPath: [String] = []
+
+    public static func warmLoginShellPath(completion: (() -> Void)? = nil) {
+        DispatchQueue.global(qos: .utility).async {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh")
+            p.arguments = ["-l", "-c", "printf %s \"$PATH\""]
+            let out = Pipe(); p.standardOutput = out; p.standardError = FileHandle.nullDevice
+            p.standardInput = FileHandle.nullDevice
+            guard (try? p.run()) != nil else { return }
+            // A profile that hangs must not hang this: give up after a few seconds.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) { if p.isRunning { p.terminate() } }
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            let dirs = String(decoding: data, as: UTF8.self).split(separator: ":").map(String.init)
+                .filter { $0.hasPrefix("/") }
+            DispatchQueue.main.async {
+                loginShellPath = dirs
+                completion?()
+            }
+        }
     }
 
     /// The general desk for a runtime: explicitly marked, else the first plain

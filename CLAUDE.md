@@ -30,6 +30,7 @@ swift build -c release
 ./.build/release/Coldfall --snapshot /tmp/shot.png --show-hidden      # the rail with hidden desks listed
 ./.build/release/Coldfall --snapshot /tmp/shot.png --live             # the rail with Keep Active Groups on Top
 ./.build/release/Coldfall --snapshot /tmp/shot.png --desks-on-top --meter-hidden   # for public pictures: no real usage numbers
+./.build/release/Coldfall --snapshot /tmp/shot.png --offer copilot    # the rail offering a desk for a new agent
 ../scripts/build-app.sh                                        # ~/Applications/Project Coldfall.app
 ../scripts/release-zip.sh                                      # the zip a GitHub release ships
 ```

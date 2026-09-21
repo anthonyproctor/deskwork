@@ -1365,6 +1365,31 @@ do {
     check("an edit in place after a replace is noticed too", hits > afterReplace)
 }
 
+// MARK: - offering a desk for a newly installed agent
+
+do {
+    let ws = "/srv/demo/ws"
+    let desks = [Desk(name: "hub", runtime: "claude", cwd: ws, command: "/srv/demo/ws/scripts/desk hub", isDefault: true),
+                 Desk(name: "codex", runtime: "codex", cwd: ws, isDefault: true),
+                 Desk(name: "shell", runtime: "shell", cwd: "/srv/demo", command: "exec zsh -l")]
+    eq("an installed agent with no desk is offered",
+       AgentOffer.missing(installed: ["claude", "codex", "copilot"], desks: desks, dismissed: []), ["copilot"])
+    eq("a desk run by a script still counts as having one",
+       AgentOffer.missing(installed: ["claude"], desks: desks, dismissed: []), [])
+    eq("an agent that isn't installed isn't offered",
+       AgentOffer.missing(installed: ["claude", "codex"], desks: desks, dismissed: []), [])
+    eq("Not now is remembered",
+       AgentOffer.missing(installed: ["copilot", "gemini"], desks: desks, dismissed: ["copilot"]), ["gemini"])
+    let d = AgentOffer.desk(for: "copilot", in: desks, home: "/srv/home")
+    eq("the new desk is named after the agent", d.name, "copilot")
+    eq("it's that agent's home desk", d.isDefault, true)
+    eq("and works where the other home desks do", d.cwd, ws)
+    eq("a taken name gets a number", AgentOffer.desk(for: "codex", in: desks).name, "codex-2")
+    eq("with no desks at all it works in the home folder",
+       AgentOffer.desk(for: "gemini", in: [], home: "/srv/home").cwd, "/srv/home")
+    eq("it launches that agent's own CLI", d.launchCommand(), "copilot")
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the
