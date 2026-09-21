@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- Welcome's Gemini setup says you need a Gemini API key. Google no longer
+  lets personal accounts sign in to Gemini CLI.
+
 ## [0.3.6] - 2026-09-21
 
 New agents get offered a desk, and Copilot shows up in the meter.

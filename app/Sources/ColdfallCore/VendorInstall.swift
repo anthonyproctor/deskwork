@@ -36,7 +36,7 @@ public struct VendorInstall: Equatable {
         VendorInstall(runtime: "gemini", title: "Gemini CLI",
                       command: "npm install -g @google/gemini-cli",
                       alternative: nil,
-                      needs: "A Google account; there is a free tier. Run gemini once to sign in.",
+                      needs: "A Gemini API key from aistudio.google.com. Google sign-in no longer works for personal accounts.",
                       docs: "https://github.com/google-gemini/gemini-cli"),
         VendorInstall(runtime: "copilot", title: "GitHub Copilot CLI",
                       command: "npm install -g @github/copilot",
