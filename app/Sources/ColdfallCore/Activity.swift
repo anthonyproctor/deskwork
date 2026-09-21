@@ -38,6 +38,13 @@ public struct ActivityState {
     /// How long output must stop for before a desk counts as finished.
     public static let quietFor: TimeInterval = 2.0
 
+    /// Output this soon after leaving a desk is the desk reacting to being
+    /// left, not saying anything. Leaving takes keyboard focus away, the
+    /// terminal tells the program (focus reporting), and a TUI like Claude
+    /// Code redraws. Those bytes arrived while the desk was out of view, so
+    /// the desk turned green again moments after it had been read.
+    public static let leaveGrace: TimeInterval = 1.5
+
     public private(set) var lastOutput: Date?
     /// Output arrived while the desk was not on screen.
     public private(set) var unseen = false
@@ -45,15 +52,19 @@ public struct ActivityState {
     /// the app coming forward — a badge that clears itself is worse than none,
     /// because you stop trusting that it was ever set.
     public private(set) var visible = false
+    /// When the desk last went out of view.
+    public private(set) var hiddenAt: Date?
 
     public init() {}
 
     public mutating func noteOutput(at now: Date = Date()) {
+        if !visible, let h = hiddenAt, now.timeIntervalSince(h) < ActivityState.leaveGrace { return }
         lastOutput = now
         if !visible { unseen = true }
     }
 
-    public mutating func setVisible(_ v: Bool) {
+    public mutating func setVisible(_ v: Bool, at now: Date = Date()) {
+        if visible, !v { hiddenAt = now }
         visible = v
         if v { unseen = false }
     }

@@ -8,6 +8,12 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- A desk no longer turns green again right after you've looked at it and
+  moved on. Leaving a desk takes its keyboard focus, the terminal tells the
+  agent, and the agent redraws; that redraw counted as new output. Output in
+  the moment after leaving is now ignored, and a real answer still shows.
+
 ## [0.3.2] - 2026-09-21
 
 See what each desk has, and know when it changes.

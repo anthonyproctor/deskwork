@@ -304,6 +304,24 @@ do {
     again.noteOutput(at: t0.addingTimeInterval(10))
     eq("new output after leaving re-arms the badge",
        again.activity(now: t0.addingTimeInterval(10 + quiet + 0.1)), .ready)
+
+    // Leaving a desk takes its focus, and the program redraws. That is not
+    // the desk saying anything, and it used to turn it green again.
+    var left = ActivityState()
+    left.setVisible(true, at: t0)
+    left.setVisible(false, at: t0.addingTimeInterval(1))
+    left.noteOutput(at: t0.addingTimeInterval(1.2))
+    eq("the redraw from being left does not badge",
+       left.activity(now: t0.addingTimeInterval(1.2 + quiet + 1)), .quiet)
+    eq("nor count as the desk's last output", left.lastOutput, nil)
+    left.noteOutput(at: t0.addingTimeInterval(1 + ActivityState.leaveGrace + 0.5))
+    eq("but a real answer a moment later still does",
+       left.activity(now: t0.addingTimeInterval(1 + ActivityState.leaveGrace + 0.5 + quiet + 0.1)), .ready)
+    var never = ActivityState()
+    never.setVisible(false, at: t0)
+    never.noteOutput(at: t0.addingTimeInterval(0.2))
+    eq("a desk never looked at has no leaving to ignore",
+       never.activity(now: t0.addingTimeInterval(0.2 + quiet + 0.1)), .ready)
 }
 
 // MARK: - saving desks must not eat the rest of the file
