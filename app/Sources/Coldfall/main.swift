@@ -24,6 +24,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     var visible: DeskSession?
     var ui = UIState.load()
     let deskScroll = NSScrollView()
+    let strip = TitleStrip()
     var rail: NSSplitView!
 
     func applicationDidFinishLaunching(_ n: Notification) {
@@ -48,6 +49,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                           backing: .buffered, defer: false)
         window.title = "Project Coldfall"
         window.titlebarAppearsTransparent = true
+        strip.label.stringValue = window.title
 
         // Left rail: desks on top, folder tree beneath, with a DRAGGABLE divider.
         // A fixed desk height starved the tree once the list got long.
@@ -73,9 +75,17 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let outer = NSView()
         split.translatesAutoresizingMaskIntoConstraints = false
         meter.translatesAutoresizingMaskIntoConstraints = false
-        outer.addSubview(split); outer.addSubview(meter)
+        outer.addSubview(strip); outer.addSubview(split); outer.addSubview(meter)
+        // The system title would be drawn over the rail; the strip shows it
+        // centred instead.
+        window.titleVisibility = .hidden
         NSLayoutConstraint.activate([
-            split.topAnchor.constraint(equalTo: outer.topAnchor),
+            strip.topAnchor.constraint(equalTo: outer.topAnchor),
+            strip.leadingAnchor.constraint(equalTo: outer.leadingAnchor),
+            strip.trailingAnchor.constraint(equalTo: outer.trailingAnchor),
+            // The standard titlebar height, so the traffic lights sit centred.
+            strip.heightAnchor.constraint(equalToConstant: 28),
+            split.topAnchor.constraint(equalTo: strip.bottomAnchor),
             split.leadingAnchor.constraint(equalTo: outer.leadingAnchor),
             split.trailingAnchor.constraint(equalTo: outer.trailingAnchor),
             meter.topAnchor.constraint(equalTo: split.bottomAnchor),
@@ -218,6 +228,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         tree.setRoot(d.resolvedCwd)
         sidebar.select(i)
         window.title = "Project Coldfall — \(d.name)"
+        strip.label.stringValue = window.title
         window.makeFirstResponder(s.focusedPane.term)
     }
 
@@ -568,6 +579,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 self.sidebar.restyle()
                 self.tree.restyle()
                 self.meter.restyle()
+                self.strip.restyle()
             }
         }
     }
