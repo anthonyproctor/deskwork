@@ -76,6 +76,12 @@ public enum DeskOrder {
         return rest
     }
 
+    /// The desks cmd-1..9 go to, as indices into `desks`: the first nine the
+    /// rail shows, so a hidden desk never takes a number.
+    public static func shortcuts(_ desks: [Desk]) -> [Int] {
+        Array(desks.indices.filter { !desks[$0].hidden }.prefix(9))
+    }
+
     /// Groups in the order the rail shows them: ungrouped desks first, then
     /// each group where its first desk appears in the list.
     public static func groups(_ desks: [Desk]) -> [String?] {

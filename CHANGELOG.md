@@ -8,6 +8,13 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- **Hide Desk** on a desk's right-click menu takes it out of the rail and
+  cmd-1 to cmd-9 but keeps it, with its settings and conversation, as
+  `hidden = true` in desks.toml. A running desk is offered a stop too. The
+  bottom of the rail says how many are hidden; click to list them, and
+  right-click one to unhide it. Quick open (cmd-P) still finds them.
+
 ## [0.3.3] - 2026-09-21
 
 A bug fix: desks stop asking for you after you've already looked.

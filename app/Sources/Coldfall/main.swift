@@ -188,6 +188,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onRenameDesk = { [weak self] i in self?.renameDesk(i) }
         sidebar.onMcpDesk = { [weak self] i in self?.editMcp(i) }
         sidebar.onInventoryDesk = { [weak self] i in self?.showInventory(i) }
+        sidebar.onHideDesk = { [weak self] i in self?.hideDesk(i) }
+        sidebar.onUnhideDesk = { [weak self] i in self?.unhideDesk(i) }
         sidebar.onStopDesk = { [weak self] i in self?.stopDesk(i) }
         sidebar.onMoveDesk = { [weak self] i, d in self?.moveDesk(i, to: d) }
         sidebar.onMoveGroup = { [weak self] g, b in self?.moveGroup(g, before: b) }
@@ -235,6 +237,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                                                     memory: "132 MB", news: 2)
                 default: sample[d.name] = DeskStatus()
                 }
+            }
+            // `--show-hidden`: the rail with its hidden desks listed.
+            if CommandLine.arguments.contains("--show-hidden") {
+                sidebar.showHidden = true
+                sidebar.build(desks: desks)
+                sidebar.revealHidden()
             }
             sidebar.status = sample
             // `--update-available <version>`: the title strip's release link.
@@ -477,8 +485,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 
         let deskItem = NSMenuItem(); main.addItem(deskItem)
         let deskMenu = NSMenu(title: "Desks")
-        for (i, d) in desks.prefix(9).enumerated() {
-            let it = NSMenuItem(title: d.name, action: #selector(jump(_:)), keyEquivalent: "\(i + 1)")
+        for (n, i) in DeskOrder.shortcuts(desks).enumerated() {
+            let it = NSMenuItem(title: desks[i].name, action: #selector(jump(_:)), keyEquivalent: "\(n + 1)")
             it.tag = i; it.target = self
             deskMenu.addItem(it)
         }
@@ -672,7 +680,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         a.informativeText = info
         a.addButton(withTitle: "Stop"); a.addButton(withTitle: "Cancel")
         guard a.runModal() == .alertFirstButtonReturn else { return }
+        endDesk(d)
+    }
 
+    /// End a desk's session, already confirmed.
+    func endDesk(_ d: Desk) {
+        guard let s = sessions[d.name] else { return }
         // Out of the table first, so the exit callbacks find nothing to tidy.
         sessions.removeValue(forKey: d.name)
         memory.removeValue(forKey: d.name)
@@ -692,6 +705,51 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
     }
     var stoppedNote: NSView?
+
+    /// Out of the rail and cmd-1..9, kept in desks.toml. A running desk is
+    /// offered a stop too, so a desk you can't see isn't quietly holding a
+    /// gigabyte; its conversation comes back when it is opened again.
+    func hideDesk(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        let d = desks[i]
+        var stop = false
+        if let s = sessions[d.name], s.started {
+            let a = NSAlert()
+            a.messageText = "Hide the \(d.name) desk?"
+            var info = "It's running"
+            if let m = memory[d.name] { info += " and using about \(m)" }
+            info += ". Stop it too, so it isn't using memory while hidden?"
+            if let after = Resume.afterRestart(d) { info += "\n\n" + after }
+            info += "\n\nShow hidden desks from the bottom of the rail, or open one with cmd-P."
+            a.informativeText = info
+            a.addButton(withTitle: "Hide and Stop")
+            a.addButton(withTitle: "Hide, Keep Running")
+            a.addButton(withTitle: "Cancel")
+            switch a.runModal() {
+            case .alertFirstButtonReturn: stop = true
+            case .alertSecondButtonReturn: stop = false
+            default: return
+            }
+        }
+        desks[i].hidden = true
+        DeskConfig.write(desks)
+        if stop { endDesk(d) }
+        refreshRail()
+    }
+
+    func unhideDesk(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        desks[i].hidden = false
+        DeskConfig.write(desks)
+        refreshRail()
+    }
+
+    /// Rebuild the rail and the Desks menu, keeping the selection.
+    func refreshRail() {
+        sidebar.build(desks: desks)
+        installMenu()
+        if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) { sidebar.select(j) }
+    }
 
     var inventoryWindow: InventoryWindow?
     /// Desks whose servers, hooks, skills or plugins changed since they were

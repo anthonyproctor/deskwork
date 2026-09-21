@@ -1209,6 +1209,28 @@ do {
        McpTrim.servers(for: Desk(name: "g", runtime: "gemini"), home: root), [])
 }
 
+// MARK: - hiding a desk
+
+do {
+    var list = (1...11).map { Desk(name: "d\($0)") }
+    list[1].hidden = true
+    list[4].hidden = true
+    eq("cmd-1..9 skip hidden desks", DeskOrder.shortcuts(list), [0, 2, 3, 5, 6, 7, 8, 9, 10])
+    eq("and never go past nine", DeskOrder.shortcuts((1...12).map { Desk(name: "x\($0)") }).count, 9)
+
+    let f = NSTemporaryDirectory() + "coldfall-hidden-\(UUID().uuidString).toml"
+    defer { try? FileManager.default.removeItem(atPath: f) }
+    var h = Desk(name: "golf", runtime: "claude", cwd: "/srv/demo")
+    h.hidden = true
+    DeskConfig.write([h, Desk(name: "hub", runtime: "claude")], to: f)
+    let back = DeskConfig.load(path: f)
+    eq("a hidden desk stays hidden across a save", back.first { $0.name == "golf" }?.hidden, true)
+    eq("and keeps everything else", back.first { $0.name == "golf" }?.cwd, "/srv/demo")
+    check("a shown desk writes no hidden line",
+          !((try? String(contentsOfFile: f, encoding: .utf8)) ?? "").contains("[desk.hub]\nruntime = \"claude\"\nhidden"))
+    eq("a shown desk loads as shown", back.first { $0.name == "hub" }?.hidden, false)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

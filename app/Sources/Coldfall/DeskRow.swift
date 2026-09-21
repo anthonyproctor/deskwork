@@ -41,6 +41,8 @@ final class DeskRow: NSView {
     var onStop: (() -> Void)?
     var onMcp: (() -> Void)?
     var onInventory: (() -> Void)?
+    var onHide: (() -> Void)?
+    var onUnhide: (() -> Void)?
     /// Drag to reorder. Points are in the row's superview (the rail).
     var onDragMoved: ((NSPoint) -> Void)?
     var onDragEnded: ((NSPoint) -> Void)?
@@ -262,6 +264,17 @@ final class DeskRow: NSView {
             m.addItem(st)
         }
         m.addItem(.separator())
+        if onHide != nil {
+            let h = NSMenuItem(title: "Hide Desk", action: #selector(hide), keyEquivalent: "")
+            h.target = self
+            h.toolTip = "Out of the rail and cmd-1 to cmd-9, but kept. Show hidden desks from the bottom of the rail."
+            m.addItem(h)
+        }
+        if onUnhide != nil {
+            let u = NSMenuItem(title: "Unhide Desk", action: #selector(unhide), keyEquivalent: "")
+            u.target = self
+            m.addItem(u)
+        }
         let d = NSMenuItem(title: "Remove Desk…", action: #selector(remove), keyEquivalent: "")
         d.target = self
         m.addItem(d)
@@ -272,6 +285,8 @@ final class DeskRow: NSView {
     @objc private func stop() { onStop?() }
     @objc private func mcp() { onMcp?() }
     @objc private func inventory() { onInventory?() }
+    @objc private func hide() { onHide?() }
+    @objc private func unhide() { onUnhide?() }
     @objc private func reveal() { onReveal?() }
     @objc private func makeDefault() { onMakeDefault?() }
 }

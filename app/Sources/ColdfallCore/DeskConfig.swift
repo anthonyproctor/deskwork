@@ -28,6 +28,9 @@ public struct Desk {
     /// lookup by name would stop finding it. Unset, the desk finds its
     /// conversation by name, as before.
     public var session: String?
+    /// Out of the rail and cmd-1..9, but kept: its settings, group and
+    /// conversation stay, and quick open still finds it.
+    public var hidden: Bool = false
     /// Desks are not a flat list. `study` belongs under `school` next to `mba`.
     /// Ungrouped desks sit at the top, above the first group header.
     public var group: String?
@@ -310,6 +313,7 @@ public enum DeskConfig {
                 explicitRuntime = true
             case "model":   current?.model = val
             case "mcp_off": current?.mcpOff = TomlText.stringArray(val) ?? []
+            case "hidden":  current?.hidden = val == "true"
             case "session": current?.session = UUID(uuidString: val) != nil ? val.lowercased() : nil
             case "cwd":     current?.cwd = val
             case "command": current?.command = val
@@ -434,6 +438,7 @@ public enum DeskConfig {
             if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
             if let m = d.model { out += "model = \"\(TomlText.escape(m))\"\n" }
             if let s = d.session { out += "session = \"\(TomlText.escape(s))\"\n" }
+            if d.hidden { out += "hidden = true\n" }
             if !d.mcpOff.isEmpty {
                 out += "mcp_off = [" + d.mcpOff.map { "\"\(TomlText.escape($0))\"" }.joined(separator: ", ") + "]\n"
             }

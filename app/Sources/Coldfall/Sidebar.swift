@@ -15,6 +15,11 @@ final class SidebarView: NSView {
     var onStopDesk: ((Int) -> Void)?
     var onMcpDesk: ((Int) -> Void)?
     var onInventoryDesk: ((Int) -> Void)?
+    var onHideDesk: ((Int) -> Void)?
+    var onUnhideDesk: ((Int) -> Void)?
+    /// Hidden desks listed at the bottom of the rail. Not saved: hidden is
+    /// the point, so the list folds away again on the next launch.
+    var showHidden = false
     var onMoveDesk: ((Int, DeskDrop) -> Void)?
     /// A group dragged by its header: the group, and the group it now sits
     /// before (nil for last).
@@ -100,7 +105,7 @@ final class SidebarView: NSView {
         }
 
         for g in DeskOrder.groups(desks) {
-            let members = desks.enumerated().filter { $0.element.group == g }
+            let members = desks.enumerated().filter { $0.element.group == g && !$0.element.hidden }
             if members.isEmpty { continue }
 
             if let g {
@@ -123,7 +128,57 @@ final class SidebarView: NSView {
             let top = y - 22
 
             for (i, d) in members {
-                let indent: CGFloat = g == nil ? 4 : 12
+                let r = row(i, d, indent: g == nil ? 4 : 12, y: y, width: w)
+                r.onHide = { [weak self] in self?.onHideDesk?(i) }
+                r.onDragMoved = { [weak self] p in self?.dragMoved(from: i, to: p) }
+                r.onDragEnded = { [weak self] p in self?.dragEnded(from: i, at: p) }
+                y += DeskRow.height + 2
+            }
+            if let g { spans.append((g, top, y)) }
+            y += 8
+        }
+
+        // Hidden desks: one line saying how many, and the desks themselves
+        // only when asked for. They don't drag; unhide one to move it.
+        let hiddenOnes = desks.enumerated().filter { $0.element.hidden }
+        if !hiddenOnes.isEmpty {
+            let h = HiddenHeader(frame: NSRect(x: 10, y: y, width: w - 20, height: 20))
+            h.autoresizingMask = [.width]
+            h.configure(count: hiddenOnes.count, expanded: showHidden)
+            h.onClick = { [weak self] in
+                guard let self, let d = self.lastDesks else { return }
+                self.showHidden.toggle()
+                self.build(desks: d)
+                if self.showHidden { self.revealHidden() }
+            }
+            addSubview(h)
+            y += 22
+            if showHidden {
+                for (i, d) in hiddenOnes {
+                    let r = row(i, d, indent: 12, y: y, width: w)
+                    r.alphaValue = 0.6
+                    r.onUnhide = { [weak self] in self?.onUnhideDesk?(i) }
+                    y += DeskRow.height + 2
+                }
+            }
+            y += 8
+        }
+
+        contentHeight = y + 10
+        frame = NSRect(x: 0, y: 0, width: w, height: contentHeight)
+        if selected >= 0 { select(selected) }
+    }
+
+    /// Scroll so the hidden desks just listed are in view. The rail is often
+    /// shorter than its desks, and a click that seems to do nothing reads
+    /// as broken.
+    func revealHidden() {
+        scrollToVisible(NSRect(x: 0, y: max(0, contentHeight - 1), width: 1, height: 1))
+    }
+
+    /// One desk's row, wired to everything a row does whether or not the
+    /// desk is hidden. Added to the rail and remembered by index.
+    private func row(_ i: Int, _ d: Desk, indent: CGFloat, y: CGFloat, width w: CGFloat) -> DeskRow {
                 let r = DeskRow(desk: d)
                 r.frame = NSRect(x: indent, y: y, width: w - indent - 4, height: DeskRow.height)
                 r.autoresizingMask = [.width]   // stretches with the rail; time stays flush right
@@ -138,21 +193,11 @@ final class SidebarView: NSView {
                 // checked (see McpTrim).
                 r.onMcp = ["claude", "codex"].contains(d.runtime) ? { [weak self] in self?.onMcpDesk?(i) } : nil
                 r.onInventory = d.runtime == "shell" ? nil : { [weak self] in self?.onInventoryDesk?(i) }
-                r.onDragMoved = { [weak self] p in self?.dragMoved(from: i, to: p) }
-                r.onDragEnded = { [weak self] p in self?.dragEnded(from: i, at: p) }
                 r.status = status[d.name] ?? DeskStatus()
                 r.tick = tick
                 addSubview(r)
                 rows[i] = r
-                y += DeskRow.height + 2
-            }
-            if let g { spans.append((g, top, y)) }
-            y += 8
-        }
-
-        contentHeight = y + 10
-        frame = NSRect(x: 0, y: 0, width: w, height: contentHeight)
-        if selected >= 0 { select(selected) }
+                return r
     }
 
     /// The rail's real width is only known after the window lays out. Rebuild
@@ -382,4 +427,26 @@ final class NeedsYouStrip: NSView {
 
     override func mouseUp(with e: NSEvent) { onClick?() }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+}
+
+/// "▸ 3 HIDDEN" at the bottom of the rail. Click to list them.
+final class HiddenHeader: NSView {
+    var onClick: (() -> Void)?
+    private let label = NSTextField(labelWithString: "")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        label.font = .systemFont(ofSize: 10, weight: .bold)
+        label.textColor = Theme.ui.dimText
+        label.frame = bounds
+        label.autoresizingMask = [.width]
+        addSubview(label)
+        toolTip = "Desks you've hidden. Right-click one to unhide it."
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(count: Int, expanded: Bool) {
+        label.stringValue = (expanded ? "▾ " : "▸ ") + "\(count) HIDDEN"
+    }
+    override func mouseDown(with e: NSEvent) { onClick?() }
 }
