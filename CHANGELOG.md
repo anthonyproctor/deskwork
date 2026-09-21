@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-09-21
+
+New agents get offered a desk, and Copilot shows up in the meter.
+
 ### Added
 - Copilot usage in the meter: tokens this week, read from the records Copilot
   CLI keeps on your Mac, and premium requests this month, which is what a
@@ -240,7 +244,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.2...v0.3.3
