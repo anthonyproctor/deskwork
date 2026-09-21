@@ -20,7 +20,7 @@ public enum AgentOffer {
 
     /// The name people use for it, short enough for the rail.
     public static func shortName(_ runtime: String) -> String {
-        ["claude": "Claude Code", "codex": "Codex", "gemini": "Gemini", "copilot": "Copilot",
+        ["claude": "Claude Code", "codex": "Codex", "gemini": "Gemini", "antigravity": "Antigravity", "copilot": "Copilot",
          "grok": "Grok", "ollama": "Ollama"][runtime] ?? runtime
     }
 

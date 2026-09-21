@@ -61,6 +61,10 @@ public enum Bridge {
                 readOnlyEnforced: true, hasFinalMessageFlag: true, isLocal: false),
         Runtime(name: "gemini", bin: "gemini",
                 argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
+        // Google's CLI for its AI Pro and Ultra plans, which replaced Gemini
+        // CLI sign-in for personal accounts in June 2026.
+        Runtime(name: "antigravity", bin: "agy",
+                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
         Runtime(name: "copilot", bin: "copilot",
                 argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
         // grok has a headless -p but no sandbox flag, so read-only can only be

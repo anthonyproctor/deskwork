@@ -102,6 +102,7 @@ public struct Desk {
             let base = codexResume ? ["codex", "resume", "--last"] : ["codex"]
             return (base + McpTrim.codexArgs(off: mcpOff)).joined(separator: " ")
         case "gemini": return "gemini"
+        case "antigravity": return "agy"
         case "copilot": return "copilot"
         case "ollama":
             // `ollama run <model>` is interactive; the model is required.
@@ -143,7 +144,7 @@ public enum DeskConfig {
         cwd = "~"
 
         """
-        for (runtime, bin) in [("claude", "claude"), ("codex", "codex"), ("gemini", "gemini"),
+        for (runtime, bin) in [("claude", "claude"), ("codex", "codex"), ("gemini", "gemini"), ("antigravity", "agy"),
                                ("copilot", "copilot"), ("grok", "grok"), ("ollama", "ollama")] {
             guard which(bin) != nil else { continue }
             out += """
@@ -238,8 +239,7 @@ public enum DeskConfig {
         var counts: [String: Int] = [:]
         for d in desks where d.runtime != "shell" { counts[d.runtime, default: 0] += 1 }
         if let top = counts.max(by: { ($0.value, $1.key) < ($1.value, $0.key) })?.key { return top }
-        for r in ["claude", "codex", "gemini", "copilot", "grok", "ollama"]
-        where which(r) != nil { return r }
+        for rt in Bridge.known where which(rt.bin) != nil { return rt.name }
         return "shell"
     }
 

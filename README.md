@@ -26,7 +26,7 @@ Project Coldfall calls one of those a **desk**, and makes the desk the unit.
 
 **Desks, not threads.** Each desk owns one or more long-lived terminals running the vendor's own CLI. Switching desks swaps which terminal is visible; the rest keep running. Come back an hour later and it is mid-thought where you left it.
 
-**It never reimplements an agent.** Project Coldfall launches `claude`, `codex`, `gemini` or `copilot` in a real pty. Your agent definitions, hooks, memory files and model pins all apply, because nothing is intercepting them. This is the point: ACP-based editors run a Claude Code bundled inside the Agent SDK rather than the CLI on your machine, which is why your own agents do not exist there.
+**It never reimplements an agent.** Project Coldfall launches `claude`, `codex`, `gemini`, `agy` (Antigravity) or `copilot` in a real pty. Your agent definitions, hooks, memory files and model pins all apply, because nothing is intercepting them. This is the point: ACP-based editors run a Claude Code bundled inside the Agent SDK rather than the CLI on your machine, which is why your own agents do not exist there.
 
 **Drag a file onto a desk and its path is typed.** SwiftTerm has no drag support, so this had to be added — and in a tool built for talking to agents it is not a nicety: showing an agent a screenshot means handing it a path, and there was no way to produce one without leaving the app. Paths are escaped for the shell, so `report (final).pdf` arrives intact.
 
@@ -67,7 +67,7 @@ Each desk shows which vendor is behind it, and each runtime can have a **home** 
   ```sh
   xcode-select --install
   ```
-- At least one agent CLI, though the app opens fine without any: Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, Grok CLI, or Ollama for a local model
+- At least one agent CLI, though the app opens fine without any: Claude Code, Codex, Gemini CLI, Antigravity CLI, GitHub Copilot CLI, Grok CLI, or Ollama for a local model
 
 ## Install
 
@@ -90,7 +90,7 @@ open ~/Applications/"Project Coldfall.app"
 
 Pass a directory to put it elsewhere: `./scripts/build-app.sh /Applications`.
 
-First launch writes a working config from whichever CLIs it finds and shows a welcome screen explaining what it found. There is nothing to set up by hand. If you have no agent CLI yet, the welcome screen lists how to install each one (Claude Code, Codex, Gemini CLI, Copilot CLI, Ollama), with a copy button, and **Check again** picks it up without a relaunch.
+First launch writes a working config from whichever CLIs it finds and shows a welcome screen explaining what it found. There is nothing to set up by hand. If you have no agent CLI yet, the welcome screen lists how to install each one (Claude Code, Codex, Gemini CLI, Antigravity CLI, Copilot CLI, Ollama), with a copy button, and **Check again** picks it up without a relaunch.
 
 `coldfall-cli` ships inside the bundle at `Project Coldfall.app/Contents/MacOS/coldfall-cli` — the core, headless, JSON on stdout. See [docs/FORMATS.md](docs/FORMATS.md).
 
@@ -109,7 +109,7 @@ cwd = "~"
 [desk.api]
 group   = "work"          # desks are not a flat list
 agent   = "backend"       # an agent profile the CLI already knows
-runtime = "claude"        # claude | codex | gemini | copilot | grok | ollama
+runtime = "claude"        # claude | codex | gemini | antigravity | copilot | grok | ollama
 cwd     = "~/src/api"
 
 [desk.api-docs]
@@ -242,7 +242,7 @@ Not built yet:
 
 - No diff view. The reader shows a file, not what changed in it.
 - No syntax highlighting.
-- Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
+- Live quota works for Claude and Codex. Copilot shows tokens and premium requests but no quota. Gemini and Antigravity show nothing yet.
 
 ## Updating
 

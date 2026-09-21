@@ -1365,6 +1365,28 @@ do {
     check("an edit in place after a replace is noticed too", hits > afterReplace)
 }
 
+// MARK: - Antigravity
+
+do {
+    let root = NSTemporaryDirectory() + "coldfall-agy-\(UUID().uuidString)"
+    let home = root + "/home", cwd = root + "/work"
+    let fm = FileManager.default
+    try? fm.createDirectory(atPath: home + "/.gemini/config", withIntermediateDirectories: true)
+    try? fm.createDirectory(atPath: cwd + "/.agents", withIntermediateDirectories: true)
+    try? #"{"mcpServers":{"docs":{"serverUrl":"https://mcp.example.com/sse"}}}"#
+        .write(toFile: home + "/.gemini/config/mcp_config.json", atomically: true, encoding: .utf8)
+    try? #"{"mcpServers":{"local":{"command":"node"}}}"#
+        .write(toFile: cwd + "/.agents/mcp_config.json", atomically: true, encoding: .utf8)
+    let inv = Inventory.of(Desk(name: "g", runtime: "antigravity", cwd: cwd), home: home)
+    eq("antigravity: reads the folder's and the global MCP config", inv.mcp.map(\.name), ["local", "docs"])
+    eq("antigravity: a serverUrl server is remote", inv.mcp.last?.detail, "remote, mcp.example.com")
+    eq("antigravity: launches agy", Desk(name: "g", runtime: "antigravity").launchCommand(), "agy")
+    check("antigravity: Coldfall knows its binary", Bridge.runtime(named: "antigravity")?.bin == "agy")
+    check("antigravity: has install help", VendorInstall.of("antigravity") != nil)
+    eq("antigravity: short name", AgentOffer.shortName("antigravity"), "Antigravity")
+    try? fm.removeItem(atPath: root)
+}
+
 // MARK: - Copilot usage
 
 do {

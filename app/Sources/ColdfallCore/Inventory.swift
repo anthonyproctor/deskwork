@@ -49,6 +49,7 @@ public struct Inventory: Equatable {
         case "claude": return claude(cwd: desk.resolvedCwd, home: home, off: desk.mcpOff)
         case "codex":  return codex(cwd: desk.resolvedCwd, home: home)
         case "gemini": return gemini(home: home)
+        case "antigravity": return antigravity(cwd: desk.resolvedCwd, home: home)
         default:
             var i = Inventory()
             i.notes.append(desk.runtime == "shell"
@@ -169,6 +170,25 @@ public struct Inventory: Equatable {
         return inv
     }
 
+    // MARK: - Antigravity
+
+    /// Antigravity keeps its own files under ~/.gemini, apart from Gemini CLI's.
+    static func antigravity(cwd: String, home: String) -> Inventory {
+        var inv = Inventory()
+        let dir = (home as NSString).appendingPathComponent(".gemini")
+        let agents = (cwd as NSString).appendingPathComponent(".agents")
+        let here = "this folder", you = "you, every folder"
+        for (name, cfg) in servers(json(at: (agents as NSString).appendingPathComponent("mcp_config.json"))) {
+            inv.mcp.append(Item(name: name, detail: serverDetail(cfg), source: here))
+        }
+        for (name, cfg) in servers(json(at: (dir as NSString).appendingPathComponent("config/mcp_config.json"))) {
+            inv.mcp.append(Item(name: name, detail: serverDetail(cfg), source: you))
+        }
+        inv.skills += skills(in: (agents as NSString).appendingPathComponent("skills"), source: here)
+        inv.skills += skills(in: (dir as NSString).appendingPathComponent("antigravity-cli/skills"), source: you)
+        return inv
+    }
+
     // MARK: - reading
 
     /// Config files are small. One far larger than any real one is skipped
@@ -189,7 +209,7 @@ public struct Inventory: Equatable {
     /// "runs node", or "remote, mcp.vercel.com". A local one is a process on
     /// this Mac; a remote one is not.
     static func serverDetail(_ cfg: [String: Any]) -> String {
-        if let url = cfg["url"] as? String {
+        if let url = (cfg["url"] ?? cfg["serverUrl"] ?? cfg["httpUrl"]) as? String {
             let host = URL(string: url)?.host ?? url
             return "remote, \(host)"
         }

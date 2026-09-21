@@ -8,6 +8,14 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- **Antigravity** as a runtime (`runtime = "antigravity"`, the `agy`
+  command). Google moved Google AI Pro and Ultra subscribers from Gemini CLI
+  to the Antigravity CLI in June 2026, so on those plans this is the Google
+  desk to use. Welcome and Settings show how to install it, the rail offers
+  a desk once it's installed, and What This Desk Has lists its MCP servers
+  and skills.
+
 ### Fixed
 - Welcome's Gemini setup says you need a Gemini API key. Google no longer
   lets personal accounts sign in to Gemini CLI.
