@@ -10,13 +10,13 @@ import Foundation
 ///           window. Classified by `window_minutes` (300 = 5h, 10080 = week)
 ///           rather than by position, because position is not a contract.
 ///
-///   Claude  tells only its statusline. So Deskwork offers to BE that
+///   Claude  tells only its statusline. So Coldfall offers to BE that
 ///           statusline: a recorder captures the numbers and then chains to
 ///           whatever statusline you already had, printing its output unchanged.
 ///
-///   Anyone  drop `~/.local/share/deskwork/limits/<vendor>.json` with the same
+///   Anyone  drop `~/.local/share/coldfall/limits/<vendor>.json` with the same
 ///           shape and it appears. That is the extension point — a vendor
-///           Deskwork has never heard of needs no code change here.
+///           Coldfall has never heard of needs no code change here.
 public struct VendorLimits: Codable {
     public var vendor: String
     public var weekPct: Double?
@@ -62,9 +62,9 @@ public struct VendorLimits: Codable {
 }
 
 public enum Limits {
-    public static var dir: String { NSString(string: "~/.local/share/deskwork/limits").expandingTildeInPath }
+    public static var dir: String { NSString(string: "~/.local/share/coldfall/limits").expandingTildeInPath }
     public static var recorderPath: String {
-        NSString(string: "~/.config/deskwork/statusline-recorder.sh").expandingTildeInPath
+        NSString(string: "~/.config/coldfall/statusline-recorder.sh").expandingTildeInPath
     }
 
     /// Every vendor we can currently see, freshest wins, stale dropped.
@@ -97,7 +97,7 @@ public enum Limits {
 
     /// Earlier builds wrote a single flat file; keep reading it.
     private static func legacyClaudeFile() -> VendorLimits? {
-        let p = NSString(string: "~/.local/share/deskwork/limits.json").expandingTildeInPath
+        let p = NSString(string: "~/.local/share/coldfall/limits.json").expandingTildeInPath
         guard let d = FileManager.default.contents(atPath: p),
               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
         return VendorLimits(vendor: "claude",
@@ -203,12 +203,12 @@ public enum Limits {
         }
         let script = """
         #!/bin/bash
-        # Installed by Deskwork. Captures Claude Code's live rate limits so the
+        # Installed by Project Coldfall. Captures Claude Code's live rate limits so the
         # meter can show remaining quota, then hands stdin to your own statusline
         # unchanged. To undo, point statusLine in ~/.claude/settings.json back at
         # your own script.
         input=$(cat)
-        out="$HOME/.local/share/deskwork/limits/claude.json"
+        out="$HOME/.local/share/coldfall/limits/claude.json"
         mkdir -p "$(dirname "$out")"
         printf '%s' "$input" | jq -c '{
           vendor: "claude",
@@ -224,7 +224,7 @@ public enum Limits {
         # stop overwriting one another.
         name=$(printf '%s' "$input" | jq -r '.session_name // .agent.name // empty' 2>/dev/null)
         if [ -n "$name" ]; then
-          sdir="$HOME/.local/share/deskwork/sessions"
+          sdir="$HOME/.local/share/coldfall/sessions"
           mkdir -p "$sdir"
           printf '%s' "$input" | jq -c '{
             desk:   (.session_name // .agent.name),
@@ -269,7 +269,7 @@ public struct DeskState: Codable {
     public var usd: Double?
     public var at: Double = 0
 
-    public static var dir: String { NSString(string: "~/.local/share/deskwork/sessions").expandingTildeInPath }
+    public static var dir: String { NSString(string: "~/.local/share/coldfall/sessions").expandingTildeInPath }
 
     public static func load(_ desk: String) -> DeskState? {
         let p = (dir as NSString).appendingPathComponent("\(desk).json")

@@ -1,7 +1,7 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
-/// What a stranger sees the first time they open Deskwork.
+/// What a stranger sees the first time they open Coldfall.
 ///
 /// The job is to answer three questions before they touch anything: what is a
 /// desk, what did you find on my machine, and what happens if I press the
@@ -17,7 +17,7 @@ final class WelcomeWindow: NSWindowController {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         self.init(window: w)
-        w.title = "Welcome to Deskwork"
+        w.title = "Welcome to Project Coldfall"
         self.projectDir = projectDir
         self.found = Discovery.agents(in: projectDir)
         build()
@@ -49,10 +49,10 @@ final class WelcomeWindow: NSWindowController {
         let found = checks.filter { $0.1 }
 
         var views: [NSView] = [
-            h1("Deskwork"),
+            h1("Project Coldfall"),
             body("A desk is a persistent specialist — its own agent, memory and model — "
                + "with a long-lived terminal of its own. Sessions are disposable. The desk is not.\n\n"
-               + "Deskwork never reimplements an agent. Each desk launches the vendor's own CLI "
+               + "Project Coldfall never reimplements an agent. Each desk launches the vendor's own CLI "
                + "in a real terminal, so your existing config, hooks and memory work untouched."),
             caps("FOUND ON THIS MACHINE"),
         ]
@@ -68,13 +68,13 @@ final class WelcomeWindow: NSWindowController {
 
         if found.isEmpty {
             views.append(body("No agent CLIs were found. Install at least one — Claude Code, "
-                            + "Codex, Gemini CLI or Copilot CLI — then reopen Deskwork. "
+                            + "Codex, Gemini CLI or Copilot CLI — then reopen Project Coldfall. "
                             + "A plain shell desk will be created in the meantime."))
         } else {
-            views.append(body("Deskwork will write a starter config with "
+            views.append(body("Project Coldfall will write a starter config with "
                 + found.map(\.0.name).joined(separator: ", ")
                 + ", plus a plain shell desk so opening the app costs nothing. "
-                + "Edit it any time in Settings, or by hand at ~/.config/deskwork/desks.toml."))
+                + "Edit it any time in Settings, or by hand at ~/.config/coldfall/desks.toml."))
         }
 
         if found.count >= 2 {
@@ -90,7 +90,7 @@ final class WelcomeWindow: NSWindowController {
             views.append(caps("AGENTS ALREADY IN THIS PROJECT"))
             views.append(body("Found \(self.found.count) agent definition"
                 + (self.found.count == 1 ? "" : "s")
-                + " in .claude/agents and .github/agents. Deskwork will make a desk for each, "
+                + " in .claude/agents and .github/agents. Project Coldfall will make a desk for each, "
                 + "launching that vendor's own CLI with that agent. Remove any you do not want "
                 + "in Settings."))
             let names = self.found.prefix(8).map(\.name).joined(separator: ", ")

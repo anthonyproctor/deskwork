@@ -13,7 +13,7 @@ public struct Desk {
     public var name: String
     public var agent: String?
     /// "shell" means no vendor — a plain terminal. A desk that runs a `command`
-    /// without saying which vendor is shell by default, because Deskwork
+    /// without saying which vendor is shell by default, because Coldfall
     /// genuinely does not know what is behind the script. Guessing claude there
     /// would let a bare zsh prompt be picked as the Claude home.
     public var runtime: String = "claude"
@@ -24,14 +24,14 @@ public struct Desk {
     /// Ungrouped desks sit at the top, above the first group header.
     public var group: String?
     /// The general-purpose desk for its runtime: what opens on launch, and
-    /// where Deskwork routes work that belongs to the vendor rather than to a
+    /// where Coldfall routes work that belongs to the vendor rather than to a
     /// particular agent. One per runtime, not one overall — somebody running
     /// Claude and Codex wants a home for each.
     public var isDefault: Bool = false
     /// True when the config said which vendor, rather than us assuming.
     public var declaredRuntime: Bool = false
 
-    /// argv for the login shell. Deskwork never reimplements an agent — it
+    /// argv for the login shell. Coldfall never reimplements an agent — it
     /// launches the vendor's own CLI so that CLI's config, hooks, memory and
     /// model pins all apply untouched.
     public func launchCommand() -> String {
@@ -67,7 +67,7 @@ public struct Desk {
 /// is a dependency we do not need yet, and the config shape is deliberately flat.
 public enum DeskConfig {
     public static var path: String {
-        NSString(string: "~/.config/deskwork/desks.toml").expandingTildeInPath
+        NSString(string: "~/.config/coldfall/desks.toml").expandingTildeInPath
     }
 
     /// First run: leave a working config on disk rather than an empty window.
@@ -78,8 +78,8 @@ public enum DeskConfig {
         guard !FileManager.default.fileExists(atPath: path) else { return }
 
         var out = """
-        # Deskwork desks. A desk is a persistent specialist; sessions are disposable.
-        # Written on first run. Edit freely, then restart Deskwork.
+        # Project Coldfall desks. A desk is a persistent specialist; sessions are disposable.
+        # Written on first run. Edit freely, then restart Project Coldfall.
 
         [desk.shell]
         # A plain shell first, so opening the app costs nothing.
@@ -348,7 +348,7 @@ public enum DeskConfig {
     }
 
     private static func writeBody(_ desks: [Desk], head: String, to path: String) {
-        var out = "# Deskwork desks. Written by Deskwork; safe to edit by hand.\n"
+        var out = "# Project Coldfall desks. Written by Project Coldfall; safe to edit by hand.\n"
         if !head.isEmpty { out += "\n" + head + "\n" }
         for d in desks {
             out += "\n[desk.\(d.name)]\n"

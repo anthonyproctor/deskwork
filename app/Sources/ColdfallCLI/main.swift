@@ -1,16 +1,19 @@
-// deskwork-cli — the core, headless.
+// coldfall-cli — the core, headless.
 //
-// Two jobs. It proves DeskworkCore carries no UI dependency, because this
+// Two jobs. It proves ColdfallCore carries no UI dependency, because this
 // binary links nothing but Foundation. And it gives a front end written in any
-// language something to shell out to, so porting Deskwork does not mean
+// language something to shell out to, so porting Coldfall does not mean
 // reimplementing desk discovery, usage scanning or quota reading.
 //
-//   deskwork-cli desks            configured desks
-//   deskwork-cli limits           remaining quota, per vendor
-//   deskwork-cli usage [--days N] consumption by vendor and desk
-//   deskwork-cli formats          where everything lives on disk
+//   coldfall-cli desks            configured desks
+//   coldfall-cli limits           remaining quota, per vendor
+//   coldfall-cli usage [--days N] consumption by vendor and desk
+//   coldfall-cli formats          where everything lives on disk
 import Foundation
-import DeskworkCore
+import ColdfallCore
+
+// Same migration as the app, so the CLI never reads an empty new path first.
+Migration.runAll()
 
 func out(_ any: Any) {
     if let d = try? JSONSerialization.data(withJSONObject: any,
@@ -78,14 +81,14 @@ case "formats":
 
 default:
     print("""
-    deskwork-cli — DeskworkCore, headless
+    coldfall-cli — ColdfallCore, headless
 
       desks              configured desks and how each launches
       agents [dir]       agent definitions on disk that could become desks
       hosts              ssh hosts that could become desks
       limits             remaining quota per vendor, stale entries dropped
       usage [--days N]   consumption by vendor and by desk (default: this week)
-      formats            where every file Deskwork reads or writes lives
+      formats            where every file Project Coldfall reads or writes lives
 
     Everything is JSON on stdout. A front end in any language can use this
     instead of reimplementing the core.

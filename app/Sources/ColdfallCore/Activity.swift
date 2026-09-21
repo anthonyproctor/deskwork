@@ -6,7 +6,7 @@
 // arrangement exists to remove.
 //
 // The hard part is that no CLI announces "I have finished answering". All that
-// reaches Deskwork is bytes on a pty, so "finished" has to be inferred from
+// reaches Coldfall is bytes on a pty, so "finished" has to be inferred from
 // bytes STOPPING. That inference has two failure modes and they pull in
 // opposite directions:
 //

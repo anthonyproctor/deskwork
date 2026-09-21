@@ -1,6 +1,6 @@
-// How Deskwork looks — the terminal and the chrome around it.
+// How Coldfall looks — the terminal and the chrome around it.
 //
-// Deskwork exists because a terminal was not good enough, so looking right is
+// Coldfall exists because a terminal was not good enough, so looking right is
 // not a cosmetic concern here; it is most of the product. Two rules follow.
 //
 // FIRST: the chrome and the terminal are one theme, not two. A Gruvbox
@@ -29,7 +29,7 @@
 
 import AppKit
 import SwiftTerm
-import DeskworkCore
+import ColdfallCore
 
 enum Theme {
 

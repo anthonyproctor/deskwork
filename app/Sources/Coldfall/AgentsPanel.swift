@@ -1,10 +1,10 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
 /// Every agent on disk, in one list. Read-only, deliberately.
 ///
 /// These files belong to the vendor. Claude Code owns .claude/agents and its
-/// schema; if Deskwork wrote them back, a field added next month would be
+/// schema; if Coldfall wrote them back, a field added next month would be
 /// silently dropped on save — and that is configuration people tune over
 /// months. It also cuts against the rule the project rests on: never
 /// reimplement an agent, launch the vendor's own CLI.
@@ -91,7 +91,7 @@ final class AgentsPanel: NSWindowController {
           + "vendor's own flow interviews you and writes the system prompt, which is the whole "
           + "craft. Deleting is worse to get wrong: the definition and the agent's memory "
           + "directory are separate things, and \"delete this agent\" does not say which. "
-          + "New agent and Manage open the vendor's tooling in a desk; Deskwork picks up "
+          + "New agent and Manage open the vendor's tooling in a desk; Project Coldfall picks up "
           + "whatever lands on disk.")
         foot.font = .systemFont(ofSize: 10.5)
         foot.textColor = .tertiaryLabelColor
@@ -195,9 +195,9 @@ final class AgentsPanel: NSWindowController {
         }
         guard let cmd else {
             let a = NSAlert()
-            a.messageText = "\(runtime) has no agent manager Deskwork knows about"
+            a.messageText = "\(runtime) has no agent manager Project Coldfall knows about"
             a.informativeText = "Create and edit its agents with its own tooling. "
-                + "Deskwork will pick up whatever appears on disk."
+                + "Project Coldfall will pick up whatever appears on disk."
             a.runModal(); return
         }
         onRunInDesk?(runtime, cmd)

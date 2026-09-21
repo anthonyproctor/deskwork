@@ -30,7 +30,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: The Deskwork menu shows it, or run `deskwork-cli formats`
+      description: The Project Coldfall menu shows it, or run `coldfall-cli formats`
     validations:
       required: true
 
@@ -46,7 +46,7 @@ body:
     attributes:
       label: Relevant config
       description: |
-        A desk from `~/.config/deskwork/desks.toml` if one is involved.
+        A desk from `~/.config/coldfall/desks.toml` if one is involved.
         **Redact paths and names you do not want public** — desk names tend to
         be personal.
       render: toml

@@ -1,7 +1,7 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
-/// Rebuild and update Deskwork from inside Deskwork.
+/// Rebuild and update Coldfall from inside Coldfall.
 ///
 /// You cannot replace a running binary in place — macOS keeps the executable
 /// mapped — but you do not need to. Build, then relaunch.
@@ -10,7 +10,7 @@ import DeskworkCore
 /// `launchCommand()` starts `claude -n <name>` and `codex` with no resume flag,
 /// so a desk comes back as a FRESH session: the desk returns, the conversation
 /// it was holding does not. That matters most to exactly the person using
-/// Deskwork to work AND to upgrade itself, which is everybody who has it.
+/// Coldfall to work AND to upgrade itself, which is everybody who has it.
 ///
 /// So the sheet names the desks it is about to end, and says plainly what is
 /// lost. Making them actually resume is a separate and larger job.
@@ -83,8 +83,27 @@ enum SelfUpdate {
     /// Relaunching has to outlive this process, so it is handed to a detached
     /// shell that waits for us to exit first. Doing it from inside the app
     /// races the very binary being replaced.
+    /// Where the rebuilt app lands: next to the running one, under the
+    /// current name.
+    ///
+    /// Two faults this avoids. Relaunching `Bundle.main.bundlePath` reopens
+    /// whatever is running, so anyone updating across the rename from
+    /// Deskwork.app would rebuild `Project Coldfall.app` and then relaunch the
+    /// old, un-rebuilt bundle — back in the stale version with no sign why.
+    /// And building into a fixed ~/Applications meant an app kept in
+    /// /Applications updated a second copy it never opened.
+    static var installDir: String {
+        (Bundle.main.bundlePath as NSString).deletingLastPathComponent
+    }
+    static var rebuiltBundle: String {
+        (installDir as NSString).appendingPathComponent("Project Coldfall.app")
+    }
+
     static func relaunch() {
-        let path = Bundle.main.bundlePath
+        // Prefer the bundle the build just produced; fall back to the running
+        // one only if the build somehow put nothing there.
+        let path = FileManager.default.fileExists(atPath: rebuiltBundle)
+            ? rebuiltBundle : Bundle.main.bundlePath
         let pid = ProcessInfo.processInfo.processIdentifier
         let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; open \"\(path)\""
         let p = Process()
@@ -111,7 +130,7 @@ final class UpdateWindow: NSWindowController {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 460),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         super.init(window: w)
-        w.title = "Update Deskwork"
+        w.title = "Update Project Coldfall"
         build()
         w.center()
     }
@@ -195,7 +214,7 @@ final class UpdateWindow: NSWindowController {
 
         let steps: [(String, [String])] = (pullToggle.state == .on
             ? [("pulling", ["git", "pull", "--ff-only"])] : [])
-            + [("building", ["./scripts/build-app.sh"])]
+            + [("building", ["./scripts/build-app.sh", SelfUpdate.installDir])]
 
         func next(_ i: Int) {
             guard i < steps.count else {

@@ -55,9 +55,19 @@ struct CachedFile: Codable {
 
 public enum UsageCache {
 
+    /// The cache directory. Overridable so tests never touch a real home.
+    ///
+    /// The tests used to write here directly. flush() created the directory,
+    /// clear() removed the file and left the directory behind — so every test
+    /// run left an empty ~/.local/share/coldfall on the machine. That looked
+    /// harmless until the rename: the migration refuses to act when the new
+    /// directory already exists, so anyone who had run the tests would have had
+    /// their upgrade silently skipped and their history appear lost.
+    public static var root: String =
+        NSString(string: "~/.local/share/coldfall/cache").expandingTildeInPath
+
     public static var path: String {
-        let dir = NSString(string: "~/.local/share/deskwork/cache").expandingTildeInPath
-        return (dir as NSString).appendingPathComponent("usage.json")
+        (root as NSString).appendingPathComponent("usage.json")
     }
 
     private static var loaded: [String: CachedFile]?

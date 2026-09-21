@@ -6,7 +6,7 @@ public struct UIState: Codable {
     public var treeOnTop: Bool = false
     public var seenWelcome: Bool = false
 
-    public static var path: String { NSString(string: "~/.config/deskwork/ui.json").expandingTildeInPath }
+    public static var path: String { NSString(string: "~/.config/coldfall/ui.json").expandingTildeInPath }
 
     public static func load() -> UIState {
         guard let d = FileManager.default.contents(atPath: path),

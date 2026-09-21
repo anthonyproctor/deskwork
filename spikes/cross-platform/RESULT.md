@@ -1,6 +1,6 @@
-# Spike: can Deskwork be cross-platform?
+# Spike: can Project Coldfall be cross-platform?
 
-**Question.** Deskwork is macOS-only because it uses SwiftTerm and PDFKit. For an
+**Question.** Project Coldfall is macOS-only because it uses SwiftTerm and PDFKit. For an
 open-source project that is an adoption ceiling. Is there a Rust stack that gives
 a GPU-accelerated, embeddable terminal widget on macOS, Linux and Windows?
 
@@ -51,7 +51,7 @@ That is weak evidence about relative maturity, not proof.
 ## Open problem: the reader
 
 PDFKit has no Rust equivalent of comparable quality. Opening a PDF inline is one
-of the few things Deskwork does that Zed still cannot, so a port has to answer
+of the few things Project Coldfall does that Zed still cannot, so a port has to answer
 this rather than drop it.
 
 ## Recommendation

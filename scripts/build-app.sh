@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Deskwork.app — a real macOS bundle you can double-click, keep in
+# Builds Project Coldfall.app — a real macOS bundle you can double-click, keep in
 # /Applications and pin to the Dock.
 #
 # This matters beyond polish. A binary launched from a terminal inherits that
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../app"
-APP="${1:-$HOME/Applications}/Deskwork.app"
+APP="${1:-$HOME/Applications}/Project Coldfall.app"
 VERSION="$(git -C .. describe --tags --always 2>/dev/null || echo 0.1.0)"
 SOURCE_ROOT="$(cd .. && pwd)"
 BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -19,20 +19,20 @@ swift build -c release 2>&1 | grep -vE "build database|^\[" || true
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/Deskwork "$APP/Contents/MacOS/Deskwork"
-# Ship the headless core alongside it, so `deskwork-cli` is available without a
+cp .build/release/Coldfall "$APP/Contents/MacOS/Coldfall"
+# Ship the headless core alongside it, so `coldfall-cli` is available without a
 # second build.
-cp .build/release/deskwork-cli "$APP/Contents/MacOS/deskwork-cli"
+cp .build/release/coldfall-cli "$APP/Contents/MacOS/coldfall-cli"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key>                 <string>Deskwork</string>
-  <key>CFBundleDisplayName</key>          <string>Deskwork</string>
-  <key>CFBundleIdentifier</key>           <string>dev.deskwork.app</string>
-  <key>CFBundleExecutable</key>           <string>Deskwork</string>
+  <key>CFBundleName</key>                 <string>Project Coldfall</string>
+  <key>CFBundleDisplayName</key>          <string>Project Coldfall</string>
+  <key>CFBundleIdentifier</key>           <string>dev.projectcoldfall.app</string>
+  <key>CFBundleExecutable</key>           <string>Coldfall</string>
   <key>CFBundleIconFile</key>             <string>AppIcon</string>
   <key>CFBundlePackageType</key>          <string>APPL</string>
   <key>CFBundleShortVersionString</key>   <string>${VERSION}</string>
@@ -61,4 +61,4 @@ codesign --force --deep --sign - "$APP" 2>/dev/null || echo "  (unsigned — Gat
 
 echo "built $APP"
 echo "  open it:    open '$APP'"
-echo "  cli:        '$APP/Contents/MacOS/deskwork-cli' usage"
+echo "  cli:        '$APP/Contents/MacOS/coldfall-cli' usage"

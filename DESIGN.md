@@ -1,4 +1,4 @@
-# Deskwork — design
+# Project Coldfall — design
 
 A terminal-first console for people who run several long-lived AI agents across
 several vendors, and who need to see what that is costing them while it happens.
@@ -187,20 +187,20 @@ thread**, and that beats a protocol on four counts:
 - **Inspectable.** The whole exchange is a file you can read, diff and keep.
 - **The responder cannot write**, enforced by the vendor's own flag rather than
   asked for politely: `claude -p --permission-mode plan`,
-  `codex exec --sandbox read-only`. Where a vendor has no such flag, Deskwork
+  `codex exec --sandbox read-only`. Where a vendor has no such flag, Project Coldfall
   says so in the UI instead of implying a guarantee it cannot make.
 - **But read-only is not private, and that is the real risk.** Those flags block
   writes and nothing else. The responder reads everything under its working
   directory. The first live test of this bridge sent Codex grepping through the
   whole workspace, transcripts included, to answer a question about one script.
-  The working directory is therefore a privacy boundary: Deskwork shows it
+  The working directory is therefore a privacy boundary: Project Coldfall shows it
   before sending, confirms it once per vendor, and `scope` in bridge.toml
   narrows it. An earlier draft of this document described the responder as
   simply "read-only", which overstated the guarantee.
 
 Credit where it is due: this pattern is not invented here. It comes from a
 working hand-rolled setup — a pair of markdown files and a shell script — that
-had already learned the append rule the hard way. Deskwork generalises it to
+had already learned the append rule the hard way. Project Coldfall generalises it to
 arbitrary runtime pairs and ships it built in, so a new user needs nothing but
 the CLIs they already have.
 

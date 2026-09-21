@@ -1,16 +1,16 @@
-# Deskwork — M1, the desk switcher
+# Project Coldfall — M1, the desk switcher
 
 A window with your desks down the left and one long-lived terminal each. Switching
 desks swaps which terminal is visible; the others keep running.
 
-Deskwork does not reimplement any agent. Each desk launches the vendor's own CLI in
+Project Coldfall does not reimplement any agent. Each desk launches the vendor's own CLI in
 a real pty, so that CLI's config, hooks, memory and model pins apply untouched.
 
 ## Build and run
 
 ```sh
 swift build -c release
-.build/release/Deskwork
+.build/release/Project Coldfall
 ```
 
 Requires macOS 13+ and the Swift toolchain (Command Line Tools is enough; Xcode is
@@ -18,7 +18,7 @@ not needed).
 
 ## Configure
 
-`~/.config/deskwork/desks.toml`:
+`~/.config/coldfall/desks.toml`:
 
 ```toml
 [desk.shell]

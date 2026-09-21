@@ -1,6 +1,6 @@
 // Spike: can SwiftTerm keep up?
 //
-// The whole Deskwork design rests on the terminal not being the bottleneck.
+// The whole Project Coldfall design rests on the terminal not being the bottleneck.
 // SwiftTerm renders through CoreText rather than the GPU, so this measures
 // throughput the only way that matters: run the benchmark INSIDE the terminal
 // and let pty backpressure do the timing. A terminal that cannot consume

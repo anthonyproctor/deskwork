@@ -1,9 +1,9 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
 /// Settings, so nobody has to hand-edit TOML to use this.
 ///
-/// Three things people need to change: which desks exist, which CLIs Deskwork
+/// Three things people need to change: which desks exist, which CLIs Coldfall
 /// found, and where agent mail lives. Writing the config back out keeps the file
 /// as the source of truth — you can still edit it by hand, and this never
 /// silently owns it.
@@ -27,7 +27,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 880, height: 700),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         self.init(window: w)
-        w.title = "Deskwork Settings"
+        w.title = "Project Coldfall Settings"
         self.projectDir = projectDir
         desks = DeskConfig.load()
         build()
@@ -113,7 +113,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let btns = NSStackView(views: [addBtn, delBtn, NSView(), saveBtn])
         btns.orientation = .horizontal; btns.spacing = 8
 
-        // What Deskwork actually found, and what it can guarantee.
+        // What Coldfall actually found, and what it can guarantee.
         var rtLines: [NSView] = [caps("RUNTIMES DETECTED")]
         for rt in Bridge.known {
             let p = DeskConfig.which(rt.bin)
@@ -142,7 +142,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         rtLines.append(note("Codex writes its quota into its own session log, so it needs nothing. "
             + "Claude tells only its statusline, so the button above installs a recorder as that "
             + "statusline — any statusline you already have keeps working, the recorder chains to it. "
-            + "Any other tool can join by writing ~/.local/share/deskwork/limits/<vendor>.json."))
+            + "Any other tool can join by writing ~/.local/share/coldfall/limits/<vendor>.json."))
         rtLines.append(caps("AGENTS FOUND ON DISK"))
         discoveredStack.orientation = .vertical
         discoveredStack.alignment = .leading

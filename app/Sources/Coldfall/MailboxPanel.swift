@@ -1,5 +1,5 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
 /// Read the thread, write the next message, get an answer from the other vendor.
 final class MailboxPanel: NSWindowController {
@@ -188,7 +188,7 @@ final class MailboxPanel: NSWindowController {
                 + (scope as NSString).abbreviatingWithTildeInPath
                 + "\n\nIt cannot write, but read-only is not private. If that tree holds "
                 + "anything you would not hand to \(rt.name), set `scope` in "
-                + "~/.config/deskwork/bridge.toml to a narrower directory first."
+                + "~/.config/coldfall/bridge.toml to a narrower directory first."
             a.addButton(withTitle: "Send"); a.addButton(withTitle: "Cancel")
             guard a.runModal() == .alertFirstButtonReturn else { return }
             MailboxPanel.acknowledged.insert(rt.name)

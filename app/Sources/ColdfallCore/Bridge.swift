@@ -22,7 +22,7 @@ public struct BridgeError: Error {
 ///     second opinion can never quietly edit your workspace.
 ///
 /// Credit where due: this pattern comes from a working hand-rolled setup
-/// (`ask-claude.sh` driving a pair of markdown files). Deskwork generalises it
+/// (`ask-claude.sh` driving a pair of markdown files). Coldfall generalises it
 /// to arbitrary runtime pairs and ships it built in, so a new user needs
 /// nothing but the CLIs they already have.
 public enum Bridge {
@@ -71,7 +71,7 @@ public enum Bridge {
         // for a workspace you would not expose to a hosted vendor. The model is
         // taken from the desk's `model` field, defaulting to whatever ollama has.
         Runtime(name: "ollama", bin: "ollama",
-                argv: { p, _ in ["run", ProcessInfo.processInfo.environment["DESKWORK_OLLAMA_MODEL"] ?? "llama3", p] },
+                argv: { p, _ in ["run", ProcessInfo.processInfo.environment["COLDFALL_OLLAMA_MODEL"] ?? "llama3", p] },
                 readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: true),
     ]
 
@@ -111,8 +111,8 @@ public struct Mailbox {
     public var legacyOutbound: String?
     public var legacyInbound: String?
 
-    public static let configPath = NSString(string: "~/.config/deskwork/bridge.toml").expandingTildeInPath
-    public static let defaultDir = NSString(string: "~/.local/share/deskwork/mail").expandingTildeInPath
+    public static let configPath = NSString(string: "~/.config/coldfall/bridge.toml").expandingTildeInPath
+    public static let defaultDir = NSString(string: "~/.local/share/coldfall/mail").expandingTildeInPath
 
     /// Always returns a usable mailbox. No config means the built-in one.
     public static func load() -> Mailbox {
@@ -175,7 +175,7 @@ public struct Mailbox {
         }
         DispatchQueue.global(qos: .userInitiated).async {
             let finalFile = rt.hasFinalMessageFlag
-                ? NSTemporaryDirectory() + "deskwork-reply-\(UUID().uuidString).txt" : nil
+                ? NSTemporaryDirectory() + "coldfall-reply-\(UUID().uuidString).txt" : nil
             let p = Process()
             p.executableURL = URL(fileURLWithPath: bin)
             p.arguments = rt.argv(prompt, finalFile)
@@ -197,7 +197,7 @@ public struct Mailbox {
             // 0% CPU indefinitely looking like a slow model.
             var d = Data(), e = Data()
             let pipes = DispatchGroup()
-            let sink = DispatchQueue(label: "deskwork.bridge.drain", attributes: .concurrent)
+            let sink = DispatchQueue(label: "coldfall.bridge.drain", attributes: .concurrent)
             pipes.enter()
             sink.async { d = out.fileHandleForReading.readDataToEndOfFile(); pipes.leave() }
             pipes.enter()

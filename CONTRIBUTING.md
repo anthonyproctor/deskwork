@@ -16,7 +16,7 @@ guess, so a reaction genuinely moves things.
 
 ## Security is not a formality here
 
-Deskwork launches shells, reads local files, and hands a working directory to
+Project Coldfall launches shells, reads local files, and hands a working directory to
 agents from other companies. A bug in the meter shows a wrong number; a bug in
 that surface does not. Report anything touching process execution, file access
 or the cross-vendor bridge privately.
@@ -24,7 +24,7 @@ or the cross-vendor bridge privately.
 ## Building
 
 ```sh
-cd app && swift build -c release && ./.build/release/deskwork-test
+cd app && swift build -c release && ./.build/release/coldfall-test
 ```
 
 macOS 13+, Command Line Tools is enough. **Xcode is not required and should not
@@ -34,12 +34,12 @@ rather than XCTest, which ships only with Xcode.
 
 ## Two rules the code is built around
 
-**Never reimplement an agent.** Deskwork launches the vendor's own CLI in a real
+**Never reimplement an agent.** Project Coldfall launches the vendor's own CLI in a real
 pty. That is why your agent definitions, hooks, memory and model pins all work —
 nothing is intercepting them. Anything that starts parsing or re-serving a
 vendor's protocol is going the wrong way.
 
-**`DeskworkCore` imports Foundation and nothing else.** That boundary is what
+**`ColdfallCore` imports Foundation and nothing else.** That boundary is what
 keeps a future Linux or Windows front end a UI project rather than a rewrite.
 CI fails the build if a UI framework appears there.
 

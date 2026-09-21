@@ -2,7 +2,7 @@
 //
 // The interesting part of this sheet is not the list of checkboxes, it is the
 // two numbers above the Run button: how many slices, and what they will cost
-// against the vendor's real remaining week. Deskwork is the only thing in the
+// against the vendor's real remaining week. Coldfall is the only thing in the
 // loop that knows that number, and a fan-out that quietly spends the rest of
 // your week is a bug rather than a feature.
 //
@@ -12,7 +12,7 @@
 // is the safer shape, and the sheet says so.
 
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
 final class FanoutSheet: NSWindowController {
 

@@ -1,39 +1,39 @@
 # On-disk formats
 
-Deskwork's state is files. Nothing is hidden in a database, nothing needs an API
+Project Coldfall's state is files. Nothing is hidden in a database, nothing needs an API
 key, and no part of it is macOS-specific.
 
 That is deliberate. It is what makes a front end in another language a UI
 project rather than a rewrite: reimplement these six files and you have the
-core. `DeskworkCore` imports nothing but Foundation, and `deskwork-cli` exposes
+core. `ColdfallCore` imports nothing but Foundation, and `coldfall-cli` exposes
 it as JSON for anything that would rather shell out than reimplement.
 
 ```sh
-deskwork-cli desks              # configured desks and how each launches
-deskwork-cli limits             # remaining quota per vendor
-deskwork-cli usage --days 7     # consumption by vendor and by desk
-deskwork-cli formats            # every path below, resolved
+coldfall-cli desks              # configured desks and how each launches
+coldfall-cli limits             # remaining quota per vendor
+coldfall-cli usage --days 7     # consumption by vendor and by desk
+coldfall-cli formats            # every path below, resolved
 ```
 
-## `~/.config/deskwork/desks.toml`
+## `~/.config/coldfall/desks.toml`
 
 The desks. `[desk.<name>]` tables; `group` is presentation only; `command`
 overrides `runtime` and is run verbatim.
 
-## `~/.config/deskwork/bridge.toml`
+## `~/.config/coldfall/bridge.toml`
 
 ```toml
-dir   = "~/.local/share/deskwork/mail"   # where threads live
+dir   = "~/.local/share/coldfall/mail"   # where threads live
 scope = "~/src/api"                      # what the RESPONDER may read
 runner = "./ask-claude.sh"               # optional: use your own handoff script
 ```
 
 `scope` is a privacy boundary, not a convenience. See the README.
 
-## `~/.local/share/deskwork/limits/<vendor>.json`
+## `~/.local/share/coldfall/limits/<vendor>.json`
 
 Remaining quota. **This is the extension point.** Any tool can publish a vendor
-Deskwork has never heard of by writing this file; no code change is needed.
+Project Coldfall has never heard of by writing this file; no code change is needed.
 
 ```json
 { "vendor": "claude", "weekPct": 3, "weekResetsAt": 1790442000,
@@ -47,9 +47,9 @@ one with headroom, so hiding stale readings hides the useful answer. A window
 whose `resets_at` has passed is dropped, because that one really is wrong.
 
 Codex needs none of this: it writes quota into its own session rollout and
-Deskwork reads it there.
+Project Coldfall reads it there.
 
-## `~/.local/share/deskwork/sessions/<desk>.json`
+## `~/.local/share/coldfall/sessions/<desk>.json`
 
 Per-desk session state. Context belongs to a session, not a vendor.
 
@@ -61,19 +61,19 @@ Per-desk session state. Context belongs to a session, not a vendor.
 Stale after 15 minutes, unlike quota. Context only moves while the desk is
 working, so an old reading describes a conversation that has since grown.
 
-## `~/.local/share/deskwork/mail/thread-<a>-<b>.md`
+## `~/.local/share/coldfall/mail/thread-<a>-<b>.md`
 
 The cross-vendor thread. Append-only markdown, `## <who> · <timestamp>` per
 turn. The whole file is sent as context on every ask, which is why it must
 never be rewritten in place.
 
-## `~/.config/deskwork/ui.json`
+## `~/.config/coldfall/ui.json`
 
 Window state: collapsed groups, tree position. Safe to delete.
 
 ## Consumption, read from the vendors
 
-Not written by Deskwork; read from what the CLIs already keep.
+Not written by Project Coldfall; read from what the CLIs already keep.
 
 | vendor | path | record |
 |---|---|---|

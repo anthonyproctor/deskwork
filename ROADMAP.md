@@ -111,9 +111,9 @@ with Xcode.
 
 Two things block it. `iced_term` is one maintainer against SwiftTerm's
 commercial use, and **PDFKit has no Rust equivalent** — opening a PDF inline is
-one of the few things Deskwork does that Zed still cannot.
+one of the few things Project Coldfall does that Zed still cannot.
 
-The preparation is already done: `DeskworkCore` is Foundation-only and CI
+The preparation is already done: `ColdfallCore` is Foundation-only and CI
 enforces that, so a front end in another language is a UI project rather than a
 rewrite. [docs/FORMATS.md](docs/FORMATS.md) is the contract.
 
@@ -163,7 +163,7 @@ rejected on grounds that should survive someone disagreeing with them.
 **An agent editor.** Those files belong to the vendor. Claude Code owns
 `.claude/agents` and its schema, and a field added upstream next month would be
 silently dropped on save — losing configuration people tune over months.
-Deskwork reads them and routes you to the vendor's own tooling to change them.
+Project Coldfall reads them and routes you to the vendor's own tooling to change them.
 
 **Agent creation as a form.** Creating an agent well is a conversation. The
 vendor's flow interviews you and writes the system prompt, which is the entire
@@ -183,7 +183,7 @@ second UI to maintain, to reach a use case an SSH session already serves.
 drove this project into existence — a fork would begin already holding the
 problem it exists to solve. It would also mean inheriting 1.5 million lines to
 keep a file tree, since an editor's real value is the LSP and completions this
-tool deliberately does not want. Deskwork is about 2,300 lines.
+tool deliberately does not want. Project Coldfall is about 2,300 lines.
 
 **An editor.** Agents write, you read. That single decision is why the reader is
 a hundred lines and why a PDF opens at all.
@@ -195,7 +195,7 @@ a hundred lines and why a PDF opens at all.
 - **Somebody else uses it.** Every priority above is one person's guess.
 - **`iced_term` matures, or is replaced.** That unblocks cross-platform.
 - **A vendor exposes quota locally for Gemini or Copilot.** The extension point
-  is already there: drop `~/.local/share/deskwork/limits/<vendor>.json` and it
+  is already there: drop `~/.local/share/coldfall/limits/<vendor>.json` and it
   appears, no code change.
 - **ACP gets a session model that does not bundle its own CLI.** The reason the
   agent panel in ACP-based editors cannot run your desks

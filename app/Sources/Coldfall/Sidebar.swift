@@ -1,5 +1,5 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
 /// The desk rail. Groups are collapsible and renameable; ungrouped desks sit on
 /// top. Reports its own content height so the scroll view never clips the last
@@ -220,9 +220,9 @@ final class DeskButton: NSButton {
             let g = NSMenuItem(title: "Make this the \(runtimeName) home",
                                action: #selector(makeDefault), keyEquivalent: "")
             g.target = self
-            g.toolTip = "The home desk for a vendor is where Deskwork sends work that belongs "
+            g.toolTip = "The home desk for a vendor is where Project Coldfall sends work that belongs "
                 + "to the vendor rather than to one agent — creating an agent, managing them. "
-                + "One per vendor. The home marked default also opens when Deskwork starts."
+                + "One per vendor. The home marked default also opens when Project Coldfall starts."
             m.addItem(g)
             m.addItem(.separator())
         }

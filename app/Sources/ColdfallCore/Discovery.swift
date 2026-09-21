@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Front matter is read with a deliberately small parser. These files are
 /// hand-written and the only fields that matter here are `name`, `description`
-/// and `model`; anything else is the vendor's business, not Deskwork's.
+/// and `model`; anything else is the vendor's business, not Coldfall's.
 public struct DiscoveredAgent {
     public let name: String
     public let runtime: String

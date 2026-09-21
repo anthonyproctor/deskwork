@@ -1,5 +1,5 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 import PDFKit
 
 /// Read-only viewer with tabs.

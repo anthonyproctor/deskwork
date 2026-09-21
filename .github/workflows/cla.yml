@@ -32,11 +32,11 @@ jobs:
           # Signatures live on a side branch so they never clutter main's history.
           branch: cla-signatures
           path-to-signatures: signatures/cla.json
-          path-to-document: https://github.com/anthonyproctor/deskwork/blob/main/CLA.md
+          path-to-document: https://github.com/anthonyproctor/project-coldfall/blob/main/CLA.md
           allowlist: anthonyproctor,dependabot[bot]
           custom-notsigned-prcomment: >
             Thanks for this. Before it can be merged, please read
-            [CLA.md](https://github.com/anthonyproctor/deskwork/blob/main/CLA.md)
+            [CLA.md](https://github.com/anthonyproctor/project-coldfall/blob/main/CLA.md)
             and, if you agree, reply to this pull request with exactly:
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
           custom-allsigned-prcomment: 'CLA signed. Thanks, and welcome.'

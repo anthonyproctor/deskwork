@@ -1,5 +1,5 @@
 import Foundation
-import DeskworkCore
+import ColdfallCore
 
 // Regression tests for faults that actually shipped today, not invented cases.
 // Each one names the bug it stops coming back.
@@ -9,6 +9,10 @@ import DeskworkCore
 // defeats the point.
 
 var failures: [String] = []
+/// Whether a real usage cache existed before any test ran. Lets the final
+/// check tell test pollution apart from the user's own data.
+let preexistingCache = FileManager.default.fileExists(
+    atPath: NSString(string: "~/.local/share/coldfall/cache/usage.json").expandingTildeInPath)
 var passed = 0
 
 func check(_ name: String, _ cond: @autoclosure () -> Bool, _ note: String = "") {
@@ -387,7 +391,16 @@ do {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let f = dir.appendingPathComponent("t.jsonl").path
-    defer { try? FileManager.default.removeItem(at: dir); UsageCache.clear() }
+    // Point the cache at this test's own directory. It used to write to the
+    // real ~/.local/share/coldfall, and the empty directory it left behind was
+    // enough to make the rename's migration refuse to run.
+    let realRoot = UsageCache.root
+    UsageCache.root = dir.appendingPathComponent("cache").path
+    defer {
+        UsageCache.clear()
+        UsageCache.root = realRoot
+        try? FileManager.default.removeItem(at: dir)
+    }
     UsageCache.clear()
 
     try? "one".write(toFile: f, atomically: true, encoding: .utf8)
@@ -474,6 +487,98 @@ do {
     eq("several paths are separated",
        ShellPath.line(["/x/a.png", "/x/b.png"]), "/x/a.png /x/b.png ")
     eq("dropping nothing types nothing", ShellPath.line([]), "")
+}
+
+// MARK: - migration from Deskwork paths
+//
+// The one piece of the rename that can lose a user's data. A plain directory
+// rename would have broken the author's Claude Code statusline in every
+// session on the machine, so the contract is: move, leave a link, never delete,
+// and refuse to guess when both sides exist.
+
+do {
+    let fm = FileManager.default
+    func sandbox() -> String {
+        let d = fm.temporaryDirectory.appendingPathComponent("mig-" + UUID().uuidString).path
+        try? fm.createDirectory(atPath: d, withIntermediateDirectories: true)
+        return d
+    }
+
+    // Nothing there: a fresh install does nothing.
+    do {
+        let d = sandbox(); defer { try? fm.removeItem(atPath: d) }
+        eq("no old directory means nothing to migrate",
+           Migration.migrate(from: d + "/old", to: d + "/new"), .nothing)
+    }
+
+    // The ordinary upgrade: data moves, a link is left, and the file is still
+    // readable through the OLD path — which is what keeps external references
+    // like a statusline command working.
+    do {
+        let d = sandbox(); defer { try? fm.removeItem(atPath: d) }
+        try? fm.createDirectory(atPath: d + "/old", withIntermediateDirectories: true)
+        try? "[desk.hub]\n".write(toFile: d + "/old/desks.toml", atomically: true, encoding: .utf8)
+
+        eq("an old directory is migrated", Migration.migrate(from: d + "/old", to: d + "/new"), .migrated)
+        check("the data is at the new path", fm.fileExists(atPath: d + "/new/desks.toml"))
+        check("the old path is now a link",
+              (try? fm.destinationOfSymbolicLink(atPath: d + "/old")) != nil)
+        eq("and the old path still reads the same file",
+           try? String(contentsOfFile: d + "/old/desks.toml", encoding: .utf8), "[desk.hub]\n")
+
+        // Running it again on the next launch must be a no-op.
+        eq("a second launch sees it is already done",
+           Migration.migrate(from: d + "/old", to: d + "/new"), .alreadyDone)
+        check("and the data is still there", fm.fileExists(atPath: d + "/new/desks.toml"))
+    }
+
+    // Both exist as real directories: refuse, and touch neither. This is the
+    // state a too-early save would have produced, and guessing here means
+    // destroying one side.
+    do {
+        let d = sandbox(); defer { try? fm.removeItem(atPath: d) }
+        try? fm.createDirectory(atPath: d + "/old", withIntermediateDirectories: true)
+        try? fm.createDirectory(atPath: d + "/new", withIntermediateDirectories: true)
+        try? "old".write(toFile: d + "/old/a", atomically: true, encoding: .utf8)
+        try? "new".write(toFile: d + "/new/a", atomically: true, encoding: .utf8)
+
+        eq("two real directories is a conflict", Migration.migrate(from: d + "/old", to: d + "/new"), .conflict)
+        eq("the old side is untouched", try? String(contentsOfFile: d + "/old/a", encoding: .utf8), "old")
+        eq("the new side is untouched", try? String(contentsOfFile: d + "/new/a", encoding: .utf8), "new")
+        check("and no link was made over real data",
+              (try? fm.destinationOfSymbolicLink(atPath: d + "/old")) == nil)
+    }
+
+    // A plain FILE where the old directory should be is not a directory to
+    // move. Leave it alone.
+    do {
+        let d = sandbox(); defer { try? fm.removeItem(atPath: d) }
+        try? "x".write(toFile: d + "/old", atomically: true, encoding: .utf8)
+        eq("a file at the old path is not migrated",
+           Migration.migrate(from: d + "/old", to: d + "/new"), .nothing)
+        check("and it is left where it was", fm.fileExists(atPath: d + "/old"))
+    }
+
+    // The new parent directory does not exist yet (a first run on a machine
+    // that has never had ~/.local/share). The move must create it.
+    do {
+        let d = sandbox(); defer { try? fm.removeItem(atPath: d) }
+        try? fm.createDirectory(atPath: d + "/old", withIntermediateDirectories: true)
+        eq("migrating into a parent that does not exist yet still works",
+           Migration.migrate(from: d + "/old", to: d + "/deep/nested/new"), .migrated)
+    }
+}
+
+// MARK: - the suite must not touch a real home directory
+//
+// Checked LAST, after every other test has run. A test that writes to the
+// user's real ~/.local/share/coldfall creates exactly the directory that makes
+// the rename's migration refuse to act — so this is not tidiness, it is the
+// difference between an upgrade that works and one that loses history.
+do {
+    let real = NSString(string: "~/.local/share/coldfall/cache/usage.json").expandingTildeInPath
+    let createdByUs = FileManager.default.fileExists(atPath: real) && !preexistingCache
+    check("the test suite left no cache in the real home directory", !createdByUs)
 }
 
 print("\n\(passed) passed, \(failures.count) failed")

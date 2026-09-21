@@ -1,5 +1,5 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
 /// Click the meter to open this: quota per vendor, then where it went.
 final class MeterPanel: NSWindowController {

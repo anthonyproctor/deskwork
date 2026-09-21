@@ -3,7 +3,7 @@
 # A desk is a persistent specialist: its own agent definition, its own memory on
 # disk, its own pinned model. Sessions are disposable; the desk is not.
 #
-# `agent` names a profile the runtime already understands. Deskwork does not
+# `agent` names a profile the runtime already understands. Project Coldfall does not
 # reimplement agents, it launches them.
 
 [desk.notes]

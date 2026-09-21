@@ -1,10 +1,10 @@
 # Contributor License Agreement
 
-Deskwork asks contributors to sign this once, before their first pull request is merged.
+Project Coldfall asks contributors to sign this once, before their first pull request is merged.
 
 ## Why this exists, plainly
 
-Deskwork is MIT licensed and the intention is that it stays that way. But intentions are not guarantees, and it is worth being honest about what this document is for rather than burying it.
+Project Coldfall is MIT licensed and the intention is that it stays that way. But intentions are not guarantees, and it is worth being honest about what this document is for rather than burying it.
 
 Under copyright law, **you own what you write.** If several people hold copyright in a project and the licence ever needs to change — to add a patent grant, to adopt a newer OSI licence, to relicense a component so it can be reused elsewhere — every one of those holders has to agree. Projects that skipped this step have found themselves unable to make ordinary housekeeping changes because a contributor from four years ago is unreachable.
 
@@ -13,11 +13,11 @@ This agreement does **not** take your copyright away. You keep it, and you can d
 Being direct about the part people care about: **this permits the project to release your contribution under a different licence in future.** That is a real power and you should weigh it before signing. Two things are worth knowing:
 
 - Every version already published stays MIT, permanently. Nothing here can retroactively close source that is already open, and anyone holding a copy keeps their rights to it.
-- The author's stated intent is that Deskwork remains open source. That is an intention, not a promise, and this document is the reason it *could* change. You are entitled to treat that as a reason not to contribute.
+- The author's stated intent is that Project Coldfall remains open source. That is an intention, not a promise, and this document is the reason it *could* change. You are entitled to treat that as a reason not to contribute.
 
 ## The agreement
 
-By signing, you agree to the following for every contribution you submit to Deskwork.
+By signing, you agree to the following for every contribution you submit to Project Coldfall.
 
 **1. Copyright licence.** You grant the project's maintainer a perpetual, worldwide, non-exclusive, royalty-free, irrevocable copyright licence to reproduce, modify, display, perform, sublicense and distribute your contribution and works derived from it. **Sublicensing is what allows the project to be released under a different licence later.**
 

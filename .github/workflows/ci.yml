@@ -32,7 +32,7 @@ jobs:
         run: cd app && swift build -c release
 
       - name: test
-        run: cd app && ./.build/release/deskwork-test
+        run: cd app && ./.build/release/coldfall-test
 
       # The core must not gain a UI dependency. That boundary is what keeps a
       # future Linux or Windows front end a UI project rather than a rewrite,
@@ -40,8 +40,8 @@ jobs:
       - name: core stays Foundation-only
         run: |
           cd app
-          if grep -rlE '^import (AppKit|SwiftUI|UIKit|PDFKit|SwiftTerm)' Sources/DeskworkCore/; then
-            echo "::error::DeskworkCore imported a UI framework"
+          if grep -rlE '^import (AppKit|SwiftUI|UIKit|PDFKit|SwiftTerm)' Sources/ColdfallCore/; then
+            echo "::error::ColdfallCore imported a UI framework"
             exit 1
           fi
           echo "clean"

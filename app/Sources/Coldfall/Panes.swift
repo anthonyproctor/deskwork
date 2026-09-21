@@ -15,11 +15,11 @@
 
 import AppKit
 import SwiftTerm
-import DeskworkCore
+import ColdfallCore
 
 // MARK: - knowing a desk answered
 
-// `DeskActivity` and its timing live in DeskworkCore, under test.
+// `DeskActivity` and its timing live in ColdfallCore, under test.
 
 /// A terminal that reports when its process writes something.
 ///
@@ -56,13 +56,45 @@ final class DeskTerminalView: LocalProcessTerminalView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let paths = urls(from: sender).map { ShellPath.escape($0.path) }
+        let paths = urls(from: sender).map { ShellPath.escape(DeskTerminalView.stable($0).path) }
         guard !paths.isEmpty else { return false }
         // A trailing space, so a second drop does not glue two paths together
         // and so the path is finished as an argument either way.
         send(txt: paths.joined(separator: " ") + " ")
         window?.makeFirstResponder(self)
         return true
+    }
+
+    /// A dropped file that macOS is about to delete gets copied somewhere it
+    /// will not.
+    ///
+    /// Dragging the floating screenshot thumbnail hands over a path inside
+    /// .../TemporaryItems/NSIRD_screencaptureui_*, which macOS removes within
+    /// seconds. The path was typed correctly and was already dead by the time
+    /// anything read it — reported as two screenshots that simply vanished.
+    /// Anything under the per-user temp tree is treated the same way, since
+    /// none of it is promised to survive.
+    static func stable(_ url: URL) -> URL {
+        let p = url.path
+        let temp = NSTemporaryDirectory()
+        let doomed = p.contains("/TemporaryItems/") || p.contains("NSIRD_screencaptureui")
+            || (!temp.isEmpty && p.hasPrefix(temp))
+        guard doomed else { return url }
+
+        let dir = NSString(string: "~/.local/share/coldfall/pasted").expandingTildeInPath
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd-HHmmss"
+        // Keep the original name's extension; drop macOS's narrow no-break
+        // spaces and ordinary spaces so the pasted path needs no escaping.
+        let ext = url.pathExtension.isEmpty ? "" : "." + url.pathExtension
+        let dest = URL(fileURLWithPath: dir)
+            .appendingPathComponent("dropped-\(f.string(from: Date()))\(ext)")
+        do {
+            try FileManager.default.copyItem(at: url, to: dest)
+            return dest
+        } catch {
+            return url          // copy failed: the original is still better than nothing
+        }
     }
 
     private func urls(from sender: NSDraggingInfo) -> [URL] {
@@ -97,7 +129,7 @@ final class DeskTerminalView: LocalProcessTerminalView {
               let rep = NSBitmapImageRep(data: tiff),
               let png = rep.representation(using: .png, properties: [:]) else { return nil }
 
-        let dir = NSString(string: "~/.local/share/deskwork/pasted").expandingTildeInPath
+        let dir = NSString(string: "~/.local/share/coldfall/pasted").expandingTildeInPath
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd-HHmmss"
         let path = (dir as NSString)
@@ -106,7 +138,7 @@ final class DeskTerminalView: LocalProcessTerminalView {
         return path
     }
 
-    // Path escaping lives in DeskworkCore/ShellPath, under test.
+    // Path escaping lives in ColdfallCore/ShellPath, under test.
 }
 
 // MARK: - a pane
@@ -155,10 +187,10 @@ final class Pane {
         }
     }
 
-    /// Deskwork hands its own environment to every desk, so anything the app
+    /// Coldfall hands its own environment to every desk, so anything the app
     /// inherited is inherited again by the agent. CLAUDECODE marks "you are
     /// already inside a Claude Code session" and makes a nested one refuse to
-    /// start — which happens whenever Deskwork is launched from a terminal that
+    /// start — which happens whenever Coldfall is launched from a terminal that
     /// is itself running an agent. Scrub it rather than depending on how the app
     /// was launched.
     static func environment(for desk: Desk) -> [String] {
@@ -170,7 +202,7 @@ final class Pane {
         env.removeAll { entry in poison.contains(where: { entry.hasPrefix($0 + "=") }) }
         // Hooks and desk-scoped behaviour key off this, same as the shell wrapper.
         env.append("CLAUDE_DESK=\(desk.name)")
-        env.append("DESKWORK=1")
+        env.append("COLDFALL=1")
         return env
     }
 }
@@ -263,7 +295,7 @@ final class DeskSession {
     var agentTerm: DeskTerminalView { panes[0].term }
 
     /// Inferring "finished" from output stopping is fiddly enough to be worth
-    /// testing, so the rule lives in DeskworkCore rather than here.
+    /// testing, so the rule lives in ColdfallCore rather than here.
     private var activityState = ActivityState()
 
     var isVisible: Bool {

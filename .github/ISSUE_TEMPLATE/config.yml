@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Idea or question
-    url: https://github.com/anthonyproctor/deskwork/discussions
+    url: https://github.com/anthonyproctor/project-coldfall/discussions
     about: Half-formed ideas, questions and polls belong in Discussions. Issues are for things with a definite shape.
   - name: Security
-    url: https://github.com/anthonyproctor/deskwork/security/advisories/new
-    about: Report privately. Deskwork launches shells and reads local files; treat anything touching that as private until fixed.
+    url: https://github.com/anthonyproctor/project-coldfall/security/advisories/new
+    about: Report privately. Project Coldfall launches shells and reads local files; treat anything touching that as private until fixed.

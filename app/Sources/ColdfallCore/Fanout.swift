@@ -30,7 +30,7 @@
 //
 // WHY THIS LIVES HERE AND NOT IN A FRAMEWORK
 //
-// N slices cost N times the tokens, and Deskwork is the only thing in the loop
+// N slices cost N times the tokens, and Coldfall is the only thing in the loop
 // that knows what the vendor has left. A fan-out that quietly spends the rest
 // of your week is a bug, so this one prices the run first, refuses when the
 // budget says no, and says which vendor has room instead.
@@ -402,7 +402,7 @@ extension Mailbox {
         guard let bin = DeskConfig.which(rt.bin) else { done("\(rt.bin) is not on PATH", true); return }
         DispatchQueue.global(qos: .userInitiated).async {
             let finalFile = rt.hasFinalMessageFlag
-                ? NSTemporaryDirectory() + "deskwork-fan-\(UUID().uuidString).txt" : nil
+                ? NSTemporaryDirectory() + "coldfall-fan-\(UUID().uuidString).txt" : nil
             let p = Process()
             p.executableURL = URL(fileURLWithPath: bin)
             p.arguments = rt.argv(prompt, finalFile)
@@ -426,7 +426,7 @@ extension Mailbox {
             // run for sixteen minutes and looked exactly like a slow model.
             var d = Data(), e = Data()
             let pipes = DispatchGroup()
-            let sink = DispatchQueue(label: "deskwork.fanout.drain", attributes: .concurrent)
+            let sink = DispatchQueue(label: "coldfall.fanout.drain", attributes: .concurrent)
             pipes.enter()
             sink.async { d = out.fileHandleForReading.readDataToEndOfFile(); pipes.leave() }
             pipes.enter()

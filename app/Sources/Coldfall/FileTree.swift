@@ -1,5 +1,5 @@
 import AppKit
-import DeskworkCore
+import ColdfallCore
 
 /// One entry in the tree. Children load lazily — a workspace can hold thousands
 /// of files and the tree should cost nothing until you open a folder.

@@ -1,4 +1,4 @@
-// Deskwork M1 — the desk switcher.
+// Coldfall M1 — the desk switcher.
 //
 // The agent is the unit of work. Each desk owns a long-lived terminal running
 // the vendor's own CLI; switching desks swaps which one is visible without
@@ -6,7 +6,7 @@
 
 import AppKit
 import SwiftTerm
-import DeskworkCore
+import ColdfallCore
 
 // MARK: - app
 
@@ -46,7 +46,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         window = NSWindow(contentRect: frame,
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
-        window.title = "Deskwork"
+        window.title = "Project Coldfall"
         window.titlebarAppearsTransparent = true
 
         // Left rail: desks on top, folder tree beneath, with a DRAGGABLE divider.
@@ -163,7 +163,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         watcher.start(root: d.resolvedCwd)
         tree.setRoot(d.resolvedCwd)
         sidebar.select(i)
-        window.title = "Deskwork — \(d.name)"
+        window.title = "Project Coldfall — \(d.name)"
         window.makeFirstResponder(s.focusedPane.term)
     }
 
@@ -172,7 +172,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem)
         let appMenu = NSMenu()
-        let upd = NSMenuItem(title: "Update Deskwork…", action: #selector(openUpdate), keyEquivalent: "u")
+        let upd = NSMenuItem(title: "Update Project Coldfall…", action: #selector(openUpdate), keyEquivalent: "u")
         upd.keyEquivalentModifierMask = [.command, .shift, .option]
         upd.target = self
         appMenu.addItem(upd)
@@ -183,7 +183,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         welcome.target = self
         appMenu.addItem(welcome)
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Deskwork", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit Project Coldfall", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
         // Without this menu, cmd-c/v/x/a are bound to nothing and no text field
@@ -291,15 +291,15 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if d.agent != nil {
             detail += "\n\nThe agent definition stays where it is, with its memory. "
                 + "Delete that with the vendor's own tooling if you want it gone. "
-                + "Deskwork will offer this desk back the next time it looks."
+                + "Project Coldfall will offer this desk back the next time it looks."
         } else if d.command?.hasPrefix("ssh -t ") == true {
-            detail += "\n\nThe host stays in ~/.ssh/config, so Deskwork will offer it back."
+            detail += "\n\nThe host stays in ~/.ssh/config, so Project Coldfall will offer it back."
         } else if let c = d.command {
             detail += "\n\nThis desk runs a command you wrote by hand and nothing else knows "
                 + "about it, so removing it loses that configuration:\n\n    \(c)"
         }
         if running {
-            detail += "\n\nIts session is running and keeps running until Deskwork quits."
+            detail += "\n\nIts session is running and keeps running until Project Coldfall quits."
         }
 
         let a = NSAlert()
@@ -411,7 +411,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         guard let root = SelfUpdate.sourceRoot else {
             let a = NSAlert()
             a.messageText = "This build has no source to update from"
-            a.informativeText = "Deskwork records where it was built from when you run "
+            a.informativeText = "Project Coldfall records where it was built from when you run "
                 + "scripts/build-app.sh. This bundle has no such record, or the source has moved, "
                 + "so there is nothing to rebuild."
             a.runModal(); return
@@ -537,7 +537,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             self.sidebar.tick &+= 1
             self.sidebar.activity = map
 
-            // The dock badge is the half that works when Deskwork is not the
+            // The dock badge is the half that works when Coldfall is not the
             // front app, which is exactly when you have walked away from a desk.
             NSApp.dockTile.badgeLabel = waiting > 0 ? "\(waiting)" : nil
         }
@@ -664,7 +664,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func renameGroup(_ g: String) {
         let a = NSAlert()
         a.messageText = "Rename group"
-        a.informativeText = "Renames it in ~/.config/deskwork/desks.toml."
+        a.informativeText = "Renames it in ~/.config/coldfall/desks.toml."
         a.addButton(withTitle: "Rename"); a.addButton(withTitle: "Cancel")
         let f = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
         f.stringValue = g
@@ -741,6 +741,23 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 }
 
 MainActor.assumeIsolated {
+    // Move state from the old Deskwork paths BEFORE anything else runs.
+    //
+    // It cannot live in applicationDidFinishLaunching: Controller's stored
+    // properties (UIState among them) load the moment it is constructed, which
+    // is earlier. Reading the new path before migration finds nothing, the
+    // first save CREATES the new directory, and migration then sees two real
+    // directories, reports a conflict and does nothing — so every desk the user
+    // had would appear to be gone.
+    for (path, outcome) in Migration.runAll() {
+        switch outcome {
+        case .migrated:        NSLog("Project Coldfall: moved \(path), left a link behind")
+        case .conflict:        NSLog("Project Coldfall: both \(path) and its new home exist; left both alone")
+        case .failed(let why): NSLog("Project Coldfall: migration problem: \(why)")
+        case .nothing, .alreadyDone: break
+        }
+    }
+
     let app = NSApplication.shared
     let c = Controller()
     app.delegate = c
