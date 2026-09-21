@@ -8,6 +8,11 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-21
+
+Desks pick up where they left off, and the rail shows which ones are waiting
+on you.
+
 ### Added
 - Rename a desk: right-click it, **Rename Desk…**. A running desk keeps running
   under the new name.
@@ -105,6 +110,7 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/anthonyproctor/project-coldfall/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/anthonyproctor/project-coldfall/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/anthonyproctor/project-coldfall/releases/tag/v0.1.0
