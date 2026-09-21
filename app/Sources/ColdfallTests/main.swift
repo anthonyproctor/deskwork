@@ -457,9 +457,9 @@ do {
 
 do {
     eq("an ordinary path needs no escaping",
-       ShellPath.escape("/Users/x/notes.md"), "/Users/x/notes.md")
+       ShellPath.escape("/srv/demo/notes.md"), "/srv/demo/notes.md")
     eq("a space is escaped",
-       ShellPath.escape("/Users/x/My File.png"), "/Users/x/My\\ File.png")
+       ShellPath.escape("/srv/demo/My File.png"), "/srv/demo/My\\ File.png")
 
     // Parentheses are ordinary in a filename and are NOT ordinary to zsh.
     eq("parentheses are escaped",
