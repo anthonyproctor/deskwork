@@ -1,0 +1,6 @@
+.vercel
+.env*
+# Added by the Vercel Upstash integration; not part of this server.
+.agents/
+.claude/
+skills-lock.json

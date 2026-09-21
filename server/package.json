@@ -1,0 +1,15 @@
+{
+  "name": "coldfall-updates",
+  "private": true,
+  "type": "module",
+  "description": "The daily update check for Project Coldfall, and the only place installs are counted.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.35.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

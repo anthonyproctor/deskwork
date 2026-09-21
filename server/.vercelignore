@@ -1,0 +1,4 @@
+test/
+.agents/
+.claude/
+skills-lock.json

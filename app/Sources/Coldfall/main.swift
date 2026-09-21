@@ -34,6 +34,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// Collapses the meter to nothing when it is toggled off.
     var meterZero: NSLayoutConstraint!
     let palette = Palette()
+    let updates = Updates()
 
     func applicationDidFinishLaunching(_ n: Notification) {
         // In the rail's order, so cmd-1..9 match what is on screen even when
@@ -155,6 +156,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         strip.onToggleRail = { [weak self] in self?.toggleRail() }
         strip.onToggleReader = { [weak self] in self?.toggleReader() }
         strip.onToggleMeter = { [weak self] in self?.toggleMeter() }
+        strip.onUpdate = { [weak self] in self?.updates.openRelease() }
         termHeader.onSplitRight = { [weak self] in self?.splitRight() }
         termHeader.onSplitDown = { [weak self] in self?.splitDown() }
         termHeader.onClosePane = { [weak self] in self?.closePane() }
@@ -232,6 +234,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 }
             }
             sidebar.status = sample
+            // `--update-available <version>`: the title strip's release link.
+            if let k = CommandLine.arguments.firstIndex(of: "--update-available"), k + 1 < CommandLine.arguments.count {
+                strip.setUpdate(CommandLine.arguments[k + 1])
+            }
             window.setContentSize(NSSize(width: 1180, height: 780))
             window.contentView?.layoutSubtreeIfNeeded()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
@@ -285,6 +291,11 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
         show(DeskConfig.startup(in: desks))
         if firstRun { showWelcome() }
+        // A snapshot never talks to the network.
+        if !CommandLine.arguments.contains("--snapshot") {
+            updates.onChange = { [weak self] v in self?.strip.setUpdate(v) }
+            updates.start(firstRun: firstRun)
+        }
     }
 
     /// Swap which desk is on screen. The others keep running.

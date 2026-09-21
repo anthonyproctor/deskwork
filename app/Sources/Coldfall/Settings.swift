@@ -168,6 +168,16 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         rtLines.append(note("Threads are appended to \((box.dir as NSString).abbreviatingWithTildeInPath)."
             + (box.runner != nil ? " Using your own runner: \(box.runner!)." : " Using the built-in handoff.")))
 
+        rtLines.append(caps("UPDATES"))
+        let upd = UpdateState.load()
+        let updSwitch = NSButton(checkboxWithTitle: UpdateCheck.switchLabel, target: self,
+                                 action: #selector(toggleUpdateCheck(_:)))
+        updSwitch.state = upd.enabled ? .on : .off
+        rtLines.append(updSwitch)
+        rtLines.append(note(UpdateCheck.noticeBody.replacingOccurrences(
+            of: " You can turn this off any time in Settings.", with: "")
+            + " The server's code is in the repo under server/."))
+
         let right = NSStackView(views: [form, btns, themeBlock] + rtLines)
         right.orientation = .vertical; right.alignment = .leading; right.spacing = 10
 
@@ -289,6 +299,13 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         d.runtime = runtime.titleOfSelectedItem ?? "claude"
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
         table.reloadData()
+    }
+
+    @objc private func toggleUpdateCheck(_ sender: NSButton) {
+        var s = UpdateState.load()
+        s.enabled = sender.state == .on
+        s.noticeShown = true        // they have plainly seen it now
+        s.save()
     }
 
     @objc private func installLimits() {

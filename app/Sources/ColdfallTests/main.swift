@@ -903,6 +903,62 @@ do {
     eq("an empty queue says nothing", NeedsYou.summary([]), nil)
 }
 
+// MARK: - the daily update check
+
+do {
+    let dir = NSTemporaryDirectory() + "coldfall-update-\(UUID().uuidString)"
+    let realRoot = UpdateState.root
+    UpdateState.root = dir
+    defer { UpdateState.root = realRoot; try? FileManager.default.removeItem(atPath: dir) }
+
+    let first = UpdateState.load()
+    check("a fresh install gets a random id", UUID(uuidString: first.id) != nil)
+    eq("and keeps it", UpdateState.load().id, first.id)
+    check("on by default", first.enabled)
+
+    var s = first
+    let now = Date(timeIntervalSince1970: 2_000_000_000)
+    check("nothing is sent before the notice is shown", !UpdateCheck.due(s, now: now))
+    s.noticeShown = true
+    check("after the notice, a first check is due", UpdateCheck.due(s, now: now))
+    s.lastCheck = now.addingTimeInterval(-3600)
+    check("not again within the day", !UpdateCheck.due(s, now: now))
+    s.lastCheck = now.addingTimeInterval(-UpdateCheck.interval)
+    check("but once a day has passed", UpdateCheck.due(s, now: now))
+    s.enabled = false
+    check("and never when turned off", !UpdateCheck.due(s, now: now))
+    s.save()
+    eq("turning it off is remembered", UpdateState.load().enabled, false)
+
+    eq("a release reports as itself", UpdateCheck.reportedVersion("v0.3.0"), "v0.3.0")
+    eq("a build from source hides its commit", UpdateCheck.reportedVersion("v0.3.0-5-gabc1234"), "v0.3.0-dev")
+    eq("a build with no tag is unknown", UpdateCheck.reportedVersion("abc1234"), "unknown")
+
+    let body = UpdateCheck.body(first, appVersion: "v0.3.0-2-gdeadbee", os: "15.6.1")
+    let sent = (try? JSONSerialization.jsonObject(with: body)) as? [String: String]
+    eq("the request carries exactly three fields", sent.map { Set($0.keys) }, ["id", "v", "os"])
+    eq("the id", sent?["id"], first.id)
+    eq("the reported version", sent?["v"], "v0.3.0-dev")
+    eq("the macOS version", sent?["os"], "15.6.1")
+
+    eq("a reply names the latest release",
+       UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"https://github.com/o/r/releases/tag/v0.4.0"}"#.utf8)),
+       UpdateCheck.Reply(latest: "v0.4.0", url: "https://github.com/o/r/releases/tag/v0.4.0"))
+    eq("a link that is not https is dropped",
+       UpdateCheck.parse(Data(#"{"latest":"v0.4.0","url":"javascript:alert(1)"}"#.utf8))?.url, nil)
+    eq("anything else is not a reply", UpdateCheck.parse(Data("<html>".utf8)), nil)
+    eq("nor is a version that is not one", UpdateCheck.parse(Data(#"{"latest":"soon"}"#.utf8)), nil)
+
+    check("a higher release is newer", UpdateCheck.isNewer("v0.4.0", than: "v0.3.0"))
+    check("numbers compare as numbers", UpdateCheck.isNewer("v0.10.0", than: "v0.9.2"))
+    check("the same release is not", !UpdateCheck.isNewer("v0.3.0", than: "v0.3.0"))
+    check("an older one is not", !UpdateCheck.isNewer("v0.2.0", than: "v0.3.0"))
+    check("a build past a release does not nag about it",
+          !UpdateCheck.isNewer("v0.3.0", than: "v0.3.0-5-gabc1234"))
+    check("but does hear about the next", UpdateCheck.isNewer("v0.3.1", than: "v0.3.0-5-gabc1234"))
+    check("an unreadable version never claims an update", !UpdateCheck.isNewer("v0.4.0", than: "abc1234"))
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

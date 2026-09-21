@@ -8,6 +8,13 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- A daily update check. The title strip shows a link when a newer release is
+  out. The check sends a random ID made on your Mac, the app version and the
+  macOS version, which is also how installs are counted; nothing else, and
+  the server keeps no list of IDs. You're told before the first check, and it
+  can be turned off in Settings. See "What Coldfall sends" in the README.
+
 ### Fixed
 - Release downloads no longer contain the path of the folder they were built
   in. The zips for 0.1.0, 0.2.0 and 0.3.0 have been replaced with cleaned

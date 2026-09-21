@@ -22,12 +22,16 @@ final class TitleStrip: NSView {
     var onToggleRail: (() -> Void)?
     var onToggleReader: (() -> Void)?
     var onToggleMeter: (() -> Void)?
+    var onUpdate: (() -> Void)?
 
     private let pill = SearchPill()
     private let railBtn = TitleStrip.toggle("sidebar.left", tip: "Show or hide the rail  ⌘B")
     private let readerBtn = TitleStrip.toggle("sidebar.right", tip: "Show or hide the reader  ⌥⌘B")
     private let meterBtn = TitleStrip.toggle("rectangle.bottomthird.inset.filled",
                                              tip: "Show or hide the usage meter  ⌘J")
+
+    /// "v0.4.0 is out", left of the toggles. Hidden until there is one.
+    private let updateBtn = NSButton(title: "", target: nil, action: nil)
 
     override var mouseDownCanMoveWindow: Bool { true }
 
@@ -41,7 +45,12 @@ final class TitleStrip: NSView {
         readerBtn.target = self; readerBtn.action = #selector(reader)
         meterBtn.target = self;  meterBtn.action = #selector(meter)
 
-        let toggles = NSStackView(views: [railBtn, meterBtn, readerBtn])
+        updateBtn.isBordered = false
+        updateBtn.isHidden = true
+        updateBtn.target = self; updateBtn.action = #selector(update)
+        updateBtn.toolTip = "Open the release page"
+
+        let toggles = NSStackView(views: [updateBtn, railBtn, meterBtn, readerBtn])
         toggles.orientation = .horizontal
         toggles.spacing = 2
         toggles.translatesAutoresizingMaskIntoConstraints = false
@@ -64,6 +73,17 @@ final class TitleStrip: NSView {
         restyle()
     }
     required init?(coder: NSCoder) { nil }
+
+    /// Show "<version> is out", or nothing.
+    func setUpdate(_ version: String?) {
+        guard let version else { updateBtn.isHidden = true; return }
+        updateBtn.attributedTitle = NSAttributedString(string: "\(version) is out", attributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: Theme.ui.accent,
+        ])
+        updateBtn.isHidden = false
+    }
+    @objc private func update() { onUpdate?() }
 
     /// What the pill shows: the desk you are on.
     func setContext(_ text: String) { pill.setText(text) }

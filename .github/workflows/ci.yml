@@ -34,6 +34,10 @@ jobs:
       - name: test
         run: cd app && ./.build/release/coldfall-test
 
+      # The update-check server: what it accepts and what it keeps.
+      - name: server tests
+        run: cd server && npm ci --silent && npm test
+
       # The core must not gain a UI dependency. That boundary is what keeps a
       # future Linux or Windows front end a UI project rather than a rewrite,
       # and it is only real if something checks.

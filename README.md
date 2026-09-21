@@ -230,7 +230,6 @@ Not built yet:
 
 - No diff view. The reader shows a file, not what changed in it.
 - No syntax highlighting.
-- Desks die when the app quits and come back as new sessions, not resumed ones.
 - Live quota works for Claude and Codex. Gemini and Copilot expose nothing locally, so they show consumption only.
 
 ## Updating
@@ -239,7 +238,21 @@ Not built yet:
 
 A failed build never relaunches. The running app stays exactly as it was and the log tells you why.
 
-**A relaunch is not free**, and the update window says so before you press it: it names the desks about to end. A desk comes back when you reopen it, but as a **new session** — nothing passes a resume flag to the vendor's CLI, so the desk returns and whatever it was in the middle of does not. That matters most to the person using Project Coldfall to work *and* to upgrade Project Coldfall, which is everybody who has it. Making desks genuinely resume is tracked as an issue.
+**A relaunch is not free**, and the update window says so before you press it: it names the desks about to end. A desk Project Coldfall starts itself picks its conversation back up when you reopen it; a desk with its own command runs that command again. Either way, whatever a desk was in the middle of stops.
+
+## What Coldfall sends
+
+Once a day, Project Coldfall checks for updates. That check sends three things and nothing else:
+
+- a random ID made on your Mac the first time the app runs,
+- the app's version (a build from source is reported as, say, `v0.3.0-dev`, without its commit),
+- your macOS version.
+
+The reply names the latest release, and the title strip shows a link when one is newer than yours. Nothing downloads on its own.
+
+It never sends your desks, their names, paths, files, conversations or anything you type. The server keeps no list of IDs: each is added to a daily estimate of unique installs (a HyperLogLog, which can count values but cannot give them back) and thrown away. Its code is in [`server/`](server), so you can read exactly what happens to those three things.
+
+The app tells you this before the first check, on the Welcome screen or in a one-time dialog. Turn it off any time in **Settings ▸ Updates**; off means no request at all.
 
 ## Tests
 

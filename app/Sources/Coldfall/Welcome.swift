@@ -12,6 +12,7 @@ final class WelcomeWindow: NSWindowController {
     private var checks: [(Bridge.Runtime, Bool)] = []
     private var projectDir = FileManager.default.currentDirectoryPath
     private var found: [DiscoveredAgent] = []
+    private let updateSwitch = NSButton(checkboxWithTitle: UpdateCheck.switchLabel, target: nil, action: nil)
 
     convenience init(projectDir: String = FileManager.default.currentDirectoryPath) {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
@@ -102,6 +103,11 @@ final class WelcomeWindow: NSWindowController {
             views.append(l)
         }
 
+        views.append(caps("UPDATES"))
+        views.append(body(UpdateCheck.noticeTitle + " " + UpdateCheck.noticeBody))
+        updateSwitch.state = UpdateState.load().enabled ? .on : .off
+        views.append(updateSwitch)
+
         let go = NSButton(title: found.isEmpty ? "Continue" : "Create my desks",
                           target: self, action: #selector(finish))
         go.bezelStyle = .rounded
@@ -134,6 +140,10 @@ final class WelcomeWindow: NSWindowController {
             DeskConfig.write(desks)
         }
         UIState.markSeenWelcome()
+        var upd = UpdateState.load()
+        upd.enabled = updateSwitch.state == .on
+        upd.noticeShown = true
+        upd.save()
         close()
         onFinish?()
     }
