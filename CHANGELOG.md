@@ -12,8 +12,9 @@ opens this file.
 - A daily update check. The title strip shows a link when a newer release is
   out. The check sends a random ID made on your Mac, the app version and the
   macOS version, which is also how installs are counted; nothing else, and
-  the server keeps no list of IDs. You're told before the first check, and it
-  can be turned off in Settings. See "What Coldfall sends" in the README.
+  the server keeps no list of IDs. On by default; a new install sees it on
+  the Welcome screen, and it can be turned off in Settings. See "What
+  Coldfall sends" in the README.
 
 ### Changed
 - Settings is split into Desks, Appearance, Agents and Updates tabs, sized to

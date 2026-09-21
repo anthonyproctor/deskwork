@@ -252,7 +252,7 @@ The reply names the latest release, and the title strip shows a link when one is
 
 It never sends your desks, their names, paths, files, conversations or anything you type. The server keeps no list of IDs: each is added to a daily estimate of unique installs (a HyperLogLog, which can count values but cannot give them back) and thrown away. Its code is in [`server/`](server), so you can read exactly what happens to those three things.
 
-The app tells you this before the first check, on the Welcome screen or in a one-time dialog. Turn it off any time in **Settings ▸ Updates**; off means no request at all.
+It's on by default. A new install describes it on the Welcome screen, with a switch, before the first check. Turn it off any time in **Settings ▸ Updates**; off means no request at all.
 
 ## Tests
 

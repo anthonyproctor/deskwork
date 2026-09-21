@@ -16,31 +16,18 @@ final class Updates {
         return (l, s.latestURL)
     }
 
-    /// `firstRun` people see the notice on the Welcome screen instead, and
-    /// nothing is sent until they have finished it.
+    /// A first run shows the check on the Welcome screen, with its switch,
+    /// and nothing is sent until that screen is done. An install from before
+    /// the check existed is not stopped with a dialog: like most apps, it is
+    /// disclosed in the README, the release notes and Settings, and off is
+    /// one click away there.
     func start(firstRun: Bool) {
         onChange?(available?.version)
-        if !firstRun, !UpdateState.load().noticeShown {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.showNotice() }
-        }
+        var s = UpdateState.load()
+        if !firstRun, !s.noticeShown { s.noticeShown = true; s.save() }
         // Hourly look at whether a day has passed; the check itself is daily.
         timer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in self?.checkIfDue() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.checkIfDue() }
-    }
-
-    /// Once, for installs that had Coldfall before the check existed.
-    private func showNotice() {
-        var s = UpdateState.load()
-        guard !s.noticeShown else { return }
-        let a = NSAlert()
-        a.messageText = UpdateCheck.noticeTitle
-        a.informativeText = UpdateCheck.noticeBody
-        a.addButton(withTitle: "OK")
-        a.addButton(withTitle: "Turn Off")
-        s.enabled = a.runModal() == .alertFirstButtonReturn
-        s.noticeShown = true
-        s.save()
-        checkIfDue()
     }
 
     func checkIfDue() {

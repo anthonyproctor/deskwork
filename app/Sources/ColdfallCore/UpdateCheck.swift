@@ -7,8 +7,8 @@
 // server's code is in this repo under server/, so what happens to the three
 // things can be read, not just trusted.
 //
-// Nothing is sent until the notice about it has been shown, and nothing at
-// all when it is turned off. It never sends desks, paths, files or anything
+// On a first run nothing is sent until the Welcome screen, which describes
+// it and has its switch, is done. Nothing at all is sent when it is off. It never sends desks, paths, files or anything
 // typed; the request is built here, from these three fields and nothing else.
 
 import Foundation
@@ -17,7 +17,8 @@ public struct UpdateState: Codable, Equatable {
     /// Random, made once. Not derived from anything about the Mac or person.
     public var id: String = UUID().uuidString.lowercased()
     public var enabled: Bool = true
-    /// Nothing is sent before the person has been told.
+    /// Set once the Welcome screen is done (or at once, for an install that
+    /// predates the check). Nothing is sent before it.
     public var noticeShown: Bool = false
     public var lastCheck: Date?
     /// The newest release the server named, and its page.
@@ -62,8 +63,8 @@ public enum UpdateCheck {
 
     public static let interval: TimeInterval = 24 * 3600
 
-    /// The notice, word for word, wherever it is shown: the Welcome screen,
-    /// the one-time dialog for existing installs, and Settings.
+    /// The notice, word for word, wherever it is shown: the Welcome screen
+    /// and Settings.
     public static let noticeTitle = "Project Coldfall checks for updates once a day."
     public static let noticeBody =
         "It sends a random ID made on this Mac, the app's version and your macOS version. "
