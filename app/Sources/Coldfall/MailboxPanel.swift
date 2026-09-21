@@ -163,6 +163,12 @@ final class MailboxPanel: NSWindowController {
 
     @objc private func reloadTapped() { reload() }
 
+    /// Show the thread with `runtime`, for a snapshot.
+    func showThread(with runtime: String) {
+        target.selectItem(withTitle: runtime)
+        targetChanged()   // the read-only and scope notes follow the vendor too
+    }
+
     private func reload() {
         guard let rt = selectedRuntime else { return }
         let path = box.threadPath(fromName, rt.name)

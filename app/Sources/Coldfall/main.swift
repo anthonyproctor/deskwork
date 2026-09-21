@@ -288,6 +288,11 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 sidebar.build(desks: desks)
             }
             sidebar.status = sample
+            // `--meter-demo`: the usage meter with made-up numbers.
+            if CommandLine.arguments.contains("--meter-demo") {
+                meter.showDemo(summary: "claude wk 72%→sat 11 am · 5h 18%     codex wk 12%→mon 8 pm     gemini 1.4M",
+                               hint: "claude 72% used, codex only 12% — send the next one to codex.")
+            }
             // `--toggle-tree`: flip Tree on Top once after launch, the way cmd-T
             // does, without saving the setting.
             if CommandLine.arguments.contains("--toggle-tree") {
@@ -391,6 +396,32 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                         if let png = wrep.representation(using: .png, properties: [:]) {
                             try? png.write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-welcome.png"))
                         }
+                        exit(0)
+                    }
+                    return
+                }
+                // `--mail <desk> <runtime>`: agent mail from that desk, showing
+                // its thread with that runtime, to <out>-mail.png.
+                if let k = CommandLine.arguments.firstIndex(of: "--mail"), k + 2 < CommandLine.arguments.count,
+                   let me = self, let d = me.desks.first(where: { $0.name == CommandLine.arguments[k + 1] }) {
+                    let mp = MailboxPanel(cwd: d.resolvedCwd, from: d.name)
+                    mp.showThread(with: CommandLine.arguments[k + 2])
+                    guard let mv = mp.window?.contentView else { exit(1) }
+                    mv.wantsLayer = true
+                    mv.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        mv.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+                    }
+                    mv.layoutSubtreeIfNeeded()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        _ = mp
+                        guard let mrep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                pixelsWide: Int(mv.bounds.width * 2), pixelsHigh: Int(mv.bounds.height * 2),
+                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { exit(1) }
+                        mrep.size = mv.bounds.size
+                        mv.cacheDisplay(in: mv.bounds, to: mrep)
+                        try? mrep.representation(using: .png, properties: [:])?
+                            .write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-mail.png"))
                         exit(0)
                     }
                     return

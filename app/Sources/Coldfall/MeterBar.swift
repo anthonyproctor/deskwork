@@ -72,7 +72,17 @@ final class MeterBar: NSView {
         }
     }
 
+    /// Made-up numbers for a snapshot, shown instead of real usage.
+    private var demo: (summary: String, hint: String)?
+    func showDemo(summary s: String, hint h: String) {
+        demo = (s, h)
+        summary.stringValue = s
+        hint.stringValue = h
+        hint.textColor = .labelColor
+    }
+
     private func render(_ r: Usage.Report, since: Date) {
+        if demo != nil { return }
         var segs: [String] = []
         let limits = Limits.all()
 

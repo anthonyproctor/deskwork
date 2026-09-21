@@ -116,6 +116,9 @@ public struct Mailbox {
 
     /// Always returns a usable mailbox. No config means the built-in one.
     public static func load() -> Mailbox {
+        // COLDFALL_MAIL_DIR: a mailbox somewhere else, for pictures of
+        // made-up threads.
+        if let d = ProcessInfo.processInfo.environment["COLDFALL_MAIL_DIR"] { return Mailbox(dir: d) }
         guard let text = try? String(contentsOfFile: configPath, encoding: .utf8) else {
             return Mailbox(dir: defaultDir)
         }

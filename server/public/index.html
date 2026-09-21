@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Project Coldfall: a free Mac app for Claude Code, Codex and Gemini</title>
-<meta name="description" content="A free, open-source Mac app for running Claude Code, Codex, Gemini and other AI agents side by side, and seeing which one needs you.">
+<title>Project Coldfall: every AI you pay for, working together</title>
+<meta name="description" content="A free, open-source Mac app that runs Claude Code, Codex and Gemini side by side, lets them check each other's work, and shows which one needs you.">
 <link rel="canonical" href="https://project-coldfall.vercel.app/">
 <meta name="theme-color" content="#0f0f12" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
-<meta property="og:title" content="Project Coldfall: your AI agents, side by side">
-<meta property="og:description" content="A free, open-source Mac app for running Claude Code, Codex, Gemini and other AI agents side by side, and seeing which one needs you.">
+<meta property="og:title" content="Project Coldfall: every AI you pay for, working together">
+<meta property="og:description" content="Run Claude Code, Codex and Gemini side by side, let them check each other's work, and see which one needs you. Free for Mac.">
 <meta property="og:image" content="https://project-coldfall.vercel.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -17,7 +17,7 @@
 <meta property="og:url" content="https://project-coldfall.vercel.app/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Project Coldfall: your AI agents, side by side">
+<meta name="twitter:title" content="Project Coldfall: every AI you pay for, working together">
 <meta name="twitter:description" content="A free, open-source Mac app for running Claude Code, Codex, Gemini and other AI agents side by side.">
 <meta name="twitter:image" content="https://project-coldfall.vercel.app/og.png">
 <meta name="twitter:image:alt" content="The coldfa|| wordmark beside the app's list of desks.">
@@ -107,7 +107,7 @@
   .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding-top: 72px; padding-bottom: 24px; }
   .three h3 { font-size: 17px; margin: 0 0 6px; }
   .three p { color: var(--dim); margin: 0; font-size: 15.5px; }
-  .three .n { font: 13px var(--mono); color: var(--green); margin-bottom: 10px; display: block; }
+  .three .n { font: 600 12.5px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--green); margin-bottom: 4px; display: block; }
 
   /* feature rows */
   section { padding: 88px 0; }
@@ -213,10 +213,10 @@
 
 <main id="main">
   <div class="wrap hero">
-    <span class="eyebrow"><i aria-hidden="true"></i>Free for macOS · Open source</span>
-    <h1>Your AI agents, side by side.</h1>
-    <p class="lede">Run Claude Code, Codex, Gemini and more in one window. Each agent gets its own desk: a terminal, a folder and a conversation you can come back to. The app shows you which desks have something new for you.</p>
-    <p class="say">Say it <em>“cold-fall.”</em> The logo, <span class="mono" aria-hidden="true">coldfa<b>||</b></span>, draws the two L's as pipes, the terminal symbol for passing output along.</p>
+    <span class="eyebrow"><i aria-hidden="true"></i>Free for Mac · Open source</span>
+    <h1>Every AI you pay for, working together.</h1>
+    <p class="lede">Give Claude Code, Codex and Gemini each a desk that remembers its work. Let them check each other's answers, use every subscription you already pay for, and see at a glance which one needs you.</p>
+    <p class="say">It's Project Coldfall. Say it <em>“cold-fall.”</em> The logo, <span class="mono" aria-hidden="true">coldfa<b>||</b></span>, draws the two L's as pipes, the terminal symbol for passing output along.</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/anthonyproctor/project-coldfall/releases/latest/download/Project-Coldfall.app.zip">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
@@ -224,7 +224,7 @@
       </a>
       <a class="btn" href="https://github.com/anthonyproctor/project-coldfall">View the code</a>
     </div>
-    <p class="fine">macOS 13 or later. Free and open source under the MIT license.</p>
+    <p class="fine">macOS 13 or later. Free and open source under the MIT license. No account.</p>
 
     <div class="window">
       <div class="bar" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -239,20 +239,67 @@
   </div>
 
   <div class="wrap three">
-    <h2 class="sr">Why desks</h2>
-    <div><span class="n" aria-hidden="true">01</span><h2>One window, every agent</h2><p>Each desk runs the vendor's own tool in a real terminal, with its usual login, settings, hooks and conversation history.</p></div>
-    <div><span class="n" aria-hidden="true">02</span><h2>Nothing slips</h2><p>When a desk goes quiet with new output while you're somewhere else, it's marked. The one waiting longest is a keystroke away.</p></div>
-    <div><span class="n" aria-hidden="true">03</span><h2>You stay in charge</h2><p>See what a desk has installed and what changed, and switch off what it doesn't need.</p></div>
+    <h2 class="sr">Who it's for</h2>
+    <div><span class="n" aria-hidden="true">If you</span><h2>pay for more than one AI</h2><p>Claude and ChatGPT, or Gemini too. Use them together instead of paying for one you barely open.</p></div>
+    <div><span class="n" aria-hidden="true">If you</span><h2>use agents for more than code</h2><p>Research, writing, planning, your finances. A desk for each job, each remembering its own work.</p></div>
+    <div><span class="n" aria-hidden="true">If you</span><h2>want to know what they run</h2><p>See what every agent has installed, what changed since you looked, and switch off what it doesn't need.</p></div>
   </div>
 
   <section id="features">
     <div class="wrap row">
       <div class="text">
-        <p class="kicker">Needs you</p>
-        <h2>Know which desk is waiting, without checking each one.</h2>
-        <p>When a desk's output stops while you're looking at another one, it's marked as needing you. A green line at the top of the rail names those desks, oldest first. Press <kbd>⌘0</kbd> to jump to it.</p>
+        <p class="kicker">Second opinions</p>
+        <h2>Have one AI check another's work.</h2>
+        <p>Claude Code wrote it? Ask Codex to review it, or the other way round. Different models catch different mistakes. The reviewer is kept read-only by the vendor's own setting, so it can look at your files but can't change them, and the whole exchange is saved as a plain text file you can read later.</p>
         <ul>
-          <li>Each desk shows whether it's working, idle or has something new, and how long ago.</li>
+          <li>Works between the agents you have installed. Read-only is enforced for Claude and Codex; for others, the app tells you it's only requested.</li>
+          <li>Fan out: ask one question across several project folders at once, with the cost checked against your weekly limit before it runs.</li>
+        </ul>
+      </div>
+      <div class="pic"><img src="/img/mail.png" width="1280" height="1280" loading="lazy" decoding="async"
+           alt="Agent mail: the api desk asks Codex to review a discount calculation, and Codex, working read-only, points out a rounding error and a missing test."></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap row flip">
+      <div class="text">
+        <p class="kicker">Every plan you pay for</p>
+        <h2>Get your money's worth from each subscription.</h2>
+        <p>If you pay for Claude and ChatGPT, you're probably using one of them for almost everything. The meter puts each plan's weekly usage side by side and tells you when to switch.</p>
+        <ul>
+          <li>Codex usage is read automatically. Claude needs a one-click recorder in Settings.</li>
+          <li>Each desk also shows how much memory it's using.</li>
+        </ul>
+      </div>
+      <div class="pic"><img src="/img/meter.png" width="1110" height="158" loading="lazy" decoding="async"
+           alt="The usage meter: Claude at 72 percent of its week, Codex at 12, with the advice to send the next job to Codex."></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap row">
+      <div class="text">
+        <p class="kicker">A desk for every job</p>
+        <h2>Specialists that remember, not sessions you lose.</h2>
+        <p>A desk is one agent with its own folder, instructions and conversation, that you come back to for weeks. One for your code, one for research, one for writing, one for your budget. Claude and Codex desks that Project Coldfall starts pick up their conversation after a restart.</p>
+        <ul>
+          <li>Each desk runs the vendor's own tool, so your logins, settings and hooks work as they already do.</li>
+          <li>Group desks, drag them into order, and hide the ones you're not using without losing them.</li>
+        </ul>
+      </div>
+      <div class="pic tall"><img src="/img/rail-hidden.png" width="480" height="692" loading="lazy" decoding="async"
+           alt="The desk list grouped by job, with one hidden desk listed at the bottom."></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap row flip">
+      <div class="text">
+        <p class="kicker">Needs you</p>
+        <h2>See which one is waiting, without checking each one.</h2>
+        <p>When a desk's output stops while you're looking at another one, it's marked. A green line at the top names those desks, oldest first, and <kbd>⌘0</kbd> takes you straight there.</p>
+        <ul>
           <li>A folded group still shows how many of its desks are waiting.</li>
           <li>Turn on <em>Keep Active Groups on Top</em>: groups with waiting desks rise first, then the most recently used.</li>
         </ul>
@@ -263,33 +310,14 @@
   </section>
 
   <section>
-    <div class="wrap row flip">
-      <div class="text">
-        <p class="kicker">Desks that remember</p>
-        <h2>Stop it, restart it, rename it. Pick up where you left off.</h2>
-        <p>Stop a desk to free up memory, restart the app, or rename a desk. Claude and Codex desks that Project Coldfall starts reopen their conversation when you come back.</p>
-        <ul>
-          <li>Claude desks reopen their own conversation; Codex desks their latest one in that folder.</li>
-          <li>Hide desks you're not using without losing them.</li>
-          <li>Group desks by project and drag them into any order you like.</li>
-        </ul>
-      </div>
-      <div class="pic tall"><img src="/img/rail-hidden.png" width="480" height="692" loading="lazy" decoding="async"
-           alt="The desk list with a section at the bottom listing one hidden desk."></div>
-    </div>
-  </section>
-
-  <section>
     <div class="wrap row">
       <div class="text">
-        <p class="kicker">What this desk has</p>
-        <h2>See what a desk loads, and what changed.</h2>
-        <p>Right-click a desk to see what it loads, read straight from the vendor's own files: for Claude desks, its MCP servers, hooks, skills and plugins; for Codex and Gemini, their servers, skills and extensions.</p>
-        <p>The next time you look, anything new is marked, so a plugin that quietly adds a hook doesn't go unnoticed.</p>
+        <p class="kicker">What your agents run</p>
+        <h2>Know what's installed, and what changed.</h2>
+        <p>Plugins and skills can add commands that run by themselves, on every session or every tool call. Right-click a desk to see what it loads, read from the vendor's own files: for Claude, its servers, hooks, skills and plugins; for Codex and Gemini, their servers, skills and extensions.</p>
+        <p>The next time you look, anything new is marked, and a desk's row says "2 new" until you've checked.</p>
         <ul>
-          <li>Hooks, the commands that run on their own, are listed separately.</li>
-          <li>For Claude, it tells you which servers run on your Mac and which are remote.</li>
-          <li>A desk's row says "2 new" until you've had a look.</li>
+          <li>Switch off the local MCP servers a desk doesn't need, for Claude and Codex desks, and it stops starting them.</li>
         </ul>
       </div>
       <div class="pic"><img src="/img/inventory-top.png" width="1205" height="450" loading="lazy" decoding="async"
@@ -300,26 +328,9 @@
   <section>
     <div class="wrap row flip">
       <div class="text">
-        <p class="kicker">Lighter desks</p>
-        <h2>Only start what a desk actually needs.</h2>
-        <p>Local MCP servers run as separate programs, each using memory. A desk that never reads mail shouldn't start a mail server. Untick it for that desk, and every other desk keeps it.</p>
-        <ul>
-          <li>Works for Claude and Codex desks.</li>
-          <li>Claude's cloud connectors and plugins are left alone.</li>
-          <li>Each desk shows how much memory it's using.</li>
-        </ul>
-      </div>
-      <div class="pic"><img class="w-sm" src="/img/mcp.png" width="624" height="523" loading="lazy" decoding="async"
-           alt="The MCP servers dialog for a desk, with one of three servers unticked."></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap row">
-      <div class="text">
         <p class="kicker">Easy to start</p>
         <h2>No agent installed yet? It shows you how.</h2>
-        <p>On first launch, Project Coldfall finds the agents you already have and sets up a desk for each. If you have none, it lists how to install each one, what it needs, and a button to copy the command. Press Check again and you're set.</p>
+        <p>On first launch, Project Coldfall finds the agents you already have and sets up a desk for each. If you have none, it lists how to install each one and what it needs, with a button to copy the command. Press Check again and you're set.</p>
       </div>
       <div class="pic"><img src="/img/welcome.png" width="1230" height="620" loading="lazy" decoding="async"
            alt="The welcome screen on a Mac with no agents installed, listing install commands with Copy buttons."></div>
@@ -334,9 +345,9 @@
         <div class="card"><h3>Quick open</h3><p><kbd>⌘P</kbd> finds any desk or file by a few letters.</p></div>
         <div class="card"><h3>A reader beside the terminal</h3><p>Files your agents write open next to them, with Markdown and PDFs shown properly.</p></div>
         <div class="card"><h3>Splits</h3><p>Add a shell beside or below the agent, in the same desk.</p></div>
-        <div class="card"><h3>Agents that check each other</h3><p>Ask another agent to look over work in the same folder. The exchange is kept as a plain file.</p></div>
-        <div class="card"><h3>One question, many folders</h3><p>Ask the same question across several project folders and get the answers combined.</p></div>
-        <div class="card"><h3>Usage at a glance</h3><p>A meter shows your Claude and Codex weekly usage when it's available. Claude needs a one-click recorder.</p></div>
+        <div class="card"><h3>Stop a desk, free its memory</h3><p>End a desk you're done with for now. Claude and Codex desks pick up their conversation when you start them again.</p></div>
+        <div class="card"><h3>Remote machines too</h3><p>A desk can be an SSH connection to another computer, found from your own SSH settings.</p></div>
+        <div class="card"><h3>Your file, your rules</h3><p>Every desk lives in one plain text file you can edit by hand. The app picks up changes as you make them.</p></div>
       </div>
     </div>
   </section>
@@ -398,12 +409,20 @@
       <p class="kicker">Questions</p>
       <h2>Good to know.</h2>
       <details>
+        <summary>Why not just use terminal tabs?</summary>
+        <p>Tabs hold terminals. They don't tell you which agent is waiting on you, don't reopen a conversation after a restart, can't have one agent review another's work read-only, and can't show you how much of each plan you've used. That's what the app adds.</p>
+      </details>
+      <details>
         <summary>Is it really free?</summary>
         <p>Yes. It's open source under the MIT license, with no account and no sign-up. You use your own subscription with each vendor, the one you already have.</p>
       </details>
       <details>
         <summary>Does it replace Claude Code or Codex?</summary>
         <p>No. It runs them. Each desk starts the vendor's own tool in a real terminal, so everything you've set up for them keeps working.</p>
+      </details>
+      <details>
+        <summary>Do I need to be a developer?</summary>
+        <p>No, but you'll need an AI agent that runs in the terminal, like Claude Code or Codex. If you don't have one, the app walks you through installing it. After that it's clicking between desks.</p>
       </details>
       <details>
         <summary>Does it send my code or conversations anywhere?</summary>
@@ -422,8 +441,8 @@
 
   <section class="final">
     <div class="wrap">
-      <h2>Give your agents a desk.</h2>
-      <p class="sub" style="margin: 0 auto 28px">Free, open source, and a minute to set up.</p>
+      <h2>Put every AI you pay for to work.</h2>
+      <p class="sub" style="margin: 0 auto 28px">Free, open source, and a few minutes to set up.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/anthonyproctor/project-coldfall/releases/latest/download/Project-Coldfall.app.zip">Download for macOS</a>
         <a class="btn" href="https://github.com/anthonyproctor/project-coldfall">View the code</a>
