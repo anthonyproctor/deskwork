@@ -446,6 +446,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         watchDeskActivity()
         watchDeskMemory()
         watchLiveRail()
+        watchDeskConfig()
         // The update sheet names what a relaunch is about to end. Only the
         // controller knows which desks have live processes.
         SelfUpdate.runningDesks = { [weak self] in
@@ -704,7 +705,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
 
         desks.remove(at: i)
-        DeskConfig.write(desks)
+        persist()
         sidebar.build(desks: desks)
         installMenu()
         if visible?.desk.name == d.name, !desks.isEmpty { show(0) }
@@ -736,7 +737,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
         desks[i] = desks[i].renamed(from: old, to: new)
         if let s = sessions.removeValue(forKey: old) { s.desk.name = new; sessions[new] = s }
-        DeskConfig.write(desks)
+        persist()
         sidebar.build(desks: desks)
         installMenu()
         if visible?.desk.name == new {
@@ -863,7 +864,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             }
         }
         desks[i].hidden = true
-        DeskConfig.write(desks)
+        persist()
         if stop { endDesk(d) }
         refreshRail()
     }
@@ -871,7 +872,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func unhideDesk(_ i: Int) {
         guard desks.indices.contains(i) else { return }
         desks[i].hidden = false
-        DeskConfig.write(desks)
+        persist()
         refreshRail()
     }
 
@@ -933,7 +934,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let listed = Set(servers)
         desks[i].mcpOff = d.mcpOff.filter { !listed.contains($0) }
             + zip(servers, boxes).filter { $0.1.state == .off }.map(\.0)
-        DeskConfig.write(desks)
+        persist()
     }
 
     /// The chooser itself, with a checkbox per server. Separate so a
@@ -1000,7 +1001,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let key = { (ds: [Desk]) in ds.map { "\($0.name)|\($0.group ?? "")" } }
         guard key(next) != key(desks) else { return }
         desks = next
-        DeskConfig.write(desks)
+        persist()
         sidebar.build(desks: desks)
         installMenu()
         if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) { sidebar.select(j) }
@@ -1064,7 +1065,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let rt = desks[i].runtime
         for j in desks.indices where desks[j].runtime == rt { desks[j].isDefault = false }
         desks[i].isDefault = true
-        DeskConfig.write(desks)
+        persist()
         sidebar.build(desks: desks)
         if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) {
             sidebar.select(j)
@@ -1111,12 +1112,59 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func reloadDesks() {
         let fresh = DeskOrder.grouped(DeskConfig.load())
         guard !fresh.isEmpty else { return }
-        desks = fresh
-        sidebar.build(desks: desks)
-        installMenu()
-        if let v = visible, let i = desks.firstIndex(where: { $0.name == v.desk.name }) {
-            sidebar.select(i)
+        // A desk renamed on disk keeps its running terminal: its session,
+        // and what the rail knows about it, move to the new name.
+        for (from, to) in DeskSync.renames(from: desks, to: fresh) {
+            if let s = sessions.removeValue(forKey: from) { sessions[to] = s }
+            if let v = inventoryNews.removeValue(forKey: from) { inventoryNews[to] = v }
+            if let v = lastVisited.removeValue(forKey: from) { lastVisited[to] = v }
+            if let v = memory.removeValue(forKey: from) { memory[to] = v }
         }
+        for (name, s) in sessions { if let d = fresh.first(where: { $0.name == name }) { s.desk = d } }
+        desks = fresh
+        knownConfig = DeskSync.snapshot()
+        refreshRail()
+        if let v = visible {
+            window.title = "Project Coldfall — \(v.desk.name)"
+            strip.setContext(v.desk.name)
+            meter.currentDesk = v.desk.name
+            updateTermHeader()
+        }
+        NotificationCenter.default.post(name: .coldfallDesksReloaded, object: nil)
+    }
+
+    /// desks.toml as this app last read or wrote it. Anything else on disk
+    /// was written by someone else.
+    var knownConfig: String?
+    let configWatcher = DeskConfigWatcher(path: DeskConfig.path)
+
+    /// Save the desk list, unless desks.toml changed on disk since it was
+    /// read: then take what's on disk and say so, rather than write the old
+    /// list back over someone else's edit.
+    @discardableResult
+    func persist() -> Bool {
+        if let now = DeskSync.snapshot(), let known = knownConfig, now != known {
+            reloadDesks()
+            let a = NSAlert()
+            a.messageText = "desks.toml changed on disk"
+            a.informativeText = "Something else edited it just now, so Project Coldfall loaded that version "
+                + "instead of saving over it. Your last change wasn't saved; please make it again."
+            a.runModal()
+            return false
+        }
+        DeskConfig.write(desks)
+        knownConfig = DeskSync.snapshot()
+        return true
+    }
+
+    /// An edit from outside the app: pick it up, unless it's our own write.
+    func watchDeskConfig() {
+        knownConfig = DeskSync.snapshot()
+        configWatcher.onChange = { [weak self] in
+            guard let self, DeskSync.snapshot() != self.knownConfig else { return }
+            self.reloadDesks()
+        }
+        configWatcher.start()
     }
 
     var agentsPanel: AgentsPanel?
@@ -1608,4 +1656,9 @@ MainActor.assumeIsolated {
     app.delegate = c
     app.setActivationPolicy(.regular)
     withExtendedLifetime(c) { app.run() }
+}
+
+extension Notification.Name {
+    /// desks.toml was reloaded; open windows showing desks should refresh.
+    static let coldfallDesksReloaded = Notification.Name("coldfallDesksReloaded")
 }

@@ -8,7 +8,16 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- Coldfall picks up changes to desks.toml while it runs, from an agent, a
+  script or an editor. A desk renamed on disk keeps its running terminal
+  under the new name.
+
 ### Security
+- Saving from the app no longer overwrites an edit someone else made to
+  desks.toml. If the file changed first, the app loads that version and asks
+  you to redo your change; Settings won't save over a file edited while it
+  was open.
 - Values read from desks.toml (a desk's name, agent, model, runtime and
   folder) are quoted before they reach the shell. A desk or folder name
   containing `;`, `$( )` or a quote could otherwise have run as a command.

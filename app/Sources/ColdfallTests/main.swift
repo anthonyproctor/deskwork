@@ -1307,6 +1307,64 @@ do {
     eq("a normal one is", McpTrim.servers(cwd: dir), ["x"])
 }
 
+// MARK: - desks.toml edited by someone else
+
+do {
+    let ws = "/srv/demo/ws"
+    let before = [Desk(name: "hub", runtime: "claude", cwd: ws, command: "/srv/demo/ws/scripts/desk hub"),
+                  Desk(name: "garage", runtime: "claude", cwd: ws, command: "/srv/demo/ws/scripts/desk garage", group: "personal"),
+                  Desk(name: "golf", runtime: "claude", cwd: ws, command: "/srv/demo/ws/scripts/desk golf", group: "personal")]
+    var after = before
+    after[1] = Desk(name: "cars", runtime: "claude", cwd: ws, command: "/srv/demo/ws/scripts/desk cars", group: "personal")
+    eq("a rename on disk is recognised, command and all", DeskSync.renames(from: before, to: after), ["garage": "cars"])
+    eq("nothing renamed, nothing to say", DeskSync.renames(from: before, to: before), [:])
+    var removedAdded = before
+    removedAdded[1] = Desk(name: "cars", runtime: "codex", cwd: ws)
+    eq("a different desk in its place is not a rename", DeskSync.renames(from: before, to: removedAdded), [:])
+    let plainBefore = [Desk(name: "notes", runtime: "claude", cwd: "/srv/demo")]
+    let plainAfter = [Desk(name: "journal", runtime: "claude", cwd: "/srv/demo")]
+    eq("a built-in desk renamed on disk", DeskSync.renames(from: plainBefore, to: plainAfter), ["notes": "journal"])
+    let twoGone = [Desk(name: "a", runtime: "claude", cwd: "/srv/demo"), Desk(name: "b", runtime: "claude", cwd: "/srv/demo")]
+    let oneNew = [Desk(name: "c", runtime: "claude", cwd: "/srv/demo")]
+    eq("an ambiguous change is read as removal and addition", DeskSync.renames(from: twoGone, to: oneNew), [:])
+    eq("a whole word is swapped", DeskSync.swapWord("scripts/desk garage --x", "garage", "cars"), "scripts/desk cars --x")
+    eq("part of a word is not", DeskSync.swapWord("scripts/garages/desk", "garage", "cars"), "scripts/garages/desk")
+
+    let f = NSTemporaryDirectory() + "coldfall-sync-\(UUID().uuidString).toml"
+    defer { try? FileManager.default.removeItem(atPath: f) }
+    eq("no file, no snapshot", DeskSync.snapshot(f), nil)
+    DeskConfig.write(before, to: f)
+    let snap = DeskSync.snapshot(f)
+    check("a snapshot is what's on disk", snap?.contains("[desk.garage]") == true)
+    DeskConfig.write(after, to: f)
+    check("and tells an edit apart", DeskSync.snapshot(f) != snap)
+}
+
+// MARK: - noticing desks.toml change on disk
+
+do {
+    let dir = NSTemporaryDirectory() + "coldfall-watch-\(UUID().uuidString)"
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(atPath: dir) }
+    let f = dir + "/desks.toml"
+    try? "[desk.garage]\n".write(toFile: f, atomically: false, encoding: .utf8)
+    var hits = 0
+    let w = DeskConfigWatcher(path: f)
+    w.onChange = { hits += 1 }
+    w.start()
+    func settle() { RunLoop.main.run(until: Date().addingTimeInterval(0.8)) }
+    settle(); let quiet = hits
+    // An editor's save: a new file renamed over the old one.
+    try? "[desk.cars]\n".write(toFile: f, atomically: true, encoding: .utf8)
+    settle()
+    check("a replaced file is noticed", hits > quiet)
+    let afterReplace = hits
+    // And then an edit in place, to the file that replaced it.
+    if let h = FileHandle(forWritingAtPath: f) { h.seekToEndOfFile(); h.write(Data("[desk.golf]\n".utf8)); try? h.close() }
+    settle()
+    check("an edit in place after a replace is noticed too", hits > afterReplace)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

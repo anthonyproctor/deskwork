@@ -19,6 +19,10 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let themeFont = NSTextField()
     private let themeSize = NSTextField()
     private var editing: Int?
+    /// desks.toml as it was when this window loaded it, and whether the
+    /// desk list here has been edited since.
+    private var openedWith: String?
+    private var dirty = false
     private var projectDir = FileManager.default.currentDirectoryPath
     private let discoveredStack = NSStackView()
     private let hostsStack = NSStackView()
@@ -34,7 +38,14 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         w.title = "Project Coldfall Settings"
         self.projectDir = projectDir
         desks = DeskConfig.load()
+        openedWith = DeskSync.snapshot()
         build()
+        // Edited elsewhere while this is open: with nothing changed here,
+        // just show the new list.
+        NotificationCenter.default.addObserver(forName: .coldfallDesksReloaded, object: nil, queue: .main) { [weak self] _ in
+            guard let self, !self.dirty else { return }
+            self.reloadFromDisk()
+        }
         w.center()
     }
 
@@ -332,6 +343,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
               let a = Discovery.agents(in: projectDir).first(where: { $0.name == parts[0] && $0.runtime == parts[1] })
         else { return }
         desks.append(Discovery.desk(from: a, cwd: projectDir))
+        dirty = true
         table.reloadData()
         refreshDiscovered()
     }
@@ -362,6 +374,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         guard let alias = sender.identifier?.rawValue,
               let h = SSHHosts.all().first(where: { $0.alias == alias }) else { return }
         desks.append(SSHHosts.desk(from: h))
+        dirty = true
         table.reloadData(); refreshHosts()
     }
 
@@ -376,6 +389,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         d.command = command.stringValue.isEmpty ? nil : command.stringValue
         d.runtime = runtime.titleOfSelectedItem ?? "claude"
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
+        dirty = true
         table.reloadData()
     }
 
@@ -395,11 +409,29 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     @objc private func remove() {
         guard desks.indices.contains(table.selectedRow) else { return }
         desks.remove(at: table.selectedRow)
+        dirty = true
         table.reloadData()
         refreshDiscovered(); refreshHosts()
     }
 
+    private func reloadFromDisk() {
+        desks = DeskConfig.load()
+        openedWith = DeskSync.snapshot()
+        dirty = false
+        table.reloadData()
+    }
+
     @objc private func save() {
+        // Never write this window's list over an edit made while it was open.
+        if let now = DeskSync.snapshot(), now != openedWith {
+            let a = NSAlert()
+            a.messageText = "desks.toml changed while Settings was open"
+            a.informativeText = "Something else edited it, and saving now would undo that edit. "
+                + "Reload Settings to see the current desks, then make your changes again."
+            a.addButton(withTitle: "Reload Settings"); a.addButton(withTitle: "Cancel")
+            if a.runModal() == .alertFirstButtonReturn { reloadFromDisk() }
+            return
+        }
         // The theme goes out with the desks. Saving used to rebuild the file
         // from the desk list alone, which silently deleted [theme].
         var t = DeskConfig.themeSettings()
