@@ -959,6 +959,25 @@ do {
     check("an unreadable version never claims an update", !UpdateCheck.isNewer("v0.4.0", than: "abc1234"))
 }
 
+// MARK: - double-click to fill the screen and back
+
+do {
+    let screen = Frame(x: 0, y: 80, w: 1512, h: 862)
+    let small = Frame(x: 200, y: 200, w: 900, h: 600)
+    let (filled, saved) = WindowFill.toggle(frame: small, visible: screen, saved: nil)
+    eq("a double-click fills the screen", filled, screen)
+    eq("and remembers where it was", saved, small)
+    let nudged = Frame(x: filled.x + 2, y: filled.y - 3, w: filled.w, h: filled.h)
+    let (back, cleared) = WindowFill.toggle(frame: nudged, visible: screen, saved: saved)
+    eq("a second double-click goes back, even after the drag's nudge", back, small)
+    eq("and forgets the saved frame", cleared, nil)
+    let (fallback, _) = WindowFill.toggle(frame: screen, visible: screen, saved: nil)
+    check("filled with nothing saved still shrinks",
+          fallback.w < screen.w && fallback.x >= screen.x && fallback.x + fallback.w <= screen.x + screen.w)
+    check("a saved frame that also filled is not a way back",
+          WindowFill.toggle(frame: screen, visible: screen, saved: screen).next != screen)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

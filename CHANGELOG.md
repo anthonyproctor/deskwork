@@ -15,7 +15,12 @@ opens this file.
   the server keeps no list of IDs. You're told before the first check, and it
   can be turned off in Settings. See "What Coldfall sends" in the README.
 
+### Changed
+- Settings is split into Desks, Appearance, Agents and Updates tabs, sized to
+  fit the screen. It used to be one column taller than a laptop display.
+
 ### Fixed
+- Double-clicking the title strip a second time now puts the window back.
 - Release downloads no longer contain the path of the folder they were built
   in. The zips for 0.1.0, 0.2.0 and 0.3.0 have been replaced with cleaned
   copies of the same builds. New releases are made with

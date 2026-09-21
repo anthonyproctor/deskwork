@@ -258,6 +258,30 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 if let png = rep.representation(using: .png, properties: [:]) {
                     try? png.write(to: URL(fileURLWithPath: out))
                 }
+                // `--settings <tab>`: the Settings window on that tab, to
+                // <out>-settings.png. Never saved, never shown.
+                if let k = CommandLine.arguments.firstIndex(of: "--settings"), k + 1 < CommandLine.arguments.count {
+                    let sw = SettingsWindow(projectDir: NSHomeDirectory())
+                    sw.tabs?.selectTabViewItem(withIdentifier: CommandLine.arguments[k + 1])
+                    guard let sv = sw.window?.contentView else { exit(1) }
+                    // Offscreen, nothing draws the window's own background,
+                    // and light label text vanishes on the blank white.
+                    sv.wantsLayer = true
+                    sv.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        sv.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+                    }
+                    sv.layoutSubtreeIfNeeded()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        _ = sw          // keep the window alive until it is drawn
+                        guard let srep = sv.bitmapImageRepForCachingDisplay(in: sv.bounds) else { exit(1) }
+                        sv.cacheDisplay(in: sv.bounds, to: srep)
+                        if let png = srep.representation(using: .png, properties: [:]) {
+                            try? png.write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-settings.png"))
+                        }
+                        exit(0)
+                    }
+                    return
+                }
                 guard let q = paletteQuery, let me = self else { exit(0) }
                 let root = me.desks.indices.contains(i) ? me.desks[i].resolvedCwd : NSHomeDirectory()
                 me.palette.open(over: me.window, desks: me.desks, root: root, query: q)

@@ -15,6 +15,7 @@
 // the dock and moves the window to its own space.
 
 import AppKit
+import ColdfallCore
 
 final class TitleStrip: NSView {
 
@@ -105,8 +106,16 @@ final class TitleStrip: NSView {
     @objc private func reader() { onToggleReader?() }
     @objc private func meter() { onToggleMeter?() }
 
+    /// The frame to go back to after filling the screen.
+    private var beforeFill: Frame?
+
     override func mouseDown(with e: NSEvent) {
-        if e.clickCount == 2 { window?.zoom(nil) } else { window?.performDrag(with: e) }
+        guard e.clickCount == 2 else { window?.performDrag(with: e); return }
+        guard let w = window, let visible = w.screen?.visibleFrame else { return }
+        func f(_ r: NSRect) -> Frame { Frame(x: r.minX, y: r.minY, w: r.width, h: r.height) }
+        let (next, saved) = WindowFill.toggle(frame: f(w.frame), visible: f(visible), saved: beforeFill)
+        beforeFill = saved
+        w.setFrame(NSRect(x: next.x, y: next.y, width: next.w, height: next.h), display: true, animate: true)
     }
 
     private static func toggle(_ symbol: String, tip: String) -> NSButton {

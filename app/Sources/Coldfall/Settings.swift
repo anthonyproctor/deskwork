@@ -24,8 +24,12 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let hostsStack = NSStackView()
 
     convenience init(projectDir: String = FileManager.default.currentDirectoryPath) {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 880, height: 700),
+        // Never taller than the screen it opens on.
+        let vis = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1280, height: 800)
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: min(860, vis.width - 40),
+                                             height: min(600, vis.height - 60)),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        w.contentMinSize = NSSize(width: 700, height: 420)
         self.init(window: w)
         w.title = "Project Coldfall Settings"
         self.projectDir = projectDir
@@ -39,10 +43,10 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         l.font = .systemFont(ofSize: 9.5, weight: .semibold); l.textColor = .tertiaryLabelColor
         return l
     }
-    private func note(_ s: String) -> NSTextField {
+    private func note(_ s: String, width: CGFloat = 520) -> NSTextField {
         let l = NSTextField(wrappingLabelWithString: s)
         l.font = .systemFont(ofSize: 11); l.textColor = .secondaryLabelColor
-        l.preferredMaxLayoutWidth = 360
+        l.preferredMaxLayoutWidth = width
         return l
     }
     private func field(_ f: NSTextField, _ ph: String) -> NSView {
@@ -76,7 +80,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             caps("OR RUN THIS VERBATIM"),
             field(command, "command (optional) — overrides runtime"),
             note("Leave command empty to launch the runtime's own CLI. Use it when you "
-               + "already have a wrapper script that handles resume-vs-new."),
+               + "already have a wrapper script that handles resume-vs-new.", width: 350),
         ])
         form.orientation = .vertical; form.alignment = .leading; form.spacing = 6
 
@@ -168,32 +172,93 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         rtLines.append(note("Threads are appended to \((box.dir as NSString).abbreviatingWithTildeInPath)."
             + (box.runner != nil ? " Using your own runner: \(box.runner!)." : " Using the built-in handoff.")))
 
-        rtLines.append(caps("UPDATES"))
+        var updLines: [NSView] = [caps("UPDATES")]
         let upd = UpdateState.load()
         let updSwitch = NSButton(checkboxWithTitle: UpdateCheck.switchLabel, target: self,
                                  action: #selector(toggleUpdateCheck(_:)))
         updSwitch.state = upd.enabled ? .on : .off
-        rtLines.append(updSwitch)
-        rtLines.append(note(UpdateCheck.noticeBody.replacingOccurrences(
+        updLines.append(updSwitch)
+        updLines.append(note(UpdateCheck.noticeBody.replacingOccurrences(
             of: " You can turn this off any time in Settings.", with: "")
             + " The server's code is in the repo under server/."))
 
-        let right = NSStackView(views: [form, btns, themeBlock] + rtLines)
-        right.orientation = .vertical; right.alignment = .leading; right.spacing = 10
+        // Four tabs instead of one column. The single column was taller than
+        // a laptop screen, and the window could not be made to fit it.
+        let deskSide = NSStackView(views: [form, btns])
+        deskSide.orientation = .vertical; deskSide.alignment = .leading; deskSide.spacing = 10
+        let desksTab = NSStackView(views: [tScroll, deskSide])
+        desksTab.orientation = .horizontal; desksTab.alignment = .top; desksTab.spacing = 16
+        deskSide.widthAnchor.constraint(equalToConstant: 350).isActive = true
+        tScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
 
-        let split = NSStackView(views: [tScroll, right])
-        split.orientation = .horizontal; split.spacing = 16
-        split.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
-        split.translatesAutoresizingMaskIntoConstraints = false
-        c.addSubview(split)
+        let tabs = NSTabView()
+        tabs.translatesAutoresizingMaskIntoConstraints = false
+        for (title, content, scrolls) in [("Desks", desksTab as NSView, false),
+                                          ("Appearance", column([themeBlock]), true),
+                                          ("Agents", column(rtLines), true),
+                                          ("Updates", column(updLines), true)] {
+            let item = NSTabViewItem(identifier: title)
+            item.label = title
+            item.view = pad(content, scrolls: scrolls)
+            tabs.addTabViewItem(item)
+        }
+        self.tabs = tabs
+        c.addSubview(tabs)
         NSLayoutConstraint.activate([
-            split.topAnchor.constraint(equalTo: c.topAnchor),
-            split.bottomAnchor.constraint(equalTo: c.bottomAnchor),
-            split.leadingAnchor.constraint(equalTo: c.leadingAnchor),
-            split.trailingAnchor.constraint(equalTo: c.trailingAnchor),
-            tScroll.widthAnchor.constraint(equalToConstant: 440),
-            right.widthAnchor.constraint(equalToConstant: 370),
+            tabs.topAnchor.constraint(equalTo: c.topAnchor, constant: 8),
+            tabs.bottomAnchor.constraint(equalTo: c.bottomAnchor, constant: -12),
+            tabs.leadingAnchor.constraint(equalTo: c.leadingAnchor, constant: 12),
+            tabs.trailingAnchor.constraint(equalTo: c.trailingAnchor, constant: -12),
         ])
+    }
+
+    private(set) var tabs: NSTabView?
+
+    /// A vertical run of settings, as wide as a note.
+    private func column(_ views: [NSView]) -> NSView {
+        let s = NSStackView(views: views)
+        s.orientation = .vertical; s.alignment = .leading; s.spacing = 10
+        return s
+    }
+
+    /// Inset a tab's content, and let it scroll when it is taller than the
+    /// window rather than running off the bottom of the screen.
+    private func pad(_ content: NSView, scrolls: Bool) -> NSView {
+        let box = NSView()
+        content.translatesAutoresizingMaskIntoConstraints = false
+        guard scrolls else {
+            box.addSubview(content)
+            NSLayoutConstraint.activate([
+                content.topAnchor.constraint(equalTo: box.topAnchor, constant: 12),
+                content.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -12),
+                content.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 12),
+                content.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -12),
+            ])
+            return box
+        }
+        let doc = FlippedView()
+        doc.translatesAutoresizingMaskIntoConstraints = false
+        doc.addSubview(content)
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.documentView = doc
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: box.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+            scroll.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+            doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            doc.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            content.topAnchor.constraint(equalTo: doc.topAnchor, constant: 16),
+            content.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -16),
+            content.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 20),
+            content.trailingAnchor.constraint(lessThanOrEqualTo: doc.trailingAnchor, constant: -20),
+        ])
+        return box
     }
 
     func numberOfRows(in t: NSTableView) -> Int { desks.count }
