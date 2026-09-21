@@ -9,11 +9,19 @@ opens this file.
 ## [Unreleased]
 
 ### Added
+- A first run with no agent CLI installed is no longer a dead end. The
+  welcome screen shows how to install Claude Code, Codex, Gemini CLI, Copilot
+  CLI and Ollama, with what each needs, a copy button and its docs, and
+  **Check again** finds a new install without a relaunch. Settings ▸ Agents
+  shows the same line next to any vendor that isn't installed.
 - **What This Desk Has…** on a desk's right-click menu lists its MCP servers
   (and which run on this Mac), hooks (commands that run by themselves),
   skills and plugins, read from Claude, Codex or Gemini's own files.
 
 ### Fixed
+- The README's install commands work when pasted: the app's path has a
+  space and wasn't quoted. It also says how to get past the macOS warning on
+  macOS 15 and later, where right-click ▸ Open no longer does.
 - Renaming a desk Coldfall starts itself no longer loses its conversation. It
   remembers the conversation's id (as `session` in desks.toml) and reopens it
   under the new name.

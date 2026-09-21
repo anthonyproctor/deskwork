@@ -282,6 +282,29 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                     }
                     return
                 }
+                // `--welcome [none]`: the Welcome screen, to <out>-welcome.png;
+                // `none` draws it as a Mac with no vendor CLI would see it.
+                if let k = CommandLine.arguments.firstIndex(of: "--welcome") {
+                    WelcomeWindow.pretendNothingInstalled =
+                        k + 1 < CommandLine.arguments.count && CommandLine.arguments[k + 1] == "none"
+                    let ww = WelcomeWindow(projectDir: "/tmp")
+                    guard let wv = ww.window?.contentView else { exit(1) }
+                    wv.wantsLayer = true
+                    wv.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        wv.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+                    }
+                    wv.layoutSubtreeIfNeeded()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        _ = ww
+                        guard let wrep = wv.bitmapImageRepForCachingDisplay(in: wv.bounds) else { exit(1) }
+                        wv.cacheDisplay(in: wv.bounds, to: wrep)
+                        if let png = wrep.representation(using: .png, properties: [:]) {
+                            try? png.write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-welcome.png"))
+                        }
+                        exit(0)
+                    }
+                    return
+                }
                 // `--settings <tab>`: the Settings window on that tab, to
                 // <out>-settings.png. Never saved, never shown.
                 if let k = CommandLine.arguments.firstIndex(of: "--settings"), k + 1 < CommandLine.arguments.count {

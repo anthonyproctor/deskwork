@@ -13,10 +13,14 @@ final class WelcomeWindow: NSWindowController {
     private var projectDir = FileManager.default.currentDirectoryPath
     private var found: [DiscoveredAgent] = []
     private let updateSwitch = NSButton(checkboxWithTitle: UpdateCheck.switchLabel, target: nil, action: nil)
+    /// Snapshot only: draw the first run of a Mac with no vendor CLI.
+    static var pretendNothingInstalled = false
 
     convenience init(projectDir: String = FileManager.default.currentDirectoryPath) {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 620),
-                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let vis = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1280, height: 800)
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: min(700, vis.height - 80)),
+                         styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        w.contentMinSize = NSSize(width: 560, height: 420)
         self.init(window: w)
         w.title = "Welcome to Project Coldfall"
         self.projectDir = projectDir
@@ -46,7 +50,7 @@ final class WelcomeWindow: NSWindowController {
 
     private func build() {
         guard let c = window?.contentView else { return }
-        checks = Bridge.known.map { ($0, DeskConfig.which($0.bin) != nil) }
+        checks = Bridge.known.map { ($0, !WelcomeWindow.pretendNothingInstalled && DeskConfig.which($0.bin) != nil) }
         let found = checks.filter { $0.1 }
 
         var views: [NSView] = [
@@ -55,10 +59,11 @@ final class WelcomeWindow: NSWindowController {
                + "with a long-lived terminal of its own. Sessions are disposable. The desk is not.\n\n"
                + "Project Coldfall never reimplements an agent. Each desk launches the vendor's own CLI "
                + "in a real terminal, so your existing config, hooks and memory work untouched."),
-            caps("FOUND ON THIS MACHINE"),
         ]
 
-        for (rt, ok) in checks {
+        // A column of six crosses says nothing the install list below doesn't.
+        if !found.isEmpty { views.append(caps("FOUND ON THIS MACHINE")) }
+        for (rt, ok) in checks where !found.isEmpty {
             let line = NSTextField(labelWithString:
                 (ok ? "✓  " : "✗  ") + rt.name
                 + (ok ? "   \((DeskConfig.which(rt.bin) ?? "") as String)" : "   not on PATH"))
@@ -68,9 +73,16 @@ final class WelcomeWindow: NSWindowController {
         }
 
         if found.isEmpty {
-            views.append(body("No agent CLIs were found. Install at least one — Claude Code, "
-                            + "Codex, Gemini CLI or Copilot CLI — then reopen Project Coldfall. "
-                            + "A plain shell desk will be created in the meantime."))
+            // The dead end this used to be: "install one, then reopen". Now
+            // the commands are here, and Check again looks without a relaunch.
+            views.append(body("No agent CLIs are installed yet. Install one below, then press Check again. "
+                + "Paste the command into Terminal, or into the shell desk Project Coldfall opens for you."))
+            views.append(caps("INSTALL ONE TO START"))
+            for v in VendorInstall.all { views += installRows(v) }
+            views.append(body(VendorInstall.npmNote))
+            let again = NSButton(title: "Check again", target: self, action: #selector(checkAgain))
+            again.bezelStyle = .rounded
+            views.append(again)
         } else {
             views.append(body("Project Coldfall will write a starter config with "
                 + found.map(\.0.name).joined(separator: ", ")
@@ -120,13 +132,70 @@ final class WelcomeWindow: NSWindowController {
         stack.spacing = 10
         stack.edgeInsets = NSEdgeInsets(top: 24, left: 28, bottom: 24, right: 28)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        c.addSubview(stack)
+
+        // Scrolls, so a long list of found agents or install steps never
+        // pushes the button off the bottom of the screen.
+        let doc = WelcomeDoc()
+        doc.translatesAutoresizingMaskIntoConstraints = false
+        doc.addSubview(stack)
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.documentView = doc
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        c.addSubview(scroll)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: c.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: c.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: c.trailingAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: c.bottomAnchor),
+            scroll.topAnchor.constraint(equalTo: c.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: c.bottomAnchor),
+            scroll.leadingAnchor.constraint(equalTo: c.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: c.trailingAnchor),
+            doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            doc.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            stack.topAnchor.constraint(equalTo: doc.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: doc.trailingAnchor),
         ])
+    }
+
+    /// One vendor's install step: what it is, what it needs, the command with
+    /// a Copy button, another way if there is one, and its docs.
+    private func installRows(_ v: VendorInstall) -> [NSView] {
+        let title = NSTextField(labelWithString: v.title)
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        let gap = NSView()
+        gap.heightAnchor.constraint(equalToConstant: 4).isActive = true
+        let cmd = NSTextField(labelWithString: v.command)
+        cmd.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
+        cmd.isSelectable = true
+        let copy = CopyButton(text: v.command)
+        let docs = NSButton(title: "Docs", target: self, action: #selector(openDocs(_:)))
+        docs.bezelStyle = .rounded
+        docs.controlSize = .small
+        docs.toolTip = v.docs
+        docs.identifier = NSUserInterfaceItemIdentifier(v.docs)
+        let row = NSStackView(views: [cmd, copy, docs])
+        row.orientation = .horizontal; row.spacing = 8
+        var out: [NSView] = [gap, title, body(v.needs), row]
+        if let alt = v.alternative {
+            let a = NSTextField(labelWithString: alt.hasPrefix("or ") ? alt : "or  " + alt)
+            a.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+            a.textColor = .secondaryLabelColor
+            a.isSelectable = true
+            out.append(a)
+        }
+        return out
+    }
+
+    @objc private func openDocs(_ sender: NSButton) {
+        if let s = sender.identifier?.rawValue, let u = URL(string: s), u.scheme == "https" { NSWorkspace.shared.open(u) }
+    }
+
+    /// Look for CLIs again, without a relaunch.
+    @objc private func checkAgain() {
+        window?.contentView?.subviews.forEach { $0.removeFromSuperview() }
+        build()
     }
 
     @objc private func finish() {
@@ -146,5 +215,31 @@ final class WelcomeWindow: NSWindowController {
         upd.save()
         close()
         onFinish?()
+    }
+}
+
+/// Top-down layout for the Welcome screen's scrolling content.
+private final class WelcomeDoc: NSView {
+    override var isFlipped: Bool { true }
+}
+
+/// A Copy button that says Copied for a moment.
+final class CopyButton: NSButton {
+    private let text: String
+    init(text: String) {
+        self.text = text
+        super.init(frame: .zero)
+        title = "Copy"
+        bezelStyle = .rounded
+        controlSize = .small
+        target = self
+        action = #selector(copyText)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    @objc private func copyText() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        title = "Copied"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.title = "Copy" }
     }
 }

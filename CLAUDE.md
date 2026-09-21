@@ -26,6 +26,7 @@ swift build -c release
 ./.build/release/Coldfall --snapshot /tmp/shot.png --reader-hidden    # as if the reader were toggled off
 ./.build/release/Coldfall --snapshot /tmp/shot.png --settings Desks   # plus Settings on a tab, to shot-settings.png
 ./.build/release/Coldfall --snapshot /tmp/shot.png --inventory hub    # plus a desk's What This Desk Has, to shot-inventory.png
+./.build/release/Coldfall --snapshot /tmp/shot.png --welcome none     # plus Welcome as a Mac with no agent CLI sees it
 ../scripts/build-app.sh                                        # ~/Applications/Project Coldfall.app
 ../scripts/release-zip.sh                                      # the zip a GitHub release ships
 ```

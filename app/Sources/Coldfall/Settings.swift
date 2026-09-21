@@ -126,6 +126,17 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             l.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
             l.textColor = p != nil ? .labelColor : .tertiaryLabelColor
             rtLines.append(l)
+            // Not installed: how to install it, right there.
+            if p == nil, let v = VendorInstall.of(rt.name) {
+                let cmd = NSTextField(labelWithString: v.command)
+                cmd.font = .monospacedSystemFont(ofSize: 10.5, weight: .regular)
+                cmd.textColor = .secondaryLabelColor
+                cmd.isSelectable = true
+                let row = NSStackView(views: [cmd, CopyButton(text: v.command)])
+                row.orientation = .horizontal; row.spacing = 6
+                row.edgeInsets = NSEdgeInsets(top: 0, left: 22, bottom: 0, right: 0)
+                rtLines.append(row)
+            }
         }
         rtLines.append(caps("LIVE PLAN LIMITS"))
         let limitsBtn = NSButton(title: Limits.recorderInstalled ? "Claude recorder installed ✓" : "Turn on live limits for Claude",

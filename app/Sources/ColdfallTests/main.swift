@@ -1121,6 +1121,20 @@ do {
           Inventory.of(Desk(name: "x", runtime: "claude", cwd: root + "/none"), home: root + "/none").isEmpty)
 }
 
+// MARK: - install help for a first run with no vendor CLI
+
+do {
+    let names = VendorInstall.all.map(\.runtime)
+    eq("each runtime appears once", names.count, Set(names).count)
+    check("every install line is for a runtime Coldfall knows",
+          names.allSatisfy { n in Bridge.known.contains { $0.name == n } })
+    check("every command is a single pasteable line", VendorInstall.all.allSatisfy { !$0.command.contains("\n") })
+    check("docs are https", VendorInstall.all.allSatisfy { $0.docs.hasPrefix("https://") })
+    check("each says what it needs from you", VendorInstall.all.allSatisfy { !$0.needs.isEmpty })
+    eq("lookup by runtime", VendorInstall.of("codex")?.command, "npm install -g @openai/codex")
+    eq("no line for a vendor with no official CLI", VendorInstall.of("grok"), nil)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

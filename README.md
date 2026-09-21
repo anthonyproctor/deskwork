@@ -76,25 +76,25 @@ Download the latest `Project-Coldfall.app.zip` from [Releases](https://github.co
 It is **not notarised**, so the first launch is blocked with "Apple could not verify Project Coldfall is free of malware." That is Gatekeeper telling you the truth: nobody has paid Apple $99 to vouch for this binary. To open it anyway:
 
 ```sh
-xattr -d com.apple.quarantine /Applications/Project Coldfall.app
+xattr -d com.apple.quarantine "/Applications/Project Coldfall.app"
 ```
 
-Or right-click the app, choose **Open**, and confirm once. If you would rather not do either, build it yourself — the source is right here, and that is the better habit:
+Or, without Terminal: try to open it once, then go to **System Settings ▸ Privacy & Security**, scroll down, and click **Open Anyway** next to Project Coldfall. (On macOS 15 and later, right-click ▸ Open no longer gets past this.) If you would rather not do either, build it yourself — the source is right here, and that is the better habit:
 
 ```sh
 git clone https://github.com/anthonyproctor/project-coldfall
 cd project-coldfall
 ./scripts/build-app.sh          # builds ~/Applications/Project Coldfall.app
-open ~/Applications/Project Coldfall.app
+open ~/Applications/"Project Coldfall.app"
 ```
 
 Pass a directory to put it elsewhere: `./scripts/build-app.sh /Applications`.
 
-First launch writes a working config from whichever CLIs it finds and shows a welcome screen explaining what it found. There is nothing to set up by hand.
+First launch writes a working config from whichever CLIs it finds and shows a welcome screen explaining what it found. There is nothing to set up by hand. If you have no agent CLI yet, the welcome screen lists how to install each one (Claude Code, Codex, Gemini CLI, Copilot CLI, Ollama), with a copy button, and **Check again** picks it up without a relaunch.
 
 `coldfall-cli` ships inside the bundle at `Project Coldfall.app/Contents/MacOS/coldfall-cli` — the core, headless, JSON on stdout. See [docs/FORMATS.md](docs/FORMATS.md).
 
-To run it as a plain binary during development: `cd app && swift build -c release && .build/release/Project Coldfall`.
+To run it as a plain binary during development: `cd app && swift build -c release && .build/release/Coldfall`.
 
 ## Configure
 
