@@ -10,7 +10,7 @@ import ColdfallCore
 
 // MARK: - app
 
-final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDelegate, NSSplitViewDelegate {
+final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDelegate, NSSplitViewDelegate, NSWindowDelegate {
     var window: NSWindow!
     let sidebar = SidebarView()
     let tree = FileTreeView()
@@ -26,6 +26,14 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     let deskScroll = NSScrollView()
     let strip = TitleStrip()
     var rail: NSSplitView!
+    /// The middle column: a header naming the desk, and the terminal under it.
+    let center = NSView()
+    let termHeader = TerminalHeader()
+    /// The reader's home when it is docked beside the terminal (the default).
+    let readerPane = NSView()
+    /// Collapses the meter to nothing when it is toggled off.
+    var meterZero: NSLayoutConstraint!
+    let palette = Palette()
 
     func applicationDidFinishLaunching(_ n: Notification) {
         desks = DeskConfig.load()
@@ -49,7 +57,6 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                           backing: .buffered, defer: false)
         window.title = "Project Coldfall"
         window.titlebarAppearsTransparent = true
-        strip.label.stringValue = window.title
 
         // Left rail: desks on top, folder tree beneath, with a DRAGGABLE divider.
         // A fixed desk height starved the tree once the list got long.
@@ -69,8 +76,25 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         split.delegate = self
         split.isVertical = true
         split.dividerStyle = .thin
+        // Rail | terminal | reader. The reader used to live in a separate
+        // floating window you had to arrange by hand; VS Code shows files
+        // inside the window, beside the sidebar. It can still pop out.
+        termHeader.translatesAutoresizingMaskIntoConstraints = false
+        host.translatesAutoresizingMaskIntoConstraints = false
+        center.addSubview(termHeader); center.addSubview(host)
+        NSLayoutConstraint.activate([
+            termHeader.topAnchor.constraint(equalTo: center.topAnchor),
+            termHeader.leadingAnchor.constraint(equalTo: center.leadingAnchor),
+            termHeader.trailingAnchor.constraint(equalTo: center.trailingAnchor),
+            host.topAnchor.constraint(equalTo: termHeader.bottomAnchor),
+            host.leadingAnchor.constraint(equalTo: center.leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: center.trailingAnchor),
+            host.bottomAnchor.constraint(equalTo: center.bottomAnchor),
+        ])
+        Theme.paint(readerPane, Theme.ui.editor)
         split.addArrangedSubview(rail)
-        split.addArrangedSubview(host)
+        split.addArrangedSubview(center)
+        split.addArrangedSubview(readerPane)
         // Meter along the bottom, under both panes.
         let outer = NSView()
         split.translatesAutoresizingMaskIntoConstraints = false
@@ -93,26 +117,46 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             meter.trailingAnchor.constraint(equalTo: outer.trailingAnchor),
             meter.bottomAnchor.constraint(equalTo: outer.bottomAnchor),
         ])
+        meterZero = meter.heightAnchor.constraint(equalToConstant: 0)
+        meterZero.priority = .required
         window.contentView = outer
+        applySavedLayout()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let w = self.window.contentView?.bounds.width ?? frame.width
             let h = self.window.contentView?.bounds.height ?? frame.height
-            _ = w
             self.split.setPosition(240, ofDividerAt: 0)
+            // The reader takes about a third, never less than it needs to be
+            // readable, never so much that the terminal is squeezed.
+            let readerW = max(300, min(520, w * 0.34))
+            self.split.setPosition(w - readerW, ofDividerAt: 1)
             // Desks get a third of the rail, the tree keeps the rest.
             let want = self.ui.treeOnTop ? h * 0.5 : min(self.sidebar.contentHeight, h * 0.45)
             self.rail.setPosition(max(120, min(want, h - 120)), ofDividerAt: 0)
         }
 
         tree.onOpen = { [weak self] url in self?.openReader(url) }
+        strip.onSearch = { [weak self] in self?.openPalette() }
+        strip.onToggleRail = { [weak self] in self?.toggleRail() }
+        strip.onToggleReader = { [weak self] in self?.toggleReader() }
+        strip.onToggleMeter = { [weak self] in self?.toggleMeter() }
+        termHeader.onSplitRight = { [weak self] in self?.splitRight() }
+        termHeader.onSplitDown = { [weak self] in self?.splitDown() }
+        termHeader.onClosePane = { [weak self] in self?.closePane() }
+        reader.onPopToggle = { [weak self] in self?.popOutOrDock() }
+        palette.onPickDesk = { [weak self] i in self?.show(i) }
+        palette.onPickFile = { [weak self] u in self?.openReader(u) }
         meter.onClick = { [weak self] in self?.openMeter() }
 
         // The VS Code behaviour: files the agent touches open themselves.
         watcher.onChanged = { [weak self] urls in
             guard let self else { return }
             for u in urls.prefix(3) { self.reader.openFromAgent(u) }
-            if !urls.isEmpty { self.openReaderWindow() }
+            // Files an agent touches still open as tabs, but if the user hid
+            // the reader they meant it: an agent's edit does not force it back.
+            if !urls.isEmpty, self.reader.poppedOut, self.readerWindow?.isVisible != true {
+                self.readerWindow?.orderFront(nil)
+            }
             self.tree.refresh()
         }
 
@@ -146,7 +190,16 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             if desks.indices.contains(i) {
                 sidebar.select(i)
                 tree.setRoot(desks[i].resolvedCwd)
+                let d = desks[i]
+                strip.setContext(d.name)
+                termHeader.set(desk: d.name,
+                               detail: d.runtime == "shell" ? "shell" : d.runtime + (d.isDefault ? " home" : ""),
+                               panes: 1)
             }
+            // `--palette <query>` also renders the quick-open box with that
+            // query typed in, to <out>-palette.png.
+            let paletteQuery: String? = CommandLine.arguments.firstIndex(of: "--palette")
+                .flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil }
             var sample: [String: DeskStatus] = [:]
             let now = Date()
             for (n, d) in desks.enumerated() {
@@ -178,7 +231,21 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 if let png = rep.representation(using: .png, properties: [:]) {
                     try? png.write(to: URL(fileURLWithPath: out))
                 }
-                exit(0)
+                guard let q = paletteQuery, let me = self else { exit(0) }
+                let root = me.desks.indices.contains(i) ? me.desks[i].resolvedCwd : NSHomeDirectory()
+                me.palette.open(over: me.window, desks: me.desks, root: root, query: q)
+                // Give the background file index a moment to land.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    me.palette.setQueryForSnapshot(q)
+                    guard let pv = me.palette.contentView,
+                          let prep = pv.bitmapImageRepForCachingDisplay(in: pv.bounds) else { exit(0) }
+                    pv.cacheDisplay(in: pv.bounds, to: prep)
+                    if let png = prep.representation(using: .png, properties: [:]) {
+                        let pout = (out as NSString).deletingPathExtension + "-palette.png"
+                        try? png.write(to: URL(fileURLWithPath: pout))
+                    }
+                    exit(0)
+                }
             }
             return
         }
@@ -228,7 +295,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         tree.setRoot(d.resolvedCwd)
         sidebar.select(i)
         window.title = "Project Coldfall — \(d.name)"
-        strip.label.stringValue = window.title
+        strip.setContext(d.name)
+        updateTermHeader()
         window.makeFirstResponder(s.focusedPane.term)
     }
 
@@ -278,6 +346,23 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         edit("Paste", #selector(NSText.paste(_:)), "v")
         edit("Select All", #selector(NSText.selectAll(_:)), "a")
         editItem.submenu = editMenu
+
+        let viewItem = NSMenuItem(); main.addItem(viewItem)
+        let viewMenu = NSMenu(title: "View")
+        func add(_ m: NSMenu, _ t: String, _ sel: Selector, _ k: String, _ mods: NSEvent.ModifierFlags = [.command]) {
+            let it = NSMenuItem(title: t, action: sel, keyEquivalent: k)
+            it.keyEquivalentModifierMask = mods
+            it.target = self
+            m.addItem(it)
+        }
+        add(viewMenu, "Go to Desk or File…", #selector(openPalette), "p")
+        viewMenu.addItem(.separator())
+        add(viewMenu, "Show or Hide Rail", #selector(toggleRail), "b")
+        add(viewMenu, "Show or Hide Reader", #selector(toggleReader), "b", [.command, .option])
+        add(viewMenu, "Show or Hide Usage Meter", #selector(toggleMeter), "j")
+        viewMenu.addItem(.separator())
+        add(viewMenu, "Pop Out or Dock Reader", #selector(popOutOrDock), "")
+        viewItem.submenu = viewMenu
 
         let deskItem = NSMenuItem(); main.addItem(deskItem)
         let deskMenu = NSMenu(title: "Desks")
@@ -439,20 +524,23 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func splitView(_ sv: NSSplitView, constrainMinCoordinate p: CGFloat,
                    ofSubviewAt i: Int) -> CGFloat {
         if sv === rail { return p + 80 }
-        if sv === split { return p + 170 }
+        // rail at least 170; the terminal at least 320.
+        if sv === split { return p + (i == 0 ? 170 : 320) }
         return p + 120          // a pane, which needs far less room than the rail
     }
 
     func splitView(_ sv: NSSplitView, constrainMaxCoordinate p: CGFloat,
                    ofSubviewAt i: Int) -> CGFloat {
         if sv === rail { return p - 120 }
-        if sv === split { return p - 320 }
+        // terminal at least 320; the reader at least 280.
+        if sv === split { return p - (i == 0 ? 320 : 280) }
         return p - 120
     }
 
     func splitView(_ sv: NSSplitView, shouldAdjustSizeOfSubview view: NSView) -> Bool {
-        // The terminal absorbs resizing; the rail keeps its width. Panes share.
-        sv === split ? view !== rail : true
+        // Only the terminal absorbs a window resize; the rail and the reader
+        // keep the widths the user gave them. Panes inside a desk share.
+        sv === split ? view === center : true
     }
 
     /// One default per runtime. Marking a desk clears the flag on its siblings
@@ -633,6 +721,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         guard s.split(vertical: vertical) != nil else {
             NSSound.beep(); return          // four panes is the ceiling
         }
+        updateTermHeader()
         window.makeFirstResponder(s.focusedPane.term)
     }
     var warnedAboutAxis = false
@@ -658,6 +747,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             guard a.runModal() == .alertFirstButtonReturn else { return }
         }
         _ = s.closeFocused()
+        updateTermHeader()
         window.makeFirstResponder(s.focusedPane.term)
     }
 
@@ -749,39 +839,153 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.build(desks: desks)
     }
 
-    /// Files open in their own window. Keeps the main layout to two panes and
-    /// means you can leave a PDF up beside the desk that is working on it.
+    // MARK: - the reader: a pane by default, its own window when popped out
+
     var readerWindow: NSWindow?
-    /// Bring the reader window up without changing what is in it.
-    func openReaderWindow() {
-        ensureReaderWindow()
-        if readerWindow?.isVisible != true { readerWindow?.orderFront(nil) }
+    private let readerWindowBox = NSView()
+
+    /// Pin a view to every edge of a container.
+    private func mount(_ v: NSView, in box: NSView) {
+        v.removeFromSuperview()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(v)
+        NSLayoutConstraint.activate([
+            v.topAnchor.constraint(equalTo: box.topAnchor),
+            v.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+            v.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            v.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+        ])
     }
 
     private func ensureReaderWindow() {
-        if readerWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 900),
-                             styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                             backing: .buffered, defer: false)
-            w.contentView = reader
-            w.title = "Files"
-            // The reader window was never themed, so it kept a light titlebar
-            // over dark content. It follows the same skin as the main window.
-            Theme.apply(to: w)
-            w.isReleasedWhenClosed = false
-            if let main = window {
-                w.setFrameOrigin(NSPoint(x: main.frame.maxX + 12, y: main.frame.origin.y))
-            }
-            readerWindow = w
+        guard readerWindow == nil else { return }
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 900),
+                         styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                         backing: .buffered, defer: false)
+        w.contentView = readerWindowBox
+        w.title = "Files"
+        Theme.apply(to: w)
+        w.isReleasedWhenClosed = false
+        w.delegate = self
+        if let main = window {
+            w.setFrameOrigin(NSPoint(x: main.frame.maxX + 12, y: main.frame.origin.y))
         }
+        readerWindow = w
+    }
+
+    /// Put the reader back in the pane beside the terminal.
+    func dockReader(show: Bool) {
+        mount(reader, in: readerPane)
+        reader.poppedOut = false
+        readerWindow?.orderOut(nil)       // orderOut, not close: close would re-enter here
+        ui.readerPoppedOut = false
+        setReaderPaneHidden(!show)
+    }
+
+    /// Move the reader into its own window — for a second screen.
+    func popOutReader() {
+        ensureReaderWindow()
+        mount(reader, in: readerWindowBox)
+        reader.poppedOut = true
+        ui.readerPoppedOut = true
+        // The pane collapses, but the user's hidden/shown preference is left
+        // alone so docking back restores it.
+        readerPane.isHidden = true
+        split.adjustSubviews()
+        ui.save()
+        refreshToggles()
+        readerWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Closing the popped-out window docks the reader back rather than
+    /// throwing its tabs away. It comes back hidden: closing meant "out of the
+    /// way", and cmd-opt-B shows it again.
+    func windowWillClose(_ n: Notification) {
+        guard (n.object as? NSWindow) === readerWindow, reader.poppedOut else { return }
+        DispatchQueue.main.async { self.dockReader(show: false) }
     }
 
     func openReader(_ url: URL) {
-        if false {
-        }
-        ensureReaderWindow()
         reader.open(url)
-        readerWindow?.makeKeyAndOrderFront(nil)
+        if reader.poppedOut {
+            ensureReaderWindow()
+            readerWindow?.makeKeyAndOrderFront(nil)
+        } else if readerPane.isHidden {
+            setReaderPaneHidden(false)    // opening a file on purpose shows the reader
+        }
+    }
+
+    // MARK: - layout toggles: cmd-B, cmd-opt-B, cmd-J — VS Code's keys
+
+    @objc func toggleRail() {
+        rail.isHidden.toggle()
+        ui.railHidden = rail.isHidden
+        ui.save()
+        split.adjustSubviews()
+        refreshToggles()
+    }
+
+    @objc func toggleReader() {
+        if reader.poppedOut { dockReader(show: true); return }
+        setReaderPaneHidden(!readerPane.isHidden)
+    }
+
+    func setReaderPaneHidden(_ h: Bool) {
+        readerPane.isHidden = h
+        ui.readerHidden = h
+        ui.save()
+        split.adjustSubviews()
+        refreshToggles()
+    }
+
+    @objc func toggleMeter() {
+        let h = !meter.isHidden
+        meter.isHidden = h
+        meterZero.isActive = h
+        ui.meterHidden = h
+        ui.save()
+        refreshToggles()
+    }
+
+    @objc func popOutOrDock() {
+        if reader.poppedOut { dockReader(show: true) } else { popOutReader() }
+    }
+
+    func refreshToggles() {
+        strip.setShowing(rail: !rail.isHidden,
+                         reader: reader.poppedOut || !readerPane.isHidden,
+                         meter: !meter.isHidden)
+    }
+
+    /// Restore the layout the user left, from ui.json.
+    func applySavedLayout() {
+        rail.isHidden = ui.railHidden
+        meter.isHidden = ui.meterHidden
+        meterZero.isActive = ui.meterHidden
+        mount(reader, in: readerPane)
+        if ui.readerPoppedOut {
+            popOutReader()
+        } else {
+            readerPane.isHidden = ui.readerHidden
+        }
+        split.adjustSubviews()
+        refreshToggles()
+    }
+
+    // MARK: - quick open (cmd-P)
+
+    @objc func openPalette() {
+        if palette.isOpen { palette.close(); return }
+        let root = visible?.desk.resolvedCwd ?? NSHomeDirectory()
+        palette.open(over: window, desks: desks, root: root)
+    }
+
+    /// The header over the terminal follows the desk and its pane count.
+    func updateTermHeader() {
+        guard let s = visible else { return }
+        let d = s.desk
+        let detail = d.runtime == "shell" ? "shell" : d.runtime + (d.isDefault ? " home" : "")
+        termHeader.set(desk: d.name, detail: detail, panes: s.panes.count)
     }
 
     // LocalProcessTerminalViewDelegate
@@ -799,6 +1003,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if entry.value.panes.count > 1 {
             entry.value.drop(term: source)
             if entry.value === visible {
+                updateTermHeader()
                 window.makeFirstResponder(entry.value.focusedPane.term)
             }
             return

@@ -625,6 +625,83 @@ do {
 }
 
 
+// MARK: - quick open (fuzzy matching)
+//
+// The ranking is the whole point: a palette that finds the right thing but
+// puts it fifth is one you stop using.
+
+do {
+    // Matching itself.
+    check("an in-order subsequence matches", Fuzzy.score("cpa", "cpa-strategy-copilot") != nil)
+    check("out-of-order letters do not match", Fuzzy.score("apc", "cpa") == nil)
+    check("matching ignores case", Fuzzy.score("README", "docs/readme.md") != nil)
+    check("a query longer than the candidate does not match", Fuzzy.score("hubhub", "hub") == nil)
+    eq("an empty query matches with score 0", Fuzzy.score("", "anything"), 0)
+
+    // Ranking — what you meant comes first.
+    let desks = ["market", "money", "mba", "hub"]
+    eq("an exact prefix wins", Fuzzy.rank("mo", desks, key: { $0 }).first, "money")
+    eq("word starts beat scattered letters",
+       Fuzzy.rank("sst", ["self-study-tutor", "sasstrings"], key: { $0 }).first, "self-study-tutor")
+
+    // A match in the file NAME beats one buried in the directory above it.
+    let files = ["docs/desks/notes.md", "notes/DESKS.md"]
+    eq("the file name outranks the path", Fuzzy.rank("desks", files, key: { $0 }).first, "notes/DESKS.md")
+
+    // Consecutive letters beat the same letters spread out.
+    eq("consecutive characters rank higher",
+       Fuzzy.rank("desk", ["d_e_s_k.txt", "desk.txt"], key: { $0 }).first, "desk.txt")
+
+    check("non-matches are dropped from the ranking",
+          !Fuzzy.rank("zzz", desks, key: { $0 }).contains("hub"))
+    eq("an empty query returns the list as-is",
+       Fuzzy.rank("", desks, key: { $0 }), desks)
+
+    // The file index skips what nobody opens by name.
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fz-" + UUID().uuidString)
+    let fm = FileManager.default
+    defer { try? fm.removeItem(at: dir) }
+    for p in ["README.md", "src/app.swift", "node_modules/pkg/index.js", ".git/HEAD", ".build/x.o"] {
+        let u = dir.appendingPathComponent(p)
+        try? fm.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? "x".write(to: u, atomically: true, encoding: .utf8)
+    }
+    let found = Set(FileIndex.files(under: dir.path))
+    check("the index finds ordinary files", found.contains("README.md") && found.contains("src/app.swift"))
+    check("the index skips node_modules", !found.contains(where: { $0.hasPrefix("node_modules") }))
+    check("the index skips .git", !found.contains(where: { $0.hasPrefix(".git") }))
+    check("the index skips build output", !found.contains(where: { $0.hasPrefix(".build") }))
+    eq("the index respects its limit", FileIndex.files(under: dir.path, limit: 1).count, 1)
+}
+
+
+// MARK: - saved UI state survives new fields
+//
+// Adding a field to UIState used to wipe everyone's saved state: the default
+// decoder throws on a missing key and load() falls back to defaults. This is
+// the author's real ui.json from before the layout toggles existed.
+
+do {
+    let old = #"{"collapsed":["WORK"],"treeOnTop":true,"seenWelcome":true}"#
+    let s = try? JSONDecoder().decode(UIState.self, from: Data(old.utf8))
+    check("a ui.json from before the new fields still decodes", s != nil)
+    eq("and keeps the tree position", s?.treeOnTop, true)
+    eq("and keeps having seen the welcome screen", s?.seenWelcome, true)
+    eq("and keeps collapsed groups", s?.collapsed, ["WORK"])
+    eq("new fields take their defaults", s?.railHidden, false)
+
+    // A completely empty object is the extreme case and must not throw.
+    check("an empty object decodes to defaults",
+          (try? JSONDecoder().decode(UIState.self, from: Data("{}".utf8))) != nil)
+
+    // Round trip keeps the new fields.
+    var u = UIState(); u.railHidden = true; u.readerPoppedOut = true
+    let back = (try? JSONEncoder().encode(u)).flatMap { try? JSONDecoder().decode(UIState.self, from: $0) }
+    eq("a saved layout toggle comes back", back?.railHidden, true)
+    eq("and the reader's pop-out state", back?.readerPoppedOut, true)
+}
+
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

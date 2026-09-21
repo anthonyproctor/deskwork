@@ -39,8 +39,13 @@ final class MeterBar: NSView {
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
-            heightAnchor.constraint(equalToConstant: 26),
         ])
+        // 999, not required: cmd-J collapses the meter with a REQUIRED zero
+        // height, and two required heights that disagree leave AppKit to break
+        // one at random. This way the collapse simply wins while it is on.
+        let h = heightAnchor.constraint(equalToConstant: 26)
+        h.priority = NSLayoutConstraint.Priority(999)
+        h.isActive = true
 
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in

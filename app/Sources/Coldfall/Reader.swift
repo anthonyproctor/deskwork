@@ -17,6 +17,11 @@ final class ReaderView: NSView {
     private let tabScroll = NSScrollView()
     private let container = NSView()
     private let titleBar = NSTextField(labelWithString: "")
+    /// Moves the reader between its pane and its own window.
+    private let popBtn = NSButton()
+    var onPopToggle: (() -> Void)?
+    /// In its own window rather than the pane. Flips the button's icon.
+    var poppedOut = false { didSet { updatePopButton() } }
 
     private struct Tab {
         let url: URL
@@ -51,11 +56,23 @@ final class ReaderView: NSView {
         titleBar.translatesAutoresizingMaskIntoConstraints = false
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        addSubview(tabScroll); addSubview(titleBar); addSubview(container)
+        popBtn.imagePosition = .imageOnly
+        popBtn.isBordered = false
+        popBtn.bezelStyle = .inline
+        popBtn.target = self
+        popBtn.action = #selector(popToggled)
+        popBtn.translatesAutoresizingMaskIntoConstraints = false
+        updatePopButton()
+
+        addSubview(tabScroll); addSubview(popBtn); addSubview(titleBar); addSubview(container)
         NSLayoutConstraint.activate([
+            popBtn.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            popBtn.centerYAnchor.constraint(equalTo: tabScroll.centerYAnchor),
+            popBtn.widthAnchor.constraint(equalToConstant: 24),
+            popBtn.heightAnchor.constraint(equalToConstant: 20),
             tabScroll.topAnchor.constraint(equalTo: topAnchor, constant: 4),
             tabScroll.leadingAnchor.constraint(equalTo: leadingAnchor),
-            tabScroll.trailingAnchor.constraint(equalTo: trailingAnchor),
+            tabScroll.trailingAnchor.constraint(equalTo: popBtn.leadingAnchor, constant: -4),
             tabScroll.heightAnchor.constraint(equalToConstant: 30),
             titleBar.topAnchor.constraint(equalTo: tabScroll.bottomAnchor, constant: 2),
             titleBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
@@ -69,6 +86,17 @@ final class ReaderView: NSView {
     }
     required init?(coder: NSCoder) { fatalError() }
     convenience init() { self.init(frame: .zero) }
+
+    @objc private func popToggled() { onPopToggle?() }
+
+    private func updatePopButton() {
+        let (sym, tip) = poppedOut
+            ? ("arrow.down.left.square", "Put the reader back beside the terminal")
+            : ("arrow.up.forward.square", "Open the reader in its own window — for a second screen")
+        popBtn.image = NSImage(systemSymbolName: sym, accessibilityDescription: tip)
+        popBtn.toolTip = tip
+        popBtn.contentTintColor = Theme.ui.dimText
+    }
 
     // MARK: - opening
 
