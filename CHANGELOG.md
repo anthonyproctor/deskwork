@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-09-21
+
+A bug fix: desks stop asking for you after you've already looked.
+
 ### Fixed
 - A desk no longer turns green again right after you've looked at it and
   moved on. Leaving a desk takes its keyboard focus, the terminal tells the
@@ -175,7 +179,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/anthonyproctor/project-coldfall/compare/v0.2.0...v0.3.0
