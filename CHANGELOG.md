@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-21
+
+See what each desk has, and know when it changes.
+
 ### Added
 - A first run with no agent CLI installed is no longer a dead end. The
   welcome screen shows how to install Claude Code, Codex, Gemini CLI, Copilot
@@ -165,7 +169,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/anthonyproctor/project-coldfall/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/anthonyproctor/project-coldfall/compare/v0.1.0...v0.2.0
