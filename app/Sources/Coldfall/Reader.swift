@@ -240,18 +240,35 @@ final class ReaderView: NSView {
             return message("Could not decode that file as text.")
         }
 
+        // Markdown is prose meant to be rendered, and most of what agents
+        // write is markdown. Showing its raw source in a terminal font — `#`
+        // before headings, tables as rows of pipes — was the "looks like
+        // dogshit" report. Render it instead.
+        if ["md", "markdown", "mdown", "mkd"].contains(ext) {
+            let v = MarkdownView(markdown: text, fileURL: url)
+            v.onOpenFile = { [weak self] u in self?.open(u) }
+            return v
+        }
+
         let tv = NSTextView()
         tv.isEditable = false
         tv.drawsBackground = false
-        let f = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        // 13 rather than 12, and the theme's text colour set explicitly.
+        // Nothing set a colour before, so plain text inherited a washed-out
+        // grey that was hard to read against the dark editor background.
+        let f = Theme.current().font.withSize(13)
         tv.font = f
-        tv.textContainerInset = NSSize(width: 10, height: 8)
+        tv.textColor = Theme.ui.text
+        tv.textContainerInset = NSSize(width: 18, height: 14)
+        let para = NSMutableParagraphStyle(); para.lineSpacing = 3
+        tv.defaultParagraphStyle = para
         if let hl = Highlight.attributed(text, ext: ext, font: f) {
             tv.isRichText = true
             tv.textStorage?.setAttributedString(hl)
         } else {
             tv.isRichText = false
             tv.string = text
+            tv.textColor = Theme.ui.text
         }
         tv.isVerticallyResizable = true
         tv.autoresizingMask = [.width]
@@ -279,8 +296,17 @@ final class ReaderView: NSView {
     }
 
     private func refresh(_ url: URL) {
-        guard let i = tabs.firstIndex(where: { $0.url == url }),
-              let fresh = buildView(for: url) else { return }
+        guard let i = tabs.firstIndex(where: { $0.url == url }) else { return }
+        // A rendered page reloads itself in place, keeping the reader's
+        // scroll position — rebuilding the view would flicker and jump to top.
+        if let md = tabs[i].view as? MarkdownView,
+           let text = try? String(contentsOf: url, encoding: .utf8) {
+            md.reload(markdown: text)
+            tabs[i].watcher?.cancel()
+            tabs[i].watcher = watch(url)
+            return
+        }
+        guard let fresh = buildView(for: url) else { return }
         let offset = (tabs[i].view as? NSScrollView)?.contentView.bounds.origin
         tabs[i].view = fresh
         // Replacing by path rather than trusting the descriptor: agents replace

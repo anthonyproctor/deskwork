@@ -699,6 +699,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                              backing: .buffered, defer: false)
             w.contentView = reader
             w.title = "Files"
+            // The reader window was never themed, so it kept a light titlebar
+            // over dark content. It follows the same skin as the main window.
+            Theme.apply(to: w)
             w.isReleasedWhenClosed = false
             if let main = window {
                 w.setFrameOrigin(NSPoint(x: main.frame.maxX + 12, y: main.frame.origin.y))

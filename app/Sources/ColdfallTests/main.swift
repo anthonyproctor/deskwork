@@ -569,6 +569,62 @@ do {
     }
 }
 
+// MARK: - markdown rendering
+//
+// Markdown used to be shown as raw source. These pin that it renders, and —
+// because the reader shows files the user may not have written — that nothing
+// in a file can inject markup or script.
+
+do {
+    let h = MarkdownHTML.body
+
+    // The original complaint, line by line.
+    check("a heading renders without its pound sign", h("# Desks").contains("<h1>Desks</h1>"))
+    check("bold renders without its asterisks", h("a **b** c").contains("<strong>b</strong>"))
+    check("italic renders", h("a *b* c").contains("<em>b</em>"))
+
+    // Tables were the worst of it: rows of pipes wrapping across the window.
+    let t = h("| Desk | Model |\n|---|---|\n| hub | Opus |\n| money | Fable |")
+    check("a GFM table becomes a real table", t.contains("<table>") && t.contains("<th>Desk</th>"))
+    check("and its rows are cells, not pipes", t.contains("<td>hub</td>") && t.contains("<td>Fable</td>"))
+    check("the separator row is not rendered as data", !t.contains("---"))
+    check("a right-aligned column keeps its alignment",
+          h("| a |\n|--:|\n| 1 |").contains("text-align:right"))
+    check("an escaped pipe stays inside its cell",
+          h("| a |\n|---|\n| x \\| y |").contains("<td>x | y</td>"))
+
+    // Code must stay literal: underscores in code are not emphasis.
+    check("underscores inside code are not italicised",
+          h("run `a_b_c` now").contains("<code>a_b_c</code>"))
+    check("snake_case in prose is not italicised", !h("the desk_name field").contains("<em>"))
+    check("a fenced block keeps its contents verbatim",
+          h("```\nlet x = **y**\n```").contains("let x = **y**"))
+
+    // Lists, quotes, rules.
+    check("a bullet list renders", h("- one\n- two").contains("<ul>") && h("- one").contains("<li>one</li>"))
+    check("a numbered list renders", h("1. one\n2. two").contains("<ol>"))
+    check("a task box renders checked", h("- [x] done").contains("checked"))
+    check("a blockquote renders", h("> quoted").contains("<blockquote>"))
+    check("a rule renders", h("---").contains("<hr>"))
+
+    // SECURITY. Every line of this is escaping a file's contents, and files
+    // come from cloned repos and agents, not only from the user.
+    check("a script tag in a file is escaped, not run",
+          !h("<script>alert(1)</script>").contains("<script>"))
+    check("and shows as visible text", h("<script>x</script>").contains("&lt;script&gt;"))
+    check("markup inside a table cell is escaped",
+          !h("| a |\n|---|\n| <img src=x onerror=alert(1)> |").contains("<img"))
+    check("a javascript: link is not made clickable",
+          !h("[click](javascript:alert(1))").contains("href"))
+    check("a normal https link is clickable",
+          h("[site](https://example.com)").contains("href=\"https://example.com\""))
+    check("a relative link to another file is clickable",
+          h("[notes](other.md)").contains("href=\"other.md\""))
+    check("a quote in text cannot break out of an attribute",
+          !h("[x](https://a.com\"onmouseover=\"alert(1))").contains("onmouseover=\"alert"))
+}
+
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the
