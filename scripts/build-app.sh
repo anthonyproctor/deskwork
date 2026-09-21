@@ -57,7 +57,22 @@ fi
 # Ad-hoc signature. Without it macOS nags on every launch; with it the app runs
 # on the machine that built it. Not a substitute for a Developer ID for
 # distribution, and the README says so.
-codesign --force --deep --sign - "$APP" 2>/dev/null || echo "  (unsigned — Gatekeeper will ask once)"
+# Sign with the local certificate if there is one, ad-hoc otherwise.
+#
+# Ad-hoc is the default because it needs nothing. But an ad-hoc signature is
+# a hash of the binary, and macOS remembers privacy grants against the
+# signature — so every rebuild re-triggers "would like to access your
+# Documents folder". scripts/make-signing-cert.sh creates a stable local
+# identity that fixes it; see that script for why and how to undo.
+IDENTITY="Project Coldfall Local"
+if security find-certificate -c "$IDENTITY" >/dev/null 2>&1 \
+   && codesign --force --deep --sign "$IDENTITY" "$APP" 2>/dev/null; then
+  echo "  signed with \"$IDENTITY\" — permissions will persist across rebuilds"
+else
+  codesign --force --deep --sign - "$APP" 2>/dev/null || echo "  (unsigned — Gatekeeper will ask once)"
+  echo "  ad-hoc signed — macOS will re-ask for permissions after each rebuild."
+  echo "  run ./scripts/make-signing-cert.sh once to stop that."
+fi
 
 echo "built $APP"
 echo "  open it:    open '$APP'"
