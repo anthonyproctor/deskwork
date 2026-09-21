@@ -49,6 +49,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         // `--snapshot ... --reader-hidden`: as if the reader were toggled off.
         // Not saved; snapshots never write the user's layout.
         if args.contains("--snapshot"), args.contains("--reader-hidden") { ui.readerHidden = true }
+        // `--desks-on-top` and `--meter-hidden`, for pictures of made-up
+        // desks: the rail's desks above the tree, and no real usage numbers.
+        if args.contains("--snapshot"), args.contains("--desks-on-top") { ui.treeOnTop = false }
+        if args.contains("--snapshot"), args.contains("--meter-hidden") { ui.meterHidden = true }
         let firstRun = desks.isEmpty || !ui.seenWelcome
         if desks.isEmpty {
             DeskConfig.writeStarter()
@@ -277,8 +281,17 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                         "clip.bounds      \(clip.bounds)",
                         "sidebar.frame    \(me.sidebar.frame)",
                         "rows             \(rows)",
+                        "state            hidden=\(me.deskScroll.isHidden) alpha=\(me.deskScroll.alphaValue) doc=\(me.deskScroll.documentView === me.sidebar) sidebarSuper=\(String(describing: me.sidebar.superview.map { type(of: $0) })) sidebarHidden=\(me.sidebar.isHidden) layer=\(me.deskScroll.wantsLayer) clipLayerBG=\(String(describing: me.deskScroll.contentView.layer?.backgroundColor)) subviews=\(me.sidebar.subviews.count) inWindow=\(me.deskScroll.window != nil)",
                     ]
                     FileHandle.standardError.write((lines.joined(separator: "\n") + "\n").data(using: .utf8)!)
+                    // The desk list on its own, to tell a drawing fault in it
+                    // from one in how the whole window is captured.
+                    let ds = me.deskScroll
+                    if let drep = ds.bitmapImageRepForCachingDisplay(in: ds.bounds) {
+                        ds.cacheDisplay(in: ds.bounds, to: drep)
+                        try? drep.representation(using: .png, properties: [:])?
+                            .write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-desks.png"))
+                    }
                 }
                 if let png = rep.representation(using: .png, properties: [:]) {
                     try? png.write(to: URL(fileURLWithPath: out))

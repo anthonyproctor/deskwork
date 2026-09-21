@@ -9,6 +9,10 @@ opens this file.
 ## [Unreleased]
 
 ### Added
+- A landing page, at the same address as the update check. Its source is
+  `server/public/`; the pictures are of made-up desks.
+
+### Added
 - **Keep Active Groups on Top**, from the rail's right-click menu or the
   Desks menu, off by default. Groups with a desk that needs you rise first,
   then the most recently used; idle ones sink. It only reorders when the

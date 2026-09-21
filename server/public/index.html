@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Coldfall</title>
+<meta name="description" content="A free Mac app for running Claude Code, Codex, Gemini and other AI agents side by side, each in a desk that keeps its conversation.">
+<meta property="og:title" content="Project Coldfall: your AI agents, side by side">
+<meta property="og:description" content="A free Mac app for running Claude Code, Codex, Gemini and other AI agents side by side, each in a desk that keeps its conversation.">
+<meta property="og:image" content="https://project-coldfall.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://project-coldfall.vercel.app/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2318181b'/%3E%3Crect x='11' y='7' width='3' height='18' rx='1.5' fill='%236acd63'/%3E%3Crect x='18' y='7' width='3' height='18' rx='1.5' fill='%236acd63'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #131316; --panel: #1b1b1f; --line: #2a2a30;
+    --text: #ececf0; --dim: #a0a0a8; --faint: #6e6e76;
+    --green: #6acd63; --green-bg: rgba(106, 205, 99, .12);
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #fafafa; --panel: #ffffff; --line: #e4e4e8;
+      --text: #1a1a1d; --dim: #55555c; --faint: #8a8a92;
+      --green: #2f9e44; --green-bg: rgba(47, 158, 68, .1);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 var(--sans); }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+  header { padding: 22px 0; }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; }
+  .mark { font: 500 22px var(--mono); letter-spacing: .5px; text-decoration: none; }
+  .mark b { color: var(--green); font-weight: 500; }
+  header nav a { color: var(--dim); text-decoration: none; margin-left: 22px; font-size: 15px; }
+  header nav a:hover { color: var(--text); }
+
+  .hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: center; padding: 48px 0 72px; }
+  .hero h1 { font-size: clamp(36px, 5.2vw, 56px); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 20px; }
+  .hero p.lede { color: var(--dim); font-size: 19px; margin: 0 0 30px; max-width: 34em; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-block; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 16px; border: 1px solid var(--line); }
+  .btn.primary { background: var(--green); border-color: var(--green); color: #0d1a0c; }
+  .btn:hover { filter: brightness(1.08); }
+  .fine { color: var(--faint); font-size: 14px; margin-top: 14px; }
+  .shot { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; box-shadow: 0 30px 80px rgba(0,0,0,.35); }
+  .shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
+
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 28px; letter-spacing: -.01em; margin: 0 0 8px; }
+  .sub { color: var(--dim); margin: 0 0 32px; max-width: 40em; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
+  .card h3 { font-size: 17px; margin: 0 0 8px; }
+  .card p { color: var(--dim); margin: 0; font-size: 15.5px; }
+  kbd { font: 13px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; }
+
+  .vendors { display: flex; flex-wrap: wrap; gap: 10px; }
+  .vendors span { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 15px; background: var(--panel); }
+
+  ol.steps { padding-left: 22px; margin: 0; max-width: 46em; }
+  ol.steps li { margin-bottom: 18px; }
+  .code { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; overflow-x: auto; }
+  .code code { font: 14px var(--mono); white-space: nowrap; flex: 1; }
+  .code button { font: 600 13px var(--sans); color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+  .note { color: var(--dim); font-size: 15.5px; }
+
+  .sends { background: var(--green-bg); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; max-width: 46em; }
+  .sends ul { margin: 10px 0 12px; padding-left: 20px; }
+  .sends p { margin: 0; color: var(--dim); font-size: 15.5px; }
+
+  footer { padding: 36px 0 56px; border-top: 1px solid var(--line); color: var(--faint); font-size: 14px; }
+  footer a { color: var(--dim); }
+
+  @media (max-width: 820px) {
+    .hero { grid-template-columns: 1fr; gap: 36px; padding-top: 24px; }
+    .shot { max-width: 420px; }
+    .grid { grid-template-columns: 1fr; }
+    header nav a { margin-left: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="mark" href="/" aria-label="Project Coldfall">coldfa<b>||</b></a>
+    <nav>
+      <a href="#install">Install</a>
+      <a href="https://github.com/anthonyproctor/project-coldfall">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Your AI agents, side by side.</h1>
+      <p class="lede">Project Coldfall is a free Mac app for running Claude Code, Codex, Gemini and other agents together. Each one gets a desk: its own terminal, its own folder and its own conversation, which it keeps. And the app tells you which desk is waiting on you.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/anthonyproctor/project-coldfall/releases/latest/download/Project-Coldfall.app.zip">Download for macOS</a>
+        <a class="btn" href="https://github.com/anthonyproctor/project-coldfall">View the code</a>
+      </div>
+      <p class="fine">macOS 13 or later. Free and open source (MIT).</p>
+    </div>
+    <div class="shot">
+      <img src="/rail.png" width="480" height="714" alt="The desk rail: a green line saying three desks need you, desks grouped under Product, Personal and Writing, each showing its agent and whether it's working, idle or answered.">
+    </div>
+  </div>
+
+  <section>
+    <h2>What it does</h2>
+    <p class="sub">It doesn't replace your agents. Each desk runs the vendor's own CLI in a real terminal, so your settings, hooks and memory work as they always have.</p>
+    <div class="grid">
+      <div class="card"><h3>Desks that remember</h3><p>Stop a desk or restart the app, and it picks up the same conversation. Rename it and it still does.</p></div>
+      <div class="card"><h3>Knows what needs you</h3><p>A line at the top names every desk waiting on you, oldest first. <kbd>⌘0</kbd> takes you straight there.</p></div>
+      <div class="card"><h3>Any vendor</h3><p>Claude Code next to Codex next to Gemini. Ask one agent to check another's work, or put one question to many folders at once.</p></div>
+      <div class="card"><h3>What each desk has</h3><p>See a desk's MCP servers, hooks, skills and plugins, and what's new since you last looked. Nothing gets added quietly.</p></div>
+      <div class="card"><h3>Lighter desks</h3><p>Switch off the MCP servers a desk doesn't need. A desk that never reads mail doesn't start a mail server.</p></div>
+      <div class="card"><h3>Arranged your way</h3><p>Group desks, drag them, hide the ones you're not using, or let the busiest groups rise to the top on their own.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Works with</h2>
+    <p class="sub">Whatever you already have installed. If you have none yet, the app shows you how to install one.</p>
+    <div class="vendors">
+      <span>Claude Code</span><span>Codex</span><span>Gemini CLI</span><span>GitHub Copilot CLI</span><span>Grok</span><span>Ollama</span>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p class="sub">About a minute.</p>
+    <ol class="steps">
+      <li><a href="https://github.com/anthonyproctor/project-coldfall/releases/latest/download/Project-Coldfall.app.zip">Download the app</a>, unzip it, and drag it to Applications.</li>
+      <li>It isn't notarised by Apple yet, so macOS blocks the first launch. Paste this into Terminal:
+        <div class="code"><code id="xattr">xattr -d com.apple.quarantine "/Applications/Project Coldfall.app"</code><button type="button" data-copy="xattr">Copy</button></div>
+        <p class="note">Or try to open it once, then go to System Settings, Privacy &amp; Security, and click Open Anyway.</p>
+      </li>
+      <li>Open it. It finds the agents you have and sets up a desk for each.</li>
+    </ol>
+    <p class="note">Rather build it yourself? The <a href="https://github.com/anthonyproctor/project-coldfall">source</a> builds with one script, no Xcode needed.</p>
+  </section>
+
+  <section>
+    <h2>What it sends</h2>
+    <div class="sends">
+      Once a day the app checks for a new version. That check sends three things:
+      <ul>
+        <li>a random ID made on your Mac,</li>
+        <li>the app's version,</li>
+        <li>your macOS version.</li>
+      </ul>
+      <p>That's how we count installs and tell you about updates. It never sends your desks, files, conversations or anything you type, the server keeps no list of IDs, and <a href="https://github.com/anthonyproctor/project-coldfall/tree/main/server">its code is public</a>. You can turn it off in Settings.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    Project Coldfall is open source under the MIT license.
+    <a href="https://github.com/anthonyproctor/project-coldfall">GitHub</a> ·
+    <a href="https://github.com/anthonyproctor/project-coldfall/releases">Releases</a> ·
+    <a href="https://github.com/anthonyproctor/project-coldfall/blob/main/CHANGELOG.md">What's new</a>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll("[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var t = document.getElementById(b.dataset.copy).textContent;
+      navigator.clipboard.writeText(t).then(function () {
+        b.textContent = "Copied";
+        setTimeout(function () { b.textContent = "Copy"; }, 1500);
+      });
+    });
+  });
+</script>
+</body>
+</html>
