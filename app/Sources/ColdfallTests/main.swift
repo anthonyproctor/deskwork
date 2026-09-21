@@ -702,6 +702,60 @@ do {
 }
 
 
+// MARK: - renaming, reordering, memory
+
+do {
+    let names = ["hub", "money", "work"]
+    check("a plain name is fine", DeskName.problem("career", existing: names) == nil)
+    check("an empty name is refused", DeskName.problem("", existing: names) != nil)
+    check("a dot would nest the TOML table", DeskName.problem("a.b", existing: names) != nil)
+    check("so would a space", DeskName.problem("my desk", existing: names) != nil)
+    check("a taken name is refused, case-insensitively", DeskName.problem("Money", existing: names) != nil)
+    check("keeping its own name is not a clash",
+          DeskName.problem("hub", existing: names, current: "hub") == nil)
+    check("over the length limit is refused",
+          DeskName.problem(String(repeating: "a", count: 41), existing: names) != nil)
+
+    let list = [Desk(name: "a"), Desk(name: "b", group: "g"), Desk(name: "c", group: "g"),
+                Desk(name: "d", group: "h")]
+    let n = { (ds: [Desk]) in ds.map(\.name).joined() }
+    eq("move down within a group", n(DeskOrder.move(list, from: 1, to: .after(2))), "acbd")
+    eq("move up to the top", n(DeskOrder.move(list, from: 3, to: .before(0))), "dabc")
+    let joined = DeskOrder.move(list, from: 0, to: .after(2))
+    eq("landing beside a grouped desk joins its group", joined.first { $0.name == "a" }?.group, "g")
+    eq("end of a group lands after its last member",
+       n(DeskOrder.move(list, from: 0, to: .endOfGroup("g"))), "bcad")
+    eq("end of the ungrouped section is ungrouped",
+       DeskOrder.move(list, from: 3, to: .endOfGroup(nil)).first { $0.name == "d" }?.group ?? "none", "none")
+    eq("a drop onto itself changes nothing", n(DeskOrder.move(list, from: 2, to: .before(2))), "abcd")
+
+    let ps = ProcessTree.parse("""
+      100     1   2000
+      101   100 900000
+      102   101  50000
+      103   101  40000
+      200     1   1000
+    garbage line
+    """)
+    eq("ps rows parse, garbage skipped", ps.count, 5)
+    eq("a desk's memory is its whole tree", ProcessTree.totalKB(root: 100, in: ps), 992000)
+    eq("an unrelated tree is not counted", ProcessTree.totalKB(root: 200, in: ps), 1000)
+    eq("a pid that is gone counts nothing", ProcessTree.totalKB(root: 999, in: ps), 0)
+    eq("labels megabytes", ProcessTree.label(kb: 2048), "2 MB")
+    eq("and gigabytes", ProcessTree.label(kb: 992000), "969 MB")
+    eq("over a thousand MB reads as GB", ProcessTree.label(kb: 1_300_000), "1.2 GB")
+}
+
+// The writer used to drop `model`, so reordering or renaming an ollama desk
+// would have silently switched it back to the default model.
+do {
+    let tmp = NSTemporaryDirectory() + "coldfall-model-\(UUID().uuidString).toml"
+    DeskConfig.write([Desk(name: "local", runtime: "ollama", model: "qwen3")], to: tmp)
+    eq("model survives a write", DeskConfig.load(path: tmp).first?.model, "qwen3")
+    try? FileManager.default.removeItem(atPath: tmp)
+}
+
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

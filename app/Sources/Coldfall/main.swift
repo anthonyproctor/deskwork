@@ -168,6 +168,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onMakeDefault = { [weak self] i in self?.makeDefault(i) }
         sidebar.onRevealAgent = { [weak self] i in self?.revealAgent(i) }
         sidebar.onSelect = { [weak self] i in self?.show(i) }
+        sidebar.onRenameDesk = { [weak self] i in self?.renameDesk(i) }
+        sidebar.onStopDesk = { [weak self] i in self?.stopDesk(i) }
+        sidebar.onMoveDesk = { [weak self] i, d in self?.moveDesk(i, to: d) }
 
         // Set the appearance BEFORE showing: every semantic colour in the app
         // resolves off it, so flipping after the fact repaints everything.
@@ -205,8 +208,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             for (n, d) in desks.enumerated() {
                 switch n % 4 {
                 case 0: sample[d.name] = DeskStatus(activity: .ready, lastOutput: now.addingTimeInterval(-120), running: true)
-                case 1: sample[d.name] = DeskStatus(activity: .working, lastOutput: now, running: true)
-                case 2: sample[d.name] = DeskStatus(activity: .quiet, lastOutput: now.addingTimeInterval(-3600), running: true)
+                case 1: sample[d.name] = DeskStatus(activity: .working, lastOutput: now, running: true, memory: "946 MB")
+                case 2: sample[d.name] = DeskStatus(activity: .quiet, lastOutput: now.addingTimeInterval(-3600), running: true, memory: "132 MB")
                 default: sample[d.name] = DeskStatus()
                 }
             }
@@ -256,6 +259,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         watchPaneClicks()
         watchSystemAppearance()
         watchDeskActivity()
+        watchDeskMemory()
         // The update sheet names what a relaunch is about to end. Only the
         // controller knows which desks have live processes.
         SelfUpdate.runningDesks = { [weak self] in
@@ -277,6 +281,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }()
 
         visible?.container.removeFromSuperview()
+        stoppedNote?.removeFromSuperview(); stoppedNote = nil
         s.container.delegate = self
         host.addSubview(s.container)
         NSLayoutConstraint.activate([
@@ -315,6 +320,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let welcome = NSMenuItem(title: "Show Welcome", action: #selector(showWelcome), keyEquivalent: "")
         welcome.target = self
         appMenu.addItem(welcome)
+        let news = NSMenuItem(title: "What's New", action: #selector(openChangelog), keyEquivalent: "")
+        news.target = self
+        appMenu.addItem(news)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Project Coldfall", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
@@ -491,6 +499,100 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         else if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) {
             sidebar.select(j)
         }
+    }
+
+    /// Rename in place. Only the name changes: a desk that runs a `command`
+    /// keeps running exactly that command, so a launcher script keyed on the
+    /// old name still works. A running session carries on under the new name.
+    func renameDesk(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        let old = desks[i].name
+        let a = NSAlert()
+        a.messageText = "Rename the \(old) desk"
+        a.informativeText = "Letters, numbers, - and _. Saved to ~/.config/coldfall/desks.toml."
+        a.addButton(withTitle: "Rename"); a.addButton(withTitle: "Cancel")
+        let f = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        f.stringValue = old
+        a.accessoryView = f
+        a.window.initialFirstResponder = f
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        let new = f.stringValue.trimmingCharacters(in: .whitespaces)
+        guard new != old else { return }
+        if let why = DeskName.problem(new, existing: desks.map(\.name), current: old) {
+            let no = NSAlert(); no.messageText = "Not renamed"; no.informativeText = why; no.runModal()
+            return
+        }
+        desks[i].name = new
+        if let s = sessions.removeValue(forKey: old) { s.desk.name = new; sessions[new] = s }
+        DeskConfig.write(desks)
+        sidebar.build(desks: desks)
+        installMenu()
+        if visible?.desk.name == new {
+            sidebar.select(i)
+            window.title = "Project Coldfall — \(new)"
+            strip.setContext(new)
+            meter.currentDesk = new
+            updateTermHeader()
+        } else if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) {
+            sidebar.select(j)
+        }
+    }
+
+    /// Stop a desk's processes to get their memory back. A claude desk holds
+    /// close to a gigabyte with its MCP servers, so this is the lever when
+    /// many are open. The conversation is not resumed on restart yet, so the
+    /// dialog says so.
+    func stopDesk(_ i: Int) {
+        guard desks.indices.contains(i), let s = sessions[desks[i].name], s.started else { return }
+        let d = desks[i]
+        let a = NSAlert()
+        a.messageText = "Stop the \(d.name) desk?"
+        var info = "Ends its processes"
+        if let m = memory[d.name] { info += " and frees about \(m)" }
+        info += ". Click the desk to start it again."
+        if d.runtime != "shell" {
+            info += "\n\nThe new session starts fresh. What is on screen now is not carried over."
+        }
+        a.informativeText = info
+        a.addButton(withTitle: "Stop"); a.addButton(withTitle: "Cancel")
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+
+        // Out of the table first, so the exit callbacks find nothing to tidy.
+        sessions.removeValue(forKey: d.name)
+        memory.removeValue(forKey: d.name)
+        s.terminateAll()
+        if visible === s {
+            s.container.removeFromSuperview()
+            visible = nil
+            let note = NSTextField(labelWithString: "\(d.name) is stopped. Click it in the rail to start it again.")
+            note.textColor = Theme.ui.dimText
+            note.translatesAutoresizingMaskIntoConstraints = false
+            host.addSubview(note)
+            NSLayoutConstraint.activate([
+                note.centerXAnchor.constraint(equalTo: host.centerXAnchor),
+                note.centerYAnchor.constraint(equalTo: host.centerYAnchor),
+            ])
+            stoppedNote = note
+        }
+    }
+    var stoppedNote: NSView?
+
+    /// The changelog lives in the repo, so the app and GitHub read one file.
+    @objc func openChangelog() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/anthonyproctor/project-coldfall/blob/main/CHANGELOG.md")!)
+    }
+
+    /// Drag in the rail. Saved at once, and the menu is rebuilt so cmd-1..9
+    /// follow the order on screen.
+    func moveDesk(_ i: Int, to drop: DeskDrop) {
+        let before = desks.map { "\($0.name)|\($0.group ?? "")" }
+        let moved = DeskOrder.move(desks, from: i, to: drop)
+        guard moved.map({ "\($0.name)|\($0.group ?? "")" }) != before else { return }
+        desks = moved
+        DeskConfig.write(desks)
+        sidebar.build(desks: desks)
+        installMenu()
+        if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) { sidebar.select(j) }
     }
 
     /// The safe half of deleting an agent: show it, let them decide.
@@ -685,7 +787,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             var waiting = 0
             for (name, s) in self.sessions {
                 let a = s.activity
-                map[name] = DeskStatus(activity: a, lastOutput: s.lastOutput, running: s.started)
+                map[name] = DeskStatus(activity: a, lastOutput: s.lastOutput, running: s.started,
+                                       memory: self.memory[name])
                 if case .ready = a { waiting += 1 }
             }
             self.sidebar.tick &+= 1
@@ -697,6 +800,35 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
     }
     var activityTimer: Timer?
+
+    /// Memory per desk, sampled every five seconds from one `ps` call off the
+    /// main thread. Cheap enough to leave on, and it answers "which desk is
+    /// the heavy one" before you have to go looking in Activity Monitor.
+    var memory: [String: String] = [:]
+    var memoryTimer: Timer?
+    func watchDeskMemory() {
+        memoryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let roots = self.sessions.mapValues(\.pids)
+            guard !roots.isEmpty else { return }
+            DispatchQueue.global(qos: .utility).async {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/bin/ps")
+                p.arguments = ["-axo", "pid=,ppid=,rss="]
+                let out = Pipe(); p.standardOutput = out; p.standardError = FileHandle.nullDevice
+                guard (try? p.run()) != nil else { return }
+                let data = out.fileHandleForReading.readDataToEndOfFile()
+                p.waitUntilExit()
+                let rows = ProcessTree.parse(String(decoding: data, as: UTF8.self))
+                var m: [String: String] = [:]
+                for (name, pids) in roots {
+                    let kb = pids.reduce(0) { $0 + ProcessTree.totalKB(root: $1, in: rows) }
+                    if let l = ProcessTree.label(kb: kb) { m[name] = l }
+                }
+                DispatchQueue.main.async { self.memory = m }
+            }
+        }
+    }
 
     // MARK: - panes
 

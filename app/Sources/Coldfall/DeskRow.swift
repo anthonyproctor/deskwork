@@ -19,12 +19,14 @@ import AppKit
 import ColdfallCore
 
 /// What the rail needs to know about a desk, separate from its config.
-struct DeskStatus {
+struct DeskStatus: Equatable {
     var activity: DeskActivity = .quiet
     /// When it last wrote anything, for the "2m" on the right.
     var lastOutput: Date?
     /// Whether its process has been started this session.
     var running = false
+    /// Resident memory of the desk's whole process tree, e.g. "940 MB".
+    var memory: String?
 }
 
 final class DeskRow: NSView {
@@ -33,6 +35,11 @@ final class DeskRow: NSView {
     var onRemove: (() -> Void)?
     var onReveal: (() -> Void)?
     var onMakeDefault: (() -> Void)?
+    var onRename: (() -> Void)?
+    var onStop: (() -> Void)?
+    /// Drag to reorder. Points are in the row's superview (the rail).
+    var onDragMoved: ((NSPoint) -> Void)?
+    var onDragEnded: ((NSPoint) -> Void)?
 
     let deskName: String
     private let runtime: String
@@ -44,9 +51,21 @@ final class DeskRow: NSView {
     private let sub = NSTextField(labelWithString: "")
 
     var selected = false { didSet { if selected != oldValue { restyle() } } }
-    var status = DeskStatus() { didSet { restyle() } }
-    /// Spinner frame, advanced by the rail's timer.
-    var tick = 0 { didSet { if case .working = status.activity { restyle() } } }
+    /// Restyles only on a real change. The rail sets this for every row on
+    /// every tick, and a full restyle each time was the rail repainting all
+    /// of its rows about three times a second while nothing moved.
+    var status = DeskStatus() { didSet { if status != oldValue { restyle() } } }
+    /// Spinner frame, advanced by the rail's timer. Turns the glyph only.
+    var tick = 0 {
+        didSet {
+            guard case .working = status.activity else { return }
+            glyph.stringValue = Self.spin[tick % Self.spin.count]
+            // The "now" / "2m" label ages without the status changing.
+            let t = status.lastOutput.map(Self.ago) ?? ""
+            if time.stringValue != t { time.stringValue = t }
+        }
+    }
+
     private var hovering = false { didSet { needsDisplay = true } }
 
     static let height: CGFloat = 40
@@ -152,6 +171,7 @@ final class DeskRow: NSView {
         var parts: [String] = []
         parts.append(runtime == "shell" ? "shell" : runtime + (isDefault ? " home" : ""))
         if runtime != "shell" || status.running { parts.append(state) }
+        if let m = status.memory { parts.append(m) }
         sub.stringValue = parts.joined(separator: " \u{00B7} ")                  // ·
         sub.font = .systemFont(ofSize: 11)
         sub.textColor = ui.dimText
@@ -172,7 +192,30 @@ final class DeskRow: NSView {
 
     override func mouseEntered(with e: NSEvent) { hovering = true }
     override func mouseExited(with e: NSEvent) { hovering = false }
-    override func mouseDown(with e: NSEvent) { onClick?() }
+    // A click selects; a drag of more than a few points reorders instead.
+    private var downAt: NSPoint?
+    private var dragging = false
+
+    override func mouseDown(with e: NSEvent) { downAt = e.locationInWindow; dragging = false }
+
+    override func mouseDragged(with e: NSEvent) {
+        guard let start = downAt, onDragMoved != nil else { return }
+        let p = e.locationInWindow
+        if !dragging, hypot(p.x - start.x, p.y - start.y) > 4 { dragging = true; alphaValue = 0.45 }
+        if dragging, let sv = superview { onDragMoved?(sv.convert(p, from: nil)) }
+    }
+
+    override func mouseUp(with e: NSEvent) {
+        defer { downAt = nil; dragging = false; alphaValue = 1 }
+        if dragging, let sv = superview { onDragEnded?(sv.convert(e.locationInWindow, from: nil)) }
+        else if downAt != nil { onClick?() }
+    }
+
+    /// Refresh the "2m" label without a full restyle. Called by the rail.
+    func refreshAge() {
+        let t = status.lastOutput.map(Self.ago) ?? ""
+        if time.stringValue != t { time.stringValue = t }
+    }
 
     override func rightMouseDown(with e: NSEvent) {
         let m = NSMenu()
@@ -190,12 +233,24 @@ final class DeskRow: NSView {
                 + "also opens when Project Coldfall starts."
             m.addItem(g); m.addItem(.separator())
         }
+        let rn = NSMenuItem(title: "Rename Desk…", action: #selector(rename), keyEquivalent: "")
+        rn.target = self
+        m.addItem(rn)
+        if status.running, onStop != nil {
+            let st = NSMenuItem(title: "Stop Desk…", action: #selector(stop), keyEquivalent: "")
+            st.target = self
+            st.toolTip = "Ends this desk's processes and frees their memory. Click the desk to start it again."
+            m.addItem(st)
+        }
+        m.addItem(.separator())
         let d = NSMenuItem(title: "Remove Desk…", action: #selector(remove), keyEquivalent: "")
         d.target = self
         m.addItem(d)
         NSMenu.popUpContextMenu(m, with: e, for: self)
     }
     @objc private func remove() { onRemove?() }
+    @objc private func rename() { onRename?() }
+    @objc private func stop() { onStop?() }
     @objc private func reveal() { onReveal?() }
     @objc private func makeDefault() { onMakeDefault?() }
 }

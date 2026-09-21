@@ -1,0 +1,124 @@
+// Editing the desk list from the rail: renaming a desk, dragging it to a new
+// place, and measuring what each one costs in memory.
+//
+// All three live here rather than in the app because each has a way to go
+// quietly wrong. A name with a dot in it writes `[desk.a.b]`, which TOML reads
+// as a nested table and the loader never finds again. A drag that drops into a
+// group has to change the desk's group as well as its place, or it snaps back
+// to where it came from on the next rebuild. And memory has to count the
+// agent's whole process tree, not the shell at the top of it, or a desk using
+// a gigabyte reads as two megabytes.
+
+import Foundation
+
+public enum DeskName {
+
+    public static let maxLength = 40
+
+    /// Why a proposed name cannot be used, or nil when it can.
+    ///
+    /// The name becomes a bare TOML key in `[desk.<name>]`, so it is held to
+    /// what a bare key allows: letters, digits, `-` and `_`. Anything else
+    /// would need quoting the hand-rolled reader does not do.
+    public static func problem(_ name: String, existing: [String], current: String? = nil) -> String? {
+        if name.isEmpty { return "A desk needs a name." }
+        if name.count > maxLength { return "Keep it to \(maxLength) characters or fewer." }
+        let ok = name.unicodeScalars.allSatisfy {
+            ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0)
+                || $0 == "-" || $0 == "_"
+        }
+        if !ok { return "Use letters, numbers, - and _ only. No spaces or dots." }
+        let taken = existing.contains { $0.lowercased() == name.lowercased() && $0 != current }
+        if taken { return "There is already a desk called \(name)." }
+        return nil
+    }
+}
+
+/// Where a dragged desk lands.
+public enum DeskDrop: Equatable {
+    case before(Int)
+    case after(Int)
+    /// Dropped on a group's header: goes to the end of that group.
+    case endOfGroup(String?)
+}
+
+public enum DeskOrder {
+
+    /// The desk list after moving desk `from` to `drop`. Indices in `drop`
+    /// refer to the list as it was before the move.
+    ///
+    /// Landing next to a desk puts the moved desk in that desk's group, so
+    /// dragging a desk into another group's rows moves it into that group.
+    /// Returns the list unchanged for a drop onto itself.
+    public static func move(_ desks: [Desk], from: Int, to drop: DeskDrop) -> [Desk] {
+        guard desks.indices.contains(from) else { return desks }
+        var moving = desks[from]
+        var rest = desks
+        rest.remove(at: from)
+        // Shift a target index to account for the removal.
+        func adj(_ i: Int) -> Int { i > from ? i - 1 : i }
+
+        let at: Int
+        switch drop {
+        case .before(let i):
+            guard desks.indices.contains(i), i != from else { return desks }
+            moving.group = desks[i].group
+            at = adj(i)
+        case .after(let i):
+            guard desks.indices.contains(i), i != from else { return desks }
+            moving.group = desks[i].group
+            at = adj(i) + 1
+        case .endOfGroup(let g):
+            moving.group = g
+            at = (rest.lastIndex { $0.group == g }).map { $0 + 1 } ?? rest.count
+        }
+        rest.insert(moving, at: min(max(0, at), rest.count))
+        return rest
+    }
+}
+
+/// Memory per desk, from one `ps` table.
+///
+/// A desk's terminal owns a login shell, which owns the agent, which owns its
+/// MCP servers. Only the sum of that tree is the honest number.
+public enum ProcessTree {
+
+    public struct Row: Equatable {
+        public let pid: Int32, ppid: Int32, rssKB: Int
+        public init(pid: Int32, ppid: Int32, rssKB: Int) { self.pid = pid; self.ppid = ppid; self.rssKB = rssKB }
+    }
+
+    /// Parse `ps -axo pid=,ppid=,rss=`. Lines that do not parse are skipped.
+    public static func parse(_ text: String) -> [Row] {
+        text.split(separator: "\n").compactMap { line in
+            let f = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            guard f.count >= 3, let p = Int32(f[0]), let pp = Int32(f[1]), let r = Int(f[2]) else { return nil }
+            return Row(pid: p, ppid: pp, rssKB: r)
+        }
+    }
+
+    /// Resident memory of `root` and every descendant, in kilobytes.
+    public static func totalKB(root: Int32, in rows: [Row]) -> Int {
+        guard root > 0 else { return 0 }
+        var kids: [Int32: [Int32]] = [:]
+        var rss: [Int32: Int] = [:]
+        for r in rows { kids[r.ppid, default: []].append(r.pid); rss[r.pid] = r.rssKB }
+        guard rss[root] != nil else { return 0 }
+        var total = 0, stack = [root], seen: Set<Int32> = []
+        while let p = stack.popLast() {
+            guard seen.insert(p).inserted else { continue }
+            total += rss[p] ?? 0
+            stack += kids[p] ?? []
+        }
+        return total
+    }
+
+    /// "940 MB", "1.2 GB". Nil under 1 MB, which is a process that has not
+    /// really started and is not worth a label.
+    public static func label(kb: Int) -> String? {
+        let mb = Double(kb) / 1024
+        if mb < 1 { return nil }
+        if mb < 1000 { return "\(Int(mb.rounded())) MB" }
+        return String(format: "%.1f GB", mb / 1024)
+    }
+}

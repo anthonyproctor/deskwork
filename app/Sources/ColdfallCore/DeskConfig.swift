@@ -363,6 +363,7 @@ public enum DeskConfig {
                 if let a = d.agent { out += "agent = \"\(TomlText.escape(a))\"\n" }
             }
             if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
+            if let m = d.model { out += "model = \"\(TomlText.escape(m))\"\n" }
         }
         try? FileManager.default.createDirectory(
             atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)

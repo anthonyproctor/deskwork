@@ -265,7 +265,9 @@ final class PaneBox: NSView {
 
 /// One live desk: its panes, which one has focus, and the split view holding them.
 final class DeskSession {
-    let desk: Desk
+    /// A var so a rename reaches a desk that is already running. The launch
+    /// command was read when it started, so the running process is unaffected.
+    var desk: Desk
     /// Every pane reports process exit to the same delegate, so a shell pane
     /// closing is handled the same way the agent's own exit is.
     weak var processDelegate: LocalProcessTerminalViewDelegate? {
@@ -311,6 +313,14 @@ final class DeskSession {
     var lastOutput: Date? { activityState.lastOutput }
     var focusedPane: Pane { panes[min(focused, panes.count - 1)] }
     var started: Bool { panes[0].started }
+
+    /// Every pane's process id, for measuring the desk's memory.
+    var pids: [Int32] { panes.compactMap { $0.started ? $0.term.process?.shellPid : nil } }
+
+    /// End every pane's process. The session is finished after this.
+    func terminateAll() {
+        for p in panes where p.started { p.term.terminate() }
+    }
 
     func startIfNeeded() {
         panes[0].start(desk: desk, command: desk.launchCommand())

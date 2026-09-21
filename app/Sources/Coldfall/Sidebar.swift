@@ -11,6 +11,14 @@ final class SidebarView: NSView {
     var onRemoveDesk: ((Int) -> Void)?
     var onRevealAgent: ((Int) -> Void)?
     var onMakeDefault: ((Int) -> Void)?
+    var onRenameDesk: ((Int) -> Void)?
+    var onStopDesk: ((Int) -> Void)?
+    var onMoveDesk: ((Int, DeskDrop) -> Void)?
+
+    /// Group headers by the group they head, for drops onto a header.
+    private var headers: [(group: String, view: GroupHeader)] = []
+    /// The line showing where a dragged desk will land.
+    private let dropLine = NSView()
 
     private var rows: [Int: DeskRow] = [:]
     private var selected = -1
@@ -24,7 +32,13 @@ final class SidebarView: NSView {
         didSet { for r in rows.values { r.status = status[r.deskName] ?? DeskStatus() } }
     }
     /// Advanced by the controller so a working desk's spinner turns.
-    var tick = 0 { didSet { for r in rows.values { r.tick = tick } } }
+    var tick = 0 {
+        didSet {
+            for r in rows.values { r.tick = tick }
+            // "2m" ages on its own; a few seconds' resolution is plenty.
+            if tick % 8 == 0 { for r in rows.values { r.refreshAge() } }
+        }
+    }
 
     private(set) var lastDesks: [Desk]?
     private(set) var lastSelected: Int?
@@ -33,6 +47,7 @@ final class SidebarView: NSView {
         lastDesks = desks
         subviews.forEach { $0.removeFromSuperview() }
         rows = [:]
+        headers = []
 
         // Size from the scroll view's VISIBLE width, not our own. The first
         // build runs before the window has finished sizing, so our own width
@@ -67,6 +82,7 @@ final class SidebarView: NSView {
                 h.onClick = { [weak self] in self?.onToggleGroup?(g) }
                 h.onRename = { [weak self] in self?.onRenameGroup?(g) }
                 addSubview(h)
+                headers.append((g, h))
                 y += 22
                 if !isDown { y += 4; continue }
             }
@@ -81,6 +97,10 @@ final class SidebarView: NSView {
                 r.onReveal = d.agent == nil ? nil : { [weak self] in self?.onRevealAgent?(i) }
                 r.onMakeDefault = d.isDefault || d.runtime == "shell"
                     ? nil : { [weak self] in self?.onMakeDefault?(i) }
+                r.onRename = { [weak self] in self?.onRenameDesk?(i) }
+                r.onStop = { [weak self] in self?.onStopDesk?(i) }
+                r.onDragMoved = { [weak self] p in self?.dragMoved(from: i, to: p) }
+                r.onDragEnded = { [weak self] p in self?.dragEnded(from: i, at: p) }
                 r.status = status[d.name] ?? DeskStatus()
                 r.tick = tick
                 addSubview(r)
@@ -140,6 +160,40 @@ final class SidebarView: NSView {
         guard let clip = superview as? NSClipView else { return }
         let w = max(clip.bounds.width, 190)
         if abs(frame.width - w) > 0.5 { setFrameSize(NSSize(width: w, height: frame.height)) }
+    }
+
+    // MARK: - drag to reorder
+
+    /// What a drop at `p` means: onto a header is the end of that group;
+    /// onto a row is before or after it, by which half the pointer is in.
+    private func drop(at p: NSPoint, from: Int) -> (DeskDrop, CGFloat)? {
+        for h in headers where h.view.frame.insetBy(dx: -10, dy: -2).contains(p) {
+            return (.endOfGroup(h.group), h.view.frame.maxY)
+        }
+        let ordered = rows.sorted { $0.value.frame.minY < $1.value.frame.minY }
+        guard let first = ordered.first else { return nil }
+        if p.y < first.value.frame.minY { return (.before(first.key), first.value.frame.minY) }
+        for (i, r) in ordered where p.y < r.frame.maxY + 2 {
+            if i == from { return nil }
+            return p.y < r.frame.midY ? (.before(i), r.frame.minY) : (.after(i), r.frame.maxY)
+        }
+        let last = ordered.last!
+        return last.key == from ? nil : (.after(last.key), last.value.frame.maxY)
+    }
+
+    private func dragMoved(from: Int, to p: NSPoint) {
+        guard let (_, y) = drop(at: p, from: from) else { dropLine.removeFromSuperview(); return }
+        dropLine.wantsLayer = true
+        dropLine.layer?.backgroundColor = Theme.ui.accent.cgColor
+        dropLine.frame = NSRect(x: 10, y: y - 1, width: bounds.width - 20, height: 2)
+        if dropLine.superview == nil { addSubview(dropLine) }
+        if let e = NSApp.currentEvent { autoscroll(with: e) }
+    }
+
+    private func dragEnded(from: Int, at p: NSPoint) {
+        dropLine.removeFromSuperview()
+        guard let (d, _) = drop(at: p, from: from) else { return }
+        onMoveDesk?(from, d)
     }
 
     func select(_ i: Int) {
