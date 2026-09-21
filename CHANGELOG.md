@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-21
+
+Trim what each desk runs, and a cleaner Settings.
+
 ### Added
 - A daily update check. The title strip shows a link when a newer release is
   out. The check sends a random ID made on your Mac, the app version and the
@@ -136,7 +140,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/anthonyproctor/project-coldfall/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/anthonyproctor/project-coldfall/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/anthonyproctor/project-coldfall/releases/tag/v0.1.0
