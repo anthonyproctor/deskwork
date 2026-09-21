@@ -726,18 +726,24 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func editMcp(_ i: Int) {
         guard desks.indices.contains(i) else { return }
         let d = desks[i]
-        let servers = McpTrim.servers(cwd: d.resolvedCwd)
+        let servers = McpTrim.servers(for: d)
+        let claude = d.runtime == "claude"
         let a = NSAlert()
         a.messageText = "MCP servers for \(d.name)"
         guard !servers.isEmpty else {
-            a.informativeText = "This desk's folder has no .mcp.json, so there are no local MCP servers to switch off. "
-                + "claude.ai connectors and plugins are managed in Claude itself."
+            a.informativeText = claude
+                ? "This desk's folder has no .mcp.json, so there are no local MCP servers to switch off. "
+                  + "claude.ai connectors and plugins are managed in Claude itself."
+                : "Codex has no MCP servers set up in ~/.codex/config.toml, so there's nothing to switch off."
             a.runModal(); return
         }
         var info = "Each one is a separate program this desk starts, with its own memory. "
-            + "Untick the ones this desk doesn't need. claude.ai connectors and plugins aren't affected. "
+            + "Untick the ones this desk doesn't need. "
+            + (claude ? "claude.ai connectors and plugins aren't affected. " : "")
             + "Takes effect the next time the desk starts."
-        if let c = d.command, !c.isEmpty, !McpTrim.commandHonors(c) {
+        if let c = d.command, !c.isEmpty, !claude {
+            info += "\n\nThis desk runs its own command, so Coldfall can't pass the choice to Codex."
+        } else if let c = d.command, !c.isEmpty, !McpTrim.commandHonors(c) {
             info += "\n\nThis desk runs its own command, which doesn't pass the choice on to Claude yet. "
                 + "Add --settings \"$\(McpTrim.envKey)\" to the claude line in that script when the variable is set."
         }

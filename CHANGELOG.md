@@ -17,6 +17,8 @@ opens this file.
 - **What This Desk Has…** on a desk's right-click menu lists its MCP servers
   (and which run on this Mac), hooks (commands that run by themselves),
   skills and plugins, read from Claude, Codex or Gemini's own files.
+- **MCP Servers…** works for Codex desks too, switching off servers from
+  `~/.codex/config.toml` for that desk alone.
 - **What changed.** What This Desk Has now marks what's new, updated or gone
   since you last looked, and names each change at the top. When a desk starts
   with something new (a plugin that added a hook, say), its row in the rail

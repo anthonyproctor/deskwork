@@ -86,32 +86,21 @@ splits are the obvious next ask and are deliberately not built: nesting doubles
 the interaction surface to serve a layout nobody has requested. **If you want
 them, that is [an issue](../../issues) with a thumbs-up on it.**
 
-### 4. A remote session, localhost-only
-
-Reaching a desk from a phone. Designed and deliberately not built.
-
-A web terminal is remote shell execution on the host machine, which makes it
-the first feature here whose failure mode is expensive rather than annoying.
-Everything else can be wrong and cost an afternoon.
-
-So the shape is fixed in advance: **bind to 127.0.0.1, hardcoded**, and reach
-it over Tailscale or an SSH tunnel. That moves identity to something already
-audited instead of to auth code written here. A public listener is out of
-scope, not deferred.
-
-Worth noting that Claude Code already has `--remote-control`, so for one vendor
-this exists. What is missing is the cross-vendor version and the desk model.
-
-### 5. A safer way to add skills
+### 4. Knowing when a desk changes — shipped 2026-09-21
 
 People find skills through social posts and paste them in. Reviewing five
 popular ones turned up the things worth knowing before installing: hooks that
 run on every tool call, telemetry on by default, a background worker that
 leaks processes, and instructions that coach the agent around a denied
-permission. None of it was in the README. An install screen that shows those
-facts, built on What This Desk Has, is the next real feature.
+permission. None of it was in the README.
 
-### 6. Better highlighting
+An install screen, and a "check this skill" button, were both considered and
+dropped: people install through the vendor or by pasting a link into the chat,
+and would not detour through Coldfall to do it. What shipped instead works no
+matter how something got installed: What This Desk Has marks what is new,
+updated or gone since you last looked, and a desk's row says so when it starts.
+
+### 5. Better highlighting
 
 The reader's highlighter is regex over comments, strings, keywords and numbers.
 It is honest about being shallow and returns plain text rather than guessing on
@@ -202,7 +191,14 @@ sits in the half that is easy to destroy by accident.
 **A dedicated mobile app.** Months of work, an App Store review cycle, and a
 second UI to maintain, to reach a use case an SSH session already serves.
 
-**A public-facing server.** See above. Localhost plus a tunnel, or nothing.
+**Remote access.** Reaching a desk from a phone was designed (localhost only,
+over Tailscale or an SSH tunnel) and then dropped. The vendors already do this
+natively, Claude Code's remote control for one, and a web terminal would make
+Coldfall's first expensive failure mode remote shell execution on your Mac.
+Leave it with the vendors.
+
+**A public-facing server.** Same reason. The only server this project runs is
+the update check in `server/`, which takes three fields and keeps no IDs.
 
 **Forking VS Code.** Its terminal is xterm.js, which is the specific thing that
 drove this project into existence — a fork would begin already holding the

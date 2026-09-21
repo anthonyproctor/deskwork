@@ -134,9 +134,9 @@ final class SidebarView: NSView {
                     ? nil : { [weak self] in self?.onMakeDefault?(i) }
                 r.onRename = { [weak self] in self?.onRenameDesk?(i) }
                 r.onStop = { [weak self] in self?.onStopDesk?(i) }
-                // Claude only for now: it is the vendor whose way of switching
-                // single servers off has been checked (see McpTrim).
-                r.onMcp = d.runtime == "claude" ? { [weak self] in self?.onMcpDesk?(i) } : nil
+                // The vendors whose way of switching one server off has been
+                // checked (see McpTrim).
+                r.onMcp = ["claude", "codex"].contains(d.runtime) ? { [weak self] in self?.onMcpDesk?(i) } : nil
                 r.onInventory = d.runtime == "shell" ? nil : { [weak self] in self?.onInventoryDesk?(i) }
                 r.onDragMoved = { [weak self] p in self?.dragMoved(from: i, to: p) }
                 r.onDragEnded = { [weak self] p in self?.dragEnded(from: i, at: p) }

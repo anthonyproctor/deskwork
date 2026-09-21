@@ -94,7 +94,9 @@ public struct Desk {
             // single quote to break out of.
             if let s = McpTrim.settingsJSON(off: mcpOff) { parts += ["--settings", "'\(s)'"] }
             return parts.joined(separator: " ")
-        case "codex":  return codexResume ? "codex resume --last" : "codex"
+        case "codex":
+            let base = codexResume ? ["codex", "resume", "--last"] : ["codex"]
+            return (base + McpTrim.codexArgs(off: mcpOff)).joined(separator: " ")
         case "gemini": return "gemini"
         case "copilot": return "copilot"
         case "ollama":

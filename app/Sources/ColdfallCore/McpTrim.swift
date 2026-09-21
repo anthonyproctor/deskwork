@@ -43,6 +43,23 @@ public enum McpTrim {
         return s.keys.filter(validName).sorted()
     }
 
+    /// The servers `desk` can trim, by vendor: Claude's from the folder's
+    /// .mcp.json, Codex's from its config.toml. Other vendors: none yet.
+    public static func servers(for desk: Desk, home: String = NSHomeDirectory()) -> [String] {
+        switch desk.runtime {
+        case "claude": return servers(cwd: desk.resolvedCwd)
+        case "codex":  return Inventory.codex(cwd: desk.resolvedCwd, home: home).mcp.map(\.name).filter(validName).sorted()
+        default:       return []
+        }
+    }
+
+    /// Codex's way: one `-c mcp_servers.<name>.enabled=false` per server,
+    /// checked to switch off only that one. Quoted for the shell; names are
+    /// already restricted to characters that need no escaping.
+    public static func codexArgs(off: [String]) -> [String] {
+        Array(Set(off.filter(validName))).sorted().flatMap { ["-c", "'mcp_servers.\($0).enabled=false'"] }
+    }
+
     /// Claude settings that switch `off` off, or nil when nothing is.
     public static func settingsJSON(off: [String]) -> String? {
         let names = Array(Set(off.filter(validName))).sorted()

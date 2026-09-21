@@ -1170,6 +1170,27 @@ do {
     eq("what was seen comes back", InventorySeen.load("golf"), now.seen)
 }
 
+// MARK: - trimming a Codex desk's MCP servers
+
+do {
+    let root = NSTemporaryDirectory() + "coldfall-cxmcp-\(UUID().uuidString)"
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    try? FileManager.default.createDirectory(atPath: root + "/.codex", withIntermediateDirectories: true)
+    try? "[mcp_servers.search]\ncommand = \"s\"\n[mcp_servers.browser]\ncommand = \"b\"\n"
+        .write(toFile: root + "/.codex/config.toml", atomically: true, encoding: .utf8)
+    var d = Desk(name: "cx", runtime: "codex", cwd: "/srv/demo")
+    eq("a Codex desk can trim the servers in config.toml", McpTrim.servers(for: d, home: root), ["browser", "search"])
+    d.mcpOff = ["search"]
+    eq("a trimmed Codex desk starts with that one off",
+       d.launchCommand(), "codex -c 'mcp_servers.search.enabled=false'")
+    eq("and keeps it off when it resumes",
+       d.launchCommand(codexResume: true), "codex resume --last -c 'mcp_servers.search.enabled=false'")
+    d.mcpOff = ["x'; rm -rf ~"]
+    eq("an unsafe name never reaches the shell", d.launchCommand(), "codex")
+    eq("vendors without a checked way have nothing to trim",
+       McpTrim.servers(for: Desk(name: "g", runtime: "gemini"), home: root), [])
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the
