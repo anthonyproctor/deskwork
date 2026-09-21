@@ -8,6 +8,7 @@
 //   coldfall-cli desks            configured desks
 //   coldfall-cli limits           remaining quota, per vendor
 //   coldfall-cli usage [--days N] consumption by vendor and desk
+//   coldfall-cli inventory <desk> a desk's MCP servers, hooks, skills, plugins
 //   coldfall-cli formats          where everything lives on disk
 import Foundation
 import ColdfallCore
@@ -66,6 +67,22 @@ case "agents":
         return o
     })
 
+case "inventory":
+    guard args.count > 1, let d = DeskConfig.load().first(where: { $0.name == args[1] }) else {
+        print("usage: coldfall-cli inventory <desk>"); exit(1)
+    }
+    let inv = Inventory.of(d)
+    func items(_ xs: [Inventory.Item]) -> [[String: Any]] {
+        xs.map { ["name": $0.name, "detail": $0.detail, "source": $0.source, "off": $0.off] }
+    }
+    out(["desk": d.name, "mcp": items(inv.mcp), "hooks": items(inv.hooks), "skills": items(inv.skills),
+         "plugins": items(inv.plugins), "notes": inv.notes, "seen": inv.seen,
+         "changes": InventorySeen.load(d.name).map { before -> [String: Any] in
+             let c = inv.changes(since: before)
+             return ["added": c.added.sorted().map(Inventory.label), "updated": c.updated.keys.sorted().map(Inventory.label),
+                     "removed": c.removed]
+         } ?? NSNull()])
+
 case "hosts":
     out(SSHHosts.all().map { ["alias": $0.alias, "target": $0.blurb, "command": $0.command] })
 
@@ -77,6 +94,7 @@ case "formats":
         "sessions": DeskState.dir + "/<desk>.json",
         "mail":     Mailbox.load().dir + "/thread-<a>-<b>.md",
         "uiState":  UIState.path,
+        "inventorySeen": InventorySeen.root + "/<desk>.json",
     ])
 
 default:
@@ -86,6 +104,7 @@ default:
       desks              configured desks and how each launches
       agents [dir]       agent definitions on disk that could become desks
       hosts              ssh hosts that could become desks
+      inventory <desk>   its MCP servers, hooks, skills and plugins, and what changed
       limits             remaining quota per vendor, stale entries dropped
       usage [--days N]   consumption by vendor and by desk (default: this week)
       formats            where every file Project Coldfall reads or writes lives

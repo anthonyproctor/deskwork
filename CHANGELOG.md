@@ -17,6 +17,11 @@ opens this file.
 - **What This Desk Has…** on a desk's right-click menu lists its MCP servers
   (and which run on this Mac), hooks (commands that run by themselves),
   skills and plugins, read from Claude, Codex or Gemini's own files.
+- **What changed.** What This Desk Has now marks what's new, updated or gone
+  since you last looked, and names each change at the top. When a desk starts
+  with something new (a plugin that added a hook, say), its row in the rail
+  says "2 new" until you look. The first look is a baseline, not a list of
+  everything. `coldfall-cli inventory <desk>` prints the same as JSON.
 
 ### Fixed
 - The README's install commands work when pasted: the app's path has a

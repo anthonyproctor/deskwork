@@ -27,6 +27,8 @@ struct DeskStatus: Equatable {
     var running = false
     /// Resident memory of the desk's whole process tree, e.g. "940 MB".
     var memory: String?
+    /// Servers, hooks, skills or plugins new or changed since last looked at.
+    var news: Int = 0
 }
 
 final class DeskRow: NSView {
@@ -174,9 +176,12 @@ final class DeskRow: NSView {
         parts.append(runtime == "shell" ? "shell" : runtime + (isDefault ? " home" : ""))
         if runtime != "shell" || status.running { parts.append(state) }
         if let m = status.memory { parts.append(m) }
+        // Something was added to this desk since it was last looked at, a
+        // plugin's new hooks for example. Say so until someone looks.
+        if status.news > 0 { parts.append("\(status.news) new") }
         sub.stringValue = parts.joined(separator: " \u{00B7} ")                  // ·
         sub.font = .systemFont(ofSize: 11)
-        sub.textColor = ui.dimText
+        sub.textColor = status.news > 0 ? .systemOrange : ui.dimText
 
         needsDisplay = true
     }

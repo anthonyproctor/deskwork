@@ -6,7 +6,7 @@ import ColdfallCore
 /// the desk's right-click menu.
 final class InventoryWindow: NSWindowController {
 
-    convenience init(desk: Desk, inventory: Inventory) {
+    convenience init(desk: Desk, inventory: Inventory, changes: Inventory.Changes? = nil) {
         let vis = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1280, height: 800)
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: min(640, vis.height - 80)),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
@@ -33,21 +33,22 @@ final class InventoryWindow: NSWindowController {
         text.isEditable = false
         text.drawsBackground = false
         text.textContainerInset = NSSize(width: 20, height: 18)
-        text.textStorage?.setAttributedString(InventoryWindow.render(desk: desk, inventory: inventory))
+        text.textStorage?.setAttributedString(InventoryWindow.render(desk: desk, inventory: inventory, changes: changes))
         scroll.documentView = text
         box.addSubview(scroll)
         w.contentView = box
         w.center()
     }
 
-    static func render(desk: Desk, inventory inv: Inventory) -> NSAttributedString {
+    /// `changes` is nil on a first look, when there is nothing to compare with.
+    static func render(desk: Desk, inventory inv: Inventory, changes: Inventory.Changes? = nil) -> NSAttributedString {
         let out = NSMutableAttributedString()
         let body = NSFont.systemFont(ofSize: 12.5)
         func add(_ s: String, _ font: NSFont, _ color: NSColor, space: CGFloat = 2) {
             let p = NSMutableParagraphStyle(); p.paragraphSpacing = space
             out.append(NSAttributedString(string: s + "\n", attributes: [.font: font, .foregroundColor: color, .paragraphStyle: p]))
         }
-        func section(_ title: String, _ why: String, _ items: [Inventory.Item], empty: String) {
+        func section(_ title: String, _ kind: String, _ why: String, _ items: [Inventory.Item], empty: String) {
             add("", body, .labelColor, space: 4)
             add(title, .systemFont(ofSize: 10.5, weight: .semibold), .tertiaryLabelColor)
             add(why, .systemFont(ofSize: 11.5), .secondaryLabelColor, space: 8)
@@ -59,6 +60,16 @@ final class InventoryWindow: NSWindowController {
                     .foregroundColor: it.off ? NSColor.tertiaryLabelColor : NSColor.labelColor,
                     .strikethroughStyle: it.off ? NSUnderlineStyle.single.rawValue : 0,
                 ]))
+                let key = Inventory.key(kind: kind, it)
+                if changes?.added.contains(key) == true {
+                    line.append(NSAttributedString(string: "  NEW", attributes: [
+                        .font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.systemGreen,
+                    ]))
+                } else if let was = changes?.updated[key] {
+                    line.append(NSAttributedString(string: "  UPDATED, was \(was)", attributes: [
+                        .font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.systemOrange,
+                    ]))
+                }
                 line.append(NSAttributedString(string: "   " + it.source + (it.off ? ", off for this desk" : ""), attributes: [
                     .font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.tertiaryLabelColor,
                 ]))
@@ -77,19 +88,40 @@ final class InventoryWindow: NSWindowController {
         add("\(desk.runtime) · \((desk.resolvedCwd as NSString).abbreviatingWithTildeInPath)",
             .systemFont(ofSize: 11.5), .secondaryLabelColor, space: 4)
 
+        // What changed since the last look, before any list.
+        if let c = changes {
+            var bits: [String] = []
+            if !c.added.isEmpty { bits.append("\(c.added.count) new") }
+            if !c.updated.isEmpty { bits.append("\(c.updated.count) updated") }
+            if !c.removed.isEmpty { bits.append("\(c.removed.count) gone") }
+            add(bits.isEmpty ? "Nothing has changed since you last looked."
+                             : "Since you last looked: " + bits.joined(separator: ", ") + ". Marked below.",
+                .systemFont(ofSize: 12.5, weight: bits.isEmpty ? .regular : .semibold),
+                bits.isEmpty ? .secondaryLabelColor : .systemOrange, space: 4)
+            // Named here too, so nothing has to be found by scrolling.
+            for k in c.added.sorted() { add("new: " + Inventory.label(k), .systemFont(ofSize: 11.5), .labelColor) }
+            for k in c.updated.keys.sorted() {
+                add("updated: " + Inventory.label(k) + ", was " + (c.updated[k] ?? ""), .systemFont(ofSize: 11.5), .labelColor)
+            }
+            for r in c.removed { add("gone: " + r, .systemFont(ofSize: 11.5), .secondaryLabelColor) }
+        } else {
+            add("First look at this desk. From now on, anything added or changed is marked here, "
+                + "and the desk's row says so when it starts.", .systemFont(ofSize: 11.5), .secondaryLabelColor, space: 4)
+        }
+
         let local = inv.mcp.filter { !$0.off && $0.detail.hasSuffix("on this Mac") }.count
-        section("MCP SERVERS",
+        section("MCP SERVERS", "MCP server",
                 "Programs that give the agent tools. Each one that runs on this Mac takes memory while the desk runs"
                 + (local > 0 ? " (\(local) here)" : "") + ". To switch some off, right-click the desk and choose MCP Servers…",
                 inv.mcp, empty: "None.")
-        section("HOOKS",
+        section("HOOKS", "hook",
                 "Commands that run by themselves on an event, like every session start or every tool call. "
                 + "The one kind that acts without being asked.",
                 inv.hooks, empty: "None.")
-        section("SKILLS",
+        section("SKILLS", "skill",
                 "Instructions the agent reads only when a task calls for them. Nearly free until used.",
                 inv.skills, empty: "None.")
-        section("PLUGINS",
+        section("PLUGINS", "plugin",
                 "Packages that bring skills, hooks and servers with them. What each carries is listed above under its name.",
                 inv.plugins, empty: "None.")
         if !inv.notes.isEmpty {

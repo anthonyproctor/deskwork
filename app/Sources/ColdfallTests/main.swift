@@ -1135,6 +1135,41 @@ do {
     eq("no line for a vendor with no official CLI", VendorInstall.of("grok"), nil)
 }
 
+// MARK: - what changed since you last looked
+
+do {
+    let dir = NSTemporaryDirectory() + "coldfall-seen-\(UUID().uuidString)"
+    let realRoot = InventorySeen.root
+    InventorySeen.root = dir
+    defer { InventorySeen.root = realRoot; try? FileManager.default.removeItem(atPath: dir) }
+
+    var before = Inventory()
+    before.mcp = [.init(name: "mail", detail: "runs mail on this Mac", source: "this folder")]
+    before.plugins = [.init(name: "helper", detail: "v1.0.0: 1 skill", source: "helper@market")]
+    before.hooks = [.init(name: "SessionStart", detail: "brief.py", source: "this folder")]
+    before.skills = [.init(name: "old-skill", detail: "", source: "you, every folder")]
+
+    eq("the first look is a baseline, not a list of everything", before.changes(since: nil).isEmpty, true)
+    eq("nothing changed, nothing to say", before.changes(since: before.seen).isEmpty, true)
+
+    var now = before
+    now.plugins = [.init(name: "helper", detail: "v1.1.0: 1 skill, 2 hooks", source: "helper@market")]
+    now.hooks.append(.init(name: "PostToolUse", detail: "telemetry.mjs", source: "plugin helper"))
+    now.skills = []
+    let c = now.changes(since: before.seen)
+    eq("a new hook is new", c.added, [Inventory.key(kind: "hook", now.hooks[1])])
+    eq("a plugin whose version moved is updated, with what it was",
+       c.updated[Inventory.key(kind: "plugin", now.plugins[0])], "v1.0.0: 1 skill")
+    eq("a skill that went away is listed as removed", c.removed, ["skill old-skill"])
+    eq("the nudge counts new and updated, not removed", c.count, 2)
+    eq("a hook's label names its script", Inventory.label(Inventory.key(kind: "hook", now.hooks[1])),
+       "hook PostToolUse (telemetry.mjs)")
+
+    eq("nothing saved for a desk yet", InventorySeen.load("golf"), nil)
+    InventorySeen.save("golf", now.seen)
+    eq("what was seen comes back", InventorySeen.load("golf"), now.seen)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

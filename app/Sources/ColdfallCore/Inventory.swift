@@ -277,3 +277,81 @@ public struct Inventory: Equatable {
 
     static func count(_ n: Int, _ word: String) -> String { "\(n) \(word)\(n == 1 ? "" : "s")" }
 }
+
+// MARK: - what changed since you last looked
+
+extension Inventory {
+
+    /// Every item under a key that says what it is and where it comes from.
+    /// A hook's key includes its script, since its name is only the event.
+    /// The value is the detail, so a plugin whose version moves reads as
+    /// updated rather than as new.
+    public var seen: [String: String] {
+        var out: [String: String] = [:]
+        for i in mcp { out["MCP server|\(i.name)|\(i.source)"] = i.detail }
+        for i in hooks { out["hook|\(i.name)|\(i.source)|\(i.detail)"] = i.detail }
+        for i in skills { out["skill|\(i.name)|\(i.source)"] = i.detail }
+        for i in plugins { out["plugin|\(i.name)|\(i.source)"] = i.detail }
+        return out
+    }
+
+    public struct Changes: Equatable {
+        /// Keys new since last time.
+        public var added: Set<String> = []
+        /// Keys whose detail changed: key -> what it was.
+        public var updated: [String: String] = [:]
+        /// Keys gone, as "kind name".
+        public var removed: [String] = []
+        public var count: Int { added.count + updated.count }
+        public var isEmpty: Bool { added.isEmpty && updated.isEmpty && removed.isEmpty }
+    }
+
+    /// What differs from `before`. With nothing before, nothing is new:
+    /// the first look is the baseline, not a list of everything.
+    public func changes(since before: [String: String]?) -> Changes {
+        guard let before else { return Changes() }
+        var c = Changes()
+        let now = seen
+        for (k, v) in now {
+            if let old = before[k] { if old != v { c.updated[k] = old } } else { c.added.insert(k) }
+        }
+        c.removed = before.keys.filter { now[$0] == nil }.map(Inventory.label).sorted()
+        return c
+    }
+
+    /// "hook SessionStart" from a key.
+    public static func label(_ key: String) -> String {
+        let p = key.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard p.count >= 2 else { return key }
+        return p[0] == "hook" && p.count >= 4 ? "hook \(p[1]) (\(p[3]))" : "\(p[0]) \(p[1])"
+    }
+
+    /// The key an item has in `seen`, for marking it in a list.
+    public static func key(kind: String, _ i: Item) -> String {
+        kind == "hook" ? "hook|\(i.name)|\(i.source)|\(i.detail)" : "\(kind)|\(i.name)|\(i.source)"
+    }
+}
+
+/// What each desk had the last time someone looked, one small JSON file per
+/// desk. Overridable so tests never touch the real data directory.
+public enum InventorySeen {
+    /// COLDFALL_INVENTORY_DIR points it elsewhere, for snapshots.
+    public static var root: String = ProcessInfo.processInfo.environment["COLDFALL_INVENTORY_DIR"]
+        ?? NSString(string: "~/.local/share/coldfall/inventory").expandingTildeInPath
+
+    static func path(_ desk: String) -> String {
+        (root as NSString).appendingPathComponent(desk.replacingOccurrences(of: "/", with: "_") + ".json")
+    }
+
+    public static func load(_ desk: String) -> [String: String]? {
+        guard let d = FileManager.default.contents(atPath: path(desk)) else { return nil }
+        return try? JSONDecoder().decode([String: String].self, from: d)
+    }
+
+    public static func save(_ desk: String, _ seen: [String: String]) {
+        try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        if let d = try? JSONEncoder().encode(seen) {
+            try? d.write(to: URL(fileURLWithPath: path(desk)), options: .atomic)
+        }
+    }
+}

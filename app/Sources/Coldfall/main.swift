@@ -231,7 +231,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 switch n % 4 {
                 case 0: sample[d.name] = DeskStatus(activity: .ready, lastOutput: now.addingTimeInterval(-120), running: true)
                 case 1: sample[d.name] = DeskStatus(activity: .working, lastOutput: now, running: true, memory: "946 MB")
-                case 2: sample[d.name] = DeskStatus(activity: .quiet, lastOutput: now.addingTimeInterval(-3600), running: true, memory: "132 MB")
+                case 2: sample[d.name] = DeskStatus(activity: .quiet, lastOutput: now.addingTimeInterval(-3600), running: true,
+                                                    memory: "132 MB", news: 2)
                 default: sample[d.name] = DeskStatus()
                 }
             }
@@ -264,7 +265,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 // <out>-inventory.png.
                 if let k = CommandLine.arguments.firstIndex(of: "--inventory"), k + 1 < CommandLine.arguments.count,
                    let d = self?.desks.first(where: { $0.name == CommandLine.arguments[k + 1] }) {
-                    let iw = InventoryWindow(desk: d, inventory: Inventory.of(d))
+                    let inv = Inventory.of(d)
+                    let iw = InventoryWindow(desk: d, inventory: inv, changes: InventorySeen.load(d.name).map { inv.changes(since: $0) })
                     guard let iv = iw.window?.contentView else { exit(1) }
                     iv.wantsLayer = true
                     iv.effectiveAppearance.performAsCurrentDrawingAppearance {
@@ -390,6 +392,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             s.container.leadingAnchor.constraint(equalTo: host.leadingAnchor),
             s.container.trailingAnchor.constraint(equalTo: host.trailingAnchor),
         ])
+        if !s.started { checkInventory(d) }
         s.startIfNeeded()
         visible?.isVisible = false
         s.isVisible = true
@@ -691,9 +694,29 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     var stoppedNote: NSView?
 
     var inventoryWindow: InventoryWindow?
+    /// Desks whose servers, hooks, skills or plugins changed since they were
+    /// last looked at: name -> how many. Shown on the desk's row.
+    var inventoryNews: [String: Int] = [:]
+
+    /// On a desk's start: compare what it has with what was last seen. The
+    /// first time there is nothing to compare, so that becomes the baseline.
+    func checkInventory(_ d: Desk) {
+        guard d.runtime != "shell" else { return }
+        let inv = Inventory.of(d)
+        guard let before = InventorySeen.load(d.name) else { InventorySeen.save(d.name, inv.seen); return }
+        let n = inv.changes(since: before).count
+        inventoryNews[d.name] = n > 0 ? n : nil
+    }
+
     func showInventory(_ i: Int) {
         guard desks.indices.contains(i) else { return }
-        inventoryWindow = InventoryWindow(desk: desks[i], inventory: Inventory.of(desks[i]))
+        let d = desks[i]
+        let inv = Inventory.of(d)
+        let before = InventorySeen.load(d.name)
+        inventoryWindow = InventoryWindow(desk: d, inventory: inv, changes: before.map { inv.changes(since: $0) })
+        // Looked at: this is now what the desk has.
+        InventorySeen.save(d.name, inv.seen)
+        inventoryNews[d.name] = nil
         inventoryWindow?.showWindow(nil)
         inventoryWindow?.window?.makeKeyAndOrderFront(nil)
     }
@@ -971,7 +994,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             for (name, s) in self.sessions {
                 let a = s.activity
                 map[name] = DeskStatus(activity: a, lastOutput: s.lastOutput, running: s.started,
-                                       memory: self.memory[name])
+                                       memory: self.memory[name], news: self.inventoryNews[name] ?? 0)
                 if case .ready = a { waiting += 1 }
             }
             self.sidebar.tick &+= 1
