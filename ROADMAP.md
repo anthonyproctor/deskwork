@@ -131,6 +131,21 @@ The preparation is already done: `ColdfallCore` is Foundation-only and CI
 enforces that, so a front end in another language is a UI project rather than a
 rewrite. [docs/FORMATS.md](docs/FORMATS.md) is the contract.
 
+### Memory that stays true
+
+Agents that keep notes between sessions accumulate them, and the notes go
+stale without anyone noticing: a figure that was right three months ago, a
+plan that finished. Search isn't the problem at a few hundred files; finding
+a fact works. Knowing which facts have quietly expired is.
+
+The shape worth trying, for markdown memory with a review date in its
+frontmatter: a per-desk count in the rail ("12 notes out of date"), one pass
+that sends each stale note to the desk that owns it with a strict rule
+(correct it with a cited source, re-date it, or mark it superseded, never
+guess), and a panel for the questions only you can answer. That last list is
+the hard part: every cleanup produces one, and making it quick to answer is
+the product problem. Detection alone has been tried and changes nothing.
+
 ### A router that acts
 
 The meter knows each vendor's remaining quota. It currently advises: *claude
