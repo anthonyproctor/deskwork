@@ -762,6 +762,9 @@ MainActor.assumeIsolated {
     }
 
     let app = NSApplication.shared
+    // Before any window exists, so none of them is ever drawn in the wrong
+    // appearance first and then repainted.
+    Theme.applyGlobally()
     let c = Controller()
     app.delegate = c
     app.setActivationPolicy(.regular)

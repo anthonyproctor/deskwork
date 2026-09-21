@@ -210,6 +210,29 @@ enum Theme {
 
     // MARK: - applying it
 
+    /// Set the appearance for the WHOLE app, so every window inherits it.
+    ///
+    /// Theming window by window missed seven of them — Settings, Agent mail,
+    /// Usage, Agents, the fan-out sheet, Update and Welcome each made their own
+    /// NSWindow and kept a light system appearance over a dark theme. Setting it
+    /// on NSApp covers them all, and any window added later, without anyone
+    /// having to remember.
+    ///
+    /// "system" mode sets it to nil rather than to whatever the OS is now.
+    /// Forcing it would pin the app to that answer: effectiveAppearance would
+    /// then report the forced value, and the app could never see the OS switch
+    /// to light at sunset. Nil means "follow the OS", which is what system is.
+    static func applyGlobally() {
+        let mode = (DeskConfig.themeSettings().mode ?? "dark").lowercased()
+        if mode == "system" {
+            NSApp.appearance = nil          // release it first, so isDark reads the OS
+            invalidate()
+        } else {
+            invalidate()
+            NSApp.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
+        }
+    }
+
     /// Set the window's appearance so every SEMANTIC colour in the app —
     /// labelColor, control fills, scrollers, the titlebar — resolves to the
     /// right side of the theme without being touched individually.

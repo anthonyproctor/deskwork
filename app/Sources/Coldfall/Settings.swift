@@ -313,6 +313,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         t.font = themeFont.stringValue.trimmingCharacters(in: .whitespaces)
         t.size = Int(themeSize.stringValue) ?? t.size
         Theme.invalidate()
+        defer { Theme.applyGlobally() }   // switching dark/light takes effect now, every window
         DeskConfig.write(desks, theme: t)
         onSaved?()
         close()
