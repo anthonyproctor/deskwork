@@ -9,6 +9,10 @@ opens this file.
 ## [Unreleased]
 
 ### Added
+- Copilot usage in the meter: tokens this week, read from the records Copilot
+  CLI keeps on your Mac, and premium requests this month, which is what a
+  Copilot plan counts. Click the meter for the breakdown. Your plan's
+  allowance lives on github.com, so there's no percentage for Copilot yet.
 - An agent installed after the first run gets offered a desk. When Coldfall
   finds Copilot, Gemini or another supported CLI with no desk (at launch,
   when you switch back to the app, and every minute), the top of the rail

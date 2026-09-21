@@ -140,6 +140,10 @@ final class MeterPanel: NSWindowController {
             stack.addArrangedSubview(mono(s))
         }
         if report.byVendor.isEmpty { stack.addArrangedSubview(mono("nothing recorded this week")) }
+        if let p = report.copilotPremium {
+            stack.addArrangedSubview(mono(pad("copilot", 9) + String(format: "%9.0f premium requests this month", p)
+                + "  (your plan's allowance is on github.com, not on this Mac)"))
+        }
 
         // ---- per desk: only Claude names its sessions, so say so rather than
         // silently showing a partial picture.
@@ -176,7 +180,8 @@ final class MeterPanel: NSWindowController {
         let foot = NSTextField(wrappingLabelWithString:
             "Read from files the CLIs already write. Claude records are deduplicated on message.id — "
           + "a streamed reply is written more than once and counting every record roughly doubles the total. "
-          + "Dollar figures are Claude list prices; no price is guessed for other vendors.")
+          + "Dollar figures are Claude list prices; no price is guessed for other vendors. "
+          + "Copilot counts a premium request per turn you start, times the model's multiplier.")
         foot.font = .systemFont(ofSize: 10.5)
         foot.textColor = .tertiaryLabelColor
         foot.preferredMaxLayoutWidth = 760

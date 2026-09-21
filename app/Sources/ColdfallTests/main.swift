@@ -1365,6 +1365,24 @@ do {
     check("an edit in place after a replace is noticed too", hits > afterReplace)
 }
 
+// MARK: - Copilot usage
+
+do {
+    let text = "2026-09-19T23:46:16.397Z\t10794\t224\tuser\t1.0\n"
+             + "2026-09-19T23:07:12.290Z\t78314\t173\tagent\t1.0\n"
+             + "2026-09-19T23:50:00.000Z\t100\t50\tuser\t0.33\n"
+             + "not a row\n"
+    let rows = Usage.copilotRows(text)
+    eq("copilot: bad lines are skipped", rows.count, 3)
+    eq("copilot: input already includes cached tokens", rows.first?.tokens, 11018)
+    eq("copilot: a turn the person starts is one premium request", rows.first?.premium, 1.0)
+    eq("copilot: the agent's own follow-up calls are not premium", rows[1].premium, 0)
+    eq("copilot: a cheaper model counts by its multiplier", rows[2].premium, 0.33)
+    let mid = ISO8601DateFormatter().date(from: "2026-09-19T12:00:00Z")!
+    let ms = Usage.monthStart(mid)
+    check("copilot: month starts on the 1st", Calendar.current.component(.day, from: ms) == 1 && ms <= mid)
+}
+
 // MARK: - offering a desk for a newly installed agent
 
 do {

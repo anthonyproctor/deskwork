@@ -8,6 +8,8 @@ import Foundation
 ///
 ///   Claude  ~/.claude/projects/<proj>/<session>.jsonl   message.usage
 ///   Codex   ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl  type=token_usage_record
+///   Copilot ~/.copilot/session-store.db  assistant_usage_events (SQLite, read
+///           with the system sqlite3 so the core stays Foundation only)
 ///
 /// Two traps, both learned the hard way:
 ///
@@ -31,6 +33,9 @@ public enum Usage {
         public var byVendor: [String: Bucket] = [:]
         public var byDesk: [String: Bucket] = [:]      // Claude only: desks come from session titles
         public var byDay: [String: [String: Int]] = [:] // day -> vendor -> tokens
+        /// Copilot premium requests since the start of the month, which is
+        /// what a Copilot plan meters. Nil when there is no Copilot record.
+        public var copilotPremium: Double? = nil
         public var generated = Date()
     }
 
@@ -76,6 +81,7 @@ public enum Usage {
         live.removeAll()
         scanClaude(since: since, into: &r)
         scanCodex(since: since, into: &r)
+        scanCopilot(since: since, into: &r)
         UsageCache.flush(keeping: live)
         return r
     }
@@ -209,6 +215,63 @@ public enum Usage {
                 add(&r, vendor: "codex", desk: nil,
                     tokens: u["total_tokens"] as? Int ?? 0, usd: nil, when: when)
             }
+        }
+    }
+
+    /// Overridable so tests read a fixture instead of the real database.
+    public static var copilotDB = NSString(string: "~/.copilot/session-store.db").expandingTildeInPath
+
+    /// The first moment of this calendar month. Copilot plans reset monthly.
+    public static func monthStart(_ now: Date = Date()) -> Date {
+        Calendar.current.dateInterval(of: .month, for: now)?.start ?? now
+    }
+
+    private static func scanCopilot(since: Date, into r: inout Report) {
+        guard FileManager.default.fileExists(atPath: copilotDB) else { return }
+        let month = monthStart()
+        let from = min(since, month)
+        let f = ISO8601DateFormatter()
+        // created_at is ISO 8601 in UTC, so a string compare is a time compare.
+        let q = "select created_at, input_tokens, output_tokens, initiator, request_multiplier "
+              + "from assistant_usage_events where created_at >= '\(f.string(from: from))'"
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        p.arguments = ["-readonly", "-separator", "\t", copilotDB, q]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        guard p.terminationStatus == 0 else { return }
+        let rows = copilotRows(String(decoding: data, as: UTF8.self))
+        var premium = 0.0
+        for row in rows {
+            if row.when >= month { premium += row.premium }
+            if row.when >= since {
+                add(&r, vendor: "copilot", desk: nil, tokens: row.tokens, usd: nil, when: row.when)
+            }
+        }
+        r.copilotPremium = premium
+    }
+
+    public struct CopilotRow: Equatable {
+        public let when: Date
+        public let tokens: Int
+        /// Premium requests this call used: the model's multiplier for a turn
+        /// the person started, nothing for the agent's own follow-up calls.
+        public let premium: Double
+    }
+
+    /// Tab-separated rows of created_at, input, output, initiator, multiplier.
+    /// Input already includes cached tokens, so input plus output is the total.
+    public static func copilotRows(_ text: String) -> [CopilotRow] {
+        text.split(separator: "\n").compactMap { line in
+            let c = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+            guard c.count >= 5, let when = iso(c[0]) else { return nil }
+            let tokens = (Int(c[1]) ?? 0) + (Int(c[2]) ?? 0)
+            let premium = c[3] == "user" ? (Double(c[4]) ?? 1) : 0
+            return CopilotRow(when: when, tokens: tokens, premium: premium)
         }
     }
 

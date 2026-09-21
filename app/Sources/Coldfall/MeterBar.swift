@@ -106,6 +106,7 @@ final class MeterBar: NSView {
             if limits.contains(where: { $0.vendor == v }) { continue }
             var s = "\(v) \(fmt(b.tokens))"
             if let usd = b.usd { s += String(format: " $%.0f", usd) }
+            if v == "copilot", let p = r.copilotPremium { s += String(format: " · %.0f req this month", p) }
             segs.append(s)
         }
 
