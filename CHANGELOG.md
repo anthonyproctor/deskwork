@@ -14,6 +14,10 @@ opens this file.
 - Drag desks in the rail to reorder them. Dropping a desk among another group's
   desks, or on a group's header, moves it into that group. cmd-1 to cmd-9
   follow the new order.
+- Desks Coldfall starts itself now pick up where they left off. A Claude desk
+  reopens its own conversation (the newest one carrying the desk's name), and
+  a Codex desk reopens its latest conversation in the desk's folder. Desks
+  with their own command still run exactly that command.
 - Drag a group's header to move the whole group, desks and all.
 - **Sort Desks A to Z**: right-click a group header or empty space in the rail,
   or use the Desks menu. Groups sort by name, and so do the desks in each
@@ -35,6 +39,12 @@ opens this file.
   Cursor style desk rows (status, name, time since last output).
 
 ### Fixed
+- **Stop Desk…** now ends the agent too. It used to end only the shell, which
+  ignores that signal, so the agent kept running unseen, still holding its
+  memory, and starting the desk again opened the same conversation a second
+  time. Closing a split pane had the same problem.
+- The stop and update dialogs said every desk starts fresh. They now say what
+  actually comes back.
 - cmd-1 to cmd-9 now match the rail even when a group's desks are scattered
   through `desks.toml`.
 - Saving `desks.toml` no longer stacks another copy of the header comment at

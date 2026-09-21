@@ -158,6 +158,53 @@ public enum ProcessTree {
         return total
     }
 
+    /// `root` and everything under it, deepest first, so ending them in this
+    /// order never leaves a child without the parent that would reap it
+    /// looking on. The root comes last.
+    public static func descendants(of root: Int32, in rows: [Row]) -> [Int32] {
+        guard root > 0, rows.contains(where: { $0.pid == root }) else { return [] }
+        var kids: [Int32: [Int32]] = [:]
+        for r in rows { kids[r.ppid, default: []].append(r.pid) }
+        var out: [Int32] = [], seen: Set<Int32> = []
+        func walk(_ p: Int32) {
+            guard seen.insert(p).inserted else { return }
+            for c in kids[p] ?? [] { walk(c) }
+            out.append(p)
+        }
+        walk(root)
+        return out
+    }
+
+    /// The live `ps` table.
+    public static func read() -> [Row] {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/ps")
+        p.arguments = ["-axo", "pid=,ppid=,rss="]
+        let out = Pipe(); p.standardOutput = out; p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return [] }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return parse(String(decoding: data, as: UTF8.self))
+    }
+
+    /// End a desk's whole process tree.
+    ///
+    /// SIGTERM to the login shell alone does nothing: an interactive zsh
+    /// ignores it, and the agent it is running carries on with no window,
+    /// holding a gigabyte and the same conversation a restarted desk then
+    /// opens a second time. So every process in the tree is asked to stop,
+    /// and whatever is still there a few seconds later is
+    /// killed. `pids` should come from `descendants`, taken before any of it.
+    public static func end(_ pids: [Int32], grace: TimeInterval = 3) {
+        guard !pids.isEmpty else { return }
+        for p in pids.dropLast() { kill(p, SIGTERM) }
+        if let shell = pids.last { kill(shell, SIGHUP) }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + grace) {
+            let alive = Set(read().map(\.pid))
+            for p in pids where alive.contains(p) { kill(p, SIGKILL) }
+        }
+    }
+
     /// "940 MB", "1.2 GB". Nil under 1 MB, which is a process that has not
     /// really started and is not worth a label.
     public static func label(kb: Int) -> String? {

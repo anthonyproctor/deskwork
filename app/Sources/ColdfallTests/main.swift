@@ -787,6 +787,13 @@ do {
     eq("a desk's memory is its whole tree", ProcessTree.totalKB(root: 100, in: ps), 992000)
     eq("an unrelated tree is not counted", ProcessTree.totalKB(root: 200, in: ps), 1000)
     eq("a pid that is gone counts nothing", ProcessTree.totalKB(root: 999, in: ps), 0)
+    let tree = ProcessTree.descendants(of: 100, in: ps)
+    eq("ending a desk reaches every process under its shell", Set(tree), [100, 101, 102, 103])
+    eq("the shell is ended last", tree.last, 100)
+    check("and children before their parent",
+          tree.firstIndex(of: 102)! < tree.firstIndex(of: 101)! && tree.firstIndex(of: 103)! < tree.firstIndex(of: 101)!)
+    check("an unrelated tree is left alone", !tree.contains(200))
+    eq("a pid that is gone ends nothing", ProcessTree.descendants(of: 999, in: ps), [])
     eq("labels megabytes", ProcessTree.label(kb: 2048), "2 MB")
     eq("and gigabytes", ProcessTree.label(kb: 992000), "969 MB")
     eq("over a thousand MB reads as GB", ProcessTree.label(kb: 1_300_000), "1.2 GB")
@@ -799,6 +806,80 @@ do {
     DeskConfig.write([Desk(name: "local", runtime: "ollama", model: "qwen3")], to: tmp)
     eq("model survives a write", DeskConfig.load(path: tmp).first?.model, "qwen3")
     try? FileManager.default.removeItem(atPath: tmp)
+}
+
+
+
+// MARK: - resuming a desk's conversation
+
+do {
+    let root = NSTemporaryDirectory() + "coldfall-resume-\(UUID().uuidString)"
+    let fm = FileManager.default
+    eq("claude's folder for a directory", Resume.claudeProjectDir(for: "/srv/demo.app/my dir", root: "/r"),
+       "/r/-srv-demo-app-my-dir")
+    eq("dashes survive", Resume.claudeProjectDir(for: "/srv/a-b", root: "/r"), "/r/-srv-a-b")
+
+    let cdir = Resume.claudeProjectDir(for: "/srv/demo", root: root + "/claude")
+    try? fm.createDirectory(atPath: cdir, withIntermediateDirectories: true)
+    func transcript(_ id: String, _ title: String?, age: TimeInterval) {
+        let path = cdir + "/\(id).jsonl"
+        var text = "{\"type\":\"user\",\"message\":\"hi\"}\n"
+        if let title { text += "{\"type\":\"custom-title\",\"customTitle\":\"\(title)\",\"sessionId\":\"\(id)\"}\n" }
+        try? text.write(toFile: path, atomically: true, encoding: .utf8)
+        try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: path)
+    }
+    eq("no transcripts, nothing to resume",
+       Resume.claudeSession(named: "demo", cwd: "/srv/demo", root: root + "/claude"), nil)
+    transcript("old-demo", "demo", age: 3000)
+    transcript("new-demo", "demo", age: 100)
+    transcript("other", "demo2", age: 10)
+    transcript("untitled", nil, age: 5)
+    eq("the newest transcript with the desk's title",
+       Resume.claudeSession(named: "demo", cwd: "/srv/demo", root: root + "/claude"), "new-demo")
+    eq("a longer title is not a match", Resume.claudeSession(named: "dem", cwd: "/srv/demo", root: root + "/claude"), nil)
+    eq("another directory's desk finds nothing",
+       Resume.claudeSession(named: "demo", cwd: "/srv/elsewhere", root: root + "/claude"), nil)
+
+    let croot = root + "/codex/2026/09/20"
+    try? fm.createDirectory(atPath: croot, withIntermediateDirectories: true)
+    func rollout(_ name: String, cwd: String, subagent: Bool = false) {
+        let src = subagent ? ",\"source\":{\"subagent\":{}}" : ""
+        try? "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"\(cwd)\",\"originator\":\"codex-tui\"\(src)}}\n{}\n"
+            .write(toFile: croot + "/\(name).jsonl", atomically: true, encoding: .utf8)
+    }
+    rollout("a", cwd: "/srv/demo", subagent: true)
+    check("a subagent's session is not one to resume", !Resume.codexHasSession(cwd: "/srv/demo", root: root + "/codex"))
+    rollout("b", cwd: "/srv/demo")
+    check("an interactive session in the folder is", Resume.codexHasSession(cwd: "/srv/demo", root: root + "/codex"))
+    check("but not for another folder", !Resume.codexHasSession(cwd: "/srv/other", root: root + "/codex"))
+
+    let claudeDesk = Desk(name: "demo", runtime: "claude", cwd: "/srv/demo")
+    eq("a claude desk with history resumes it by id",
+       claudeDesk.resumingLaunchCommand(claudeRoot: root + "/claude", codexRoot: root + "/codex"),
+       "claude --resume new-demo")
+    eq("without history it starts a named session",
+       Desk(name: "fresh", runtime: "claude", cwd: "/srv/demo")
+           .resumingLaunchCommand(claudeRoot: root + "/claude", codexRoot: root + "/codex"), "claude -n fresh")
+    eq("an agent desk keeps its agent when resuming",
+       Desk(name: "demo", agent: "helper", runtime: "claude", cwd: "/srv/demo")
+           .resumingLaunchCommand(claudeRoot: root + "/claude", codexRoot: root + "/codex"),
+       "claude --agent helper --resume new-demo")
+    eq("a codex desk with history resumes the latest",
+       Desk(name: "cx", runtime: "codex", cwd: "/srv/demo")
+           .resumingLaunchCommand(claudeRoot: root + "/claude", codexRoot: root + "/codex"), "codex resume --last")
+    eq("without it, plain codex",
+       Desk(name: "cx", runtime: "codex", cwd: "/srv/other")
+           .resumingLaunchCommand(claudeRoot: root + "/claude", codexRoot: root + "/codex"), "codex")
+    let scripted = Desk(name: "demo", runtime: "claude", cwd: "/srv/demo", command: "/srv/demo/bin/desk demo")
+    eq("a desk with its own command runs exactly that",
+       scripted.resumingLaunchCommand(claudeRoot: root + "/claude", codexRoot: root + "/codex"), "/srv/demo/bin/desk demo")
+
+    check("the stop dialog promises the conversation for a built-in desk",
+          Resume.afterRestart(claudeDesk)?.contains("same conversation") == true)
+    check("and makes no promise for a scripted one",
+          Resume.afterRestart(scripted)?.contains("its own command") == true)
+    eq("and says nothing for a shell", Resume.afterRestart(Desk(name: "sh", runtime: "shell")), nil)
+    try? fm.removeItem(atPath: root)
 }
 
 
@@ -820,3 +901,4 @@ if !failures.isEmpty {
     failures.forEach { print("  " + $0) }
     exit(1)
 }
+

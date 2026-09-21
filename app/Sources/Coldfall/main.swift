@@ -553,8 +553,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 
     /// Stop a desk's processes to get their memory back. A claude desk holds
     /// close to a gigabyte with its MCP servers, so this is the lever when
-    /// many are open. The conversation is not resumed on restart yet, so the
-    /// dialog says so.
+    /// many are open. The dialog says what comes back when it starts again,
+    /// which depends on who launches it.
     func stopDesk(_ i: Int) {
         guard desks.indices.contains(i), let s = sessions[desks[i].name], s.started else { return }
         let d = desks[i]
@@ -563,9 +563,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         var info = "Ends its processes"
         if let m = memory[d.name] { info += " and frees about \(m)" }
         info += ". Click the desk to start it again."
-        if d.runtime != "shell" {
-            info += "\n\nThe new session starts fresh. What is on screen now is not carried over."
-        }
+        if let after = Resume.afterRestart(d) { info += "\n\n" + after }
         a.informativeText = info
         a.addButton(withTitle: "Stop"); a.addButton(withTitle: "Cancel")
         guard a.runModal() == .alertFirstButtonReturn else { return }

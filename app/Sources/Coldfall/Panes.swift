@@ -159,6 +159,15 @@ final class Pane {
         box = PaneBox(term: term)
     }
 
+    /// End this pane's shell and everything running in it. The tree is read
+    /// before the terminal lets go of the shell, or there is no root to find.
+    func end() {
+        let root = term.process?.shellPid ?? 0
+        let tree = root > 0 ? ProcessTree.descendants(of: root, in: ProcessTree.read()) : []
+        term.terminate()
+        ProcessTree.end(tree)
+    }
+
     /// Launch the process. `command` is nil for a shell pane, which just lands
     /// in the directory and waits.
     func start(desk: Desk, command: String?) {
@@ -319,11 +328,11 @@ final class DeskSession {
 
     /// End every pane's process. The session is finished after this.
     func terminateAll() {
-        for p in panes where p.started { p.term.terminate() }
+        for p in panes where p.started { p.end() }
     }
 
     func startIfNeeded() {
-        panes[0].start(desk: desk, command: desk.launchCommand())
+        panes[0].start(desk: desk, command: desk.resumingLaunchCommand())
         for p in panes.dropFirst() { p.start(desk: desk, command: nil) }
     }
 
@@ -350,7 +359,7 @@ final class DeskSession {
     func closeFocused() -> Bool {
         guard panes.count > 1 else { return false }
         let p = panes.remove(at: focused)
-        p.term.terminate()
+        p.end()
         p.box.removeFromSuperview()
         focused = min(focused, panes.count - 1)
         rebuild()

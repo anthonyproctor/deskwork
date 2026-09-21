@@ -31,10 +31,32 @@ public struct Desk {
     /// True when the config said which vendor, rather than us assuming.
     public var declaredRuntime: Bool = false
 
+    /// Whether Coldfall launches this desk itself, and so decides whether it
+    /// resumes. A desk with its own command leaves that to the command.
+    public var resumesItself: Bool {
+        (command ?? "").isEmpty && (runtime == "claude" || runtime == "codex")
+    }
+
+    /// The command to start this desk, reopening its earlier conversation
+    /// when there is one. Looks on disk, so call it off the main thread for
+    /// a desk with a long history.
+    public func resumingLaunchCommand(claudeRoot: String = Resume.claudeProjectsRoot,
+                                      codexRoot: String = Resume.codexSessionsRoot) -> String {
+        guard resumesItself else { return launchCommand() }
+        if runtime == "claude" {
+            return launchCommand(claudeSession: Resume.claudeSession(named: name, cwd: resolvedCwd, root: claudeRoot))
+        }
+        return launchCommand(codexResume: Resume.codexHasSession(cwd: resolvedCwd, root: codexRoot))
+    }
+
     /// argv for the login shell. Coldfall never reimplements an agent — it
     /// launches the vendor's own CLI so that CLI's config, hooks, memory and
     /// model pins all apply untouched.
-    public func launchCommand() -> String {
+    ///
+    /// `claudeSession` is the id of this desk's earlier Claude conversation and
+    /// `codexResume` says Codex has one in this directory; either reopens it
+    /// instead of starting fresh. A desk with its own command ignores both.
+    public func launchCommand(claudeSession: String? = nil, codexResume: Bool = false) -> String {
         if let c = command, !c.isEmpty { return c }
         switch runtime {
         case "shell":
@@ -42,9 +64,9 @@ public struct Desk {
         case "claude":
             var parts = ["claude"]
             if let a = agent, !a.isEmpty { parts += ["--agent", a] }
-            parts += ["-n", name]
+            if let s = claudeSession, !s.isEmpty { parts += ["--resume", s] } else { parts += ["-n", name] }
             return parts.joined(separator: " ")
-        case "codex":  return "codex"
+        case "codex":  return codexResume ? "codex resume --last" : "codex"
         case "gemini": return "gemini"
         case "copilot": return "copilot"
         case "ollama":

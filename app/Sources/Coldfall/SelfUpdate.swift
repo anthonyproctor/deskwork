@@ -6,14 +6,10 @@ import ColdfallCore
 /// You cannot replace a running binary in place — macOS keeps the executable
 /// mapped — but you do not need to. Build, then relaunch.
 ///
-/// A relaunch is NOT free, and an earlier version of this comment said it was.
-/// `launchCommand()` starts `claude -n <name>` and `codex` with no resume flag,
-/// so a desk comes back as a FRESH session: the desk returns, the conversation
-/// it was holding does not. That matters most to exactly the person using
-/// Coldfall to work AND to upgrade itself, which is everybody who has it.
-///
-/// So the sheet names the desks it is about to end, and says plainly what is
-/// lost. Making them actually resume is a separate and larger job.
+/// A relaunch is still not free. Desks Coldfall launches itself reopen their
+/// conversation (see `Resume`), and desks with their own command decide for
+/// themselves, but anything a desk is in the middle of is cut off. So the
+/// sheet names the desks it is about to end.
 ///
 /// For an open-source app this is the difference between "upgrade by opening a
 /// terminal and remembering three commands" and "press Update".
@@ -159,8 +155,6 @@ final class UpdateWindow: NSWindowController {
         head.textColor = .secondaryLabelColor
 
         // Name what is about to be ended, and be honest that it is not free.
-        // A desk comes back; the session it was holding does not, because
-        // nothing here passes a resume flag to the vendor CLI.
         running.font = .systemFont(ofSize: 11.5)
         running.preferredMaxLayoutWidth = 660
         let live = SelfUpdate.runningDesks().sorted()
@@ -170,8 +164,9 @@ final class UpdateWindow: NSWindowController {
         } else {
             running.stringValue = "Relaunching ends \(live.count) running "
                 + "desk\(live.count == 1 ? "" : "s") — \(live.joined(separator: ", ")) — "
-                + "and they come back as NEW sessions. The desks return; what they "
-                + "were in the middle of does not."
+                + "and anything they are in the middle of stops. Desks Coldfall starts "
+                + "itself pick up the same conversation; desks with their own command "
+                + "run it again."
             running.textColor = .systemOrange
         }
         head.preferredMaxLayoutWidth = 660
