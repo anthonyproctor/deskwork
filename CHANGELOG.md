@@ -8,6 +8,14 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- **Keep Active Groups on Top**, from the rail's right-click menu or the
+  Desks menu, off by default. Groups with a desk that needs you rise first,
+  then the most recently used; idle ones sink. It only reorders when the
+  pointer isn't over the rail, at most every 30 seconds, so nothing moves
+  under a click. Your own order is kept underneath: cmd-1 to cmd-9 stay on
+  it, and turning this off puts the rail back.
+
 ## [0.3.4] - 2026-09-21
 
 Hide a desk without losing it.

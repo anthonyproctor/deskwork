@@ -1231,6 +1231,37 @@ do {
     eq("a shown desk loads as shown", back.first { $0.name == "hub" }?.hidden, false)
 }
 
+// MARK: - keeping active groups on top
+
+do {
+    let t0 = Date(timeIntervalSince1970: 2_000_000_000)
+    var list = [Desk(name: "hub"),
+                Desk(name: "cpa", group: "money"), Desk(name: "market", group: "money"),
+                Desk(name: "work", group: "work"),
+                Desk(name: "golf", group: "personal"), Desk(name: "garage", group: "personal"),
+                Desk(name: "mba", group: "school")]
+    let g = { (o: [String?]) in o.map { $0 ?? "-" } }
+    eq("nothing going on keeps your order", g(DeskOrder.liveGroups(list, waiting: [:], used: [:])),
+       ["-", "money", "work", "personal", "school"])
+    eq("the most recently used group rises",
+       g(DeskOrder.liveGroups(list, waiting: [:], used: ["golf": t0, "cpa": t0.addingTimeInterval(-600)])),
+       ["-", "personal", "money", "work", "school"])
+    eq("a group that needs you beats one merely used",
+       g(DeskOrder.liveGroups(list, waiting: ["mba": t0.addingTimeInterval(-60)], used: ["golf": t0])),
+       ["-", "school", "personal", "money", "work"])
+    eq("among waiting groups, the oldest wait first",
+       g(DeskOrder.liveGroups(list, waiting: ["mba": t0, "work": t0.addingTimeInterval(-300)], used: [:])),
+       ["-", "work", "school", "money", "personal"])
+    eq("any desk in a group counts for the group",
+       g(DeskOrder.liveGroups(list, waiting: [:], used: ["market": t0])).dropFirst().first, "money")
+    list[6].hidden = true
+    eq("a hidden desk counts for nothing",
+       g(DeskOrder.liveGroups(list, waiting: ["mba": t0], used: [:])),
+       ["-", "money", "work", "personal", "school"])
+    check("ungrouped desks always stay on top",
+          DeskOrder.liveGroups(list, waiting: ["cpa": t0], used: ["golf": t0]).first! == nil)
+}
+
 // MARK: - the suite must not touch a real home directory
 //
 // Checked LAST, after every other test has run. A test that writes to the

@@ -20,6 +20,25 @@ final class SidebarView: NSView {
     /// Hidden desks listed at the bottom of the rail. Not saved: hidden is
     /// the point, so the list folds away again on the next launch.
     var showHidden = false
+
+    /// "Keep Active Groups on Top": the order groups are shown in, set by the
+    /// controller at calm moments. Nil shows your own order.
+    var groupOrder: [String?]?
+    var liveOn = false
+    var onToggleLive: (() -> Void)?
+    /// The pointer is over the rail. Nothing reorders while it is, so a row
+    /// never moves out from under a click.
+    private(set) var pointerInside = false
+    var isDragging: Bool { dropLine.superview != nil }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+    override func mouseEntered(with e: NSEvent) { pointerInside = true }
+    override func mouseExited(with e: NSEvent) { pointerInside = false }
     var onMoveDesk: ((Int, DeskDrop) -> Void)?
     /// A group dragged by its header: the group, and the group it now sits
     /// before (nil for last).
@@ -104,7 +123,11 @@ final class SidebarView: NSView {
             y += 34
         }
 
-        for g in DeskOrder.groups(desks) {
+        // The live order, if on, with any group it doesn't know yet (just
+        // created) after it in your order.
+        let saved = DeskOrder.groups(desks)
+        let order = groupOrder.map { live in live.filter { saved.contains($0) } + saved.filter { !live.contains($0) } } ?? saved
+        for g in order {
             let members = desks.enumerated().filter { $0.element.group == g && !$0.element.hidden }
             if members.isEmpty { continue }
 
@@ -118,8 +141,12 @@ final class SidebarView: NSView {
                 h.onClick = { [weak self] in self?.onToggleGroup?(g) }
                 h.onRename = { [weak self] in self?.onRenameGroup?(g) }
                 h.onSort = { [weak self] in self?.onSortDesks?() }
-                h.onDragMoved = { [weak self] p in self?.groupDragMoved(g, to: p) }
-                h.onDragEnded = { [weak self] p in self?.groupDragEnded(g, at: p) }
+                // While groups sort themselves, dragging one would edit an
+                // order you can't see, so headers don't drag then.
+                if !liveOn {
+                    h.onDragMoved = { [weak self] p in self?.groupDragMoved(g, to: p) }
+                    h.onDragEnded = { [weak self] p in self?.groupDragEnded(g, at: p) }
+                }
                 addSubview(h)
                 headers.append((g, h))
                 y += 22
@@ -313,12 +340,19 @@ final class SidebarView: NSView {
     /// Right-click on empty rail: the one action that is about the whole list.
     override func rightMouseDown(with e: NSEvent) {
         let m = NSMenu()
+        let live = NSMenuItem(title: "Keep Active Groups on Top", action: #selector(toggleLive), keyEquivalent: "")
+        live.target = self
+        live.state = liveOn ? .on : .off
+        live.toolTip = "Groups with a desk that needs you, then the most recently used, rise to the top. "
+            + "Your own order is kept underneath: turn this off to get it back."
+        m.addItem(live)
         let it = NSMenuItem(title: "Sort Desks A to Z", action: #selector(sortAll), keyEquivalent: "")
         it.target = self
         m.addItem(it)
         NSMenu.popUpContextMenu(m, with: e, for: self)
     }
     @objc private func sortAll() { onSortDesks?() }
+    @objc private func toggleLive() { onToggleLive?() }
 
     func select(_ i: Int) {
         lastSelected = i

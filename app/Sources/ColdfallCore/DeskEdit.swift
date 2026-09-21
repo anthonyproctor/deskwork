@@ -92,6 +92,36 @@ public enum DeskOrder {
         return order
     }
 
+    /// Groups in "Keep Active Groups on Top" order. Ungrouped desks stay on
+    /// top as always. Then groups with a desk that needs you, oldest wait
+    /// first (the order of the "needs you" line); then groups by their most
+    /// recently used desk; then the rest in your own order. Desks inside a
+    /// group keep your order, and hidden desks count for nothing.
+    ///
+    /// `waiting` is when each waiting desk went quiet; `used` is the latest
+    /// of its last output and the last time you opened it.
+    public static func liveGroups(_ desks: [Desk], waiting: [String: Date], used: [String: Date]) -> [String?] {
+        let saved = groups(desks).compactMap { $0 }
+        func members(_ g: String) -> [Desk] { desks.filter { $0.group == g && !$0.hidden } }
+        func oldestWait(_ g: String) -> Date? { members(g).compactMap { waiting[$0.name] }.min() }
+        func lastUse(_ g: String) -> Date? { members(g).compactMap { used[$0.name] }.max() }
+        let ranked = saved.enumerated().sorted { a, b in
+            switch (oldestWait(a.element), oldestWait(b.element)) {
+            case let (x?, y?) where x != y: return x < y
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: break
+            }
+            switch (lastUse(a.element), lastUse(b.element)) {
+            case let (x?, y?) where x != y: return x > y
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return a.offset < b.offset      // your order breaks ties
+            }
+        }
+        return [nil] + ranked.map { Optional($0.element) }
+    }
+
     /// The list in the order the rail shows it, each group's desks together.
     ///
     /// The rail gathers a group's desks under one header wherever they sit in

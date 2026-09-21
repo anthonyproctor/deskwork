@@ -178,6 +178,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
 
         sidebar.collapsed = Set(ui.collapsed)
+        sidebar.liveOn = ui.liveRail
+        sidebar.onToggleLive = { [weak self] in self?.toggleLiveRail() }
         sidebar.build(desks: desks)
         sidebar.onToggleGroup = { [weak self] g in self?.toggleGroup(g) }
         sidebar.onRenameGroup = { [weak self] g in self?.renameGroup(g) }
@@ -243,6 +245,18 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 sidebar.showHidden = true
                 sidebar.build(desks: desks)
                 sidebar.revealHidden()
+            }
+            // `--live`: the rail with Keep Active Groups on Top, ordered by
+            // the sample activity above.
+            if CommandLine.arguments.contains("--live") {
+                var waiting: [String: Date] = [:], used: [String: Date] = [:]
+                for (n, st) in sample {
+                    if case .ready = st.activity, let l = st.lastOutput { waiting[n] = l }
+                    if let l = st.lastOutput { used[n] = l }
+                }
+                sidebar.liveOn = true
+                sidebar.groupOrder = DeskOrder.liveGroups(desks, waiting: waiting, used: used)
+                sidebar.build(desks: desks)
             }
             sidebar.status = sample
             // `--update-available <version>`: the title strip's release link.
@@ -365,6 +379,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         watchSystemAppearance()
         watchDeskActivity()
         watchDeskMemory()
+        watchLiveRail()
         // The update sheet names what a relaunch is about to end. Only the
         // controller knows which desks have live processes.
         SelfUpdate.runningDesks = { [weak self] in
@@ -383,6 +398,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func show(_ i: Int) {
         guard desks.indices.contains(i) else { return }
         let d = desks[i]
+        lastVisited[d.name] = Date()
         let s = sessions[d.name] ?? {
             let new = DeskSession(desk: d)
             new.processDelegate = self
@@ -500,6 +516,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         // No key equivalent: cmd-z lives in the Edit menu and reaches undoMove()
         // through the responder chain below. Two menu items sharing cmd-z would
         // leave which one fires up to AppKit.
+        let live = NSMenuItem(title: "Keep Active Groups on Top", action: #selector(toggleLiveRail), keyEquivalent: "")
+        live.target = self
+        live.state = ui.liveRail ? .on : .off
+        deskMenu.addItem(live)
         let sortAZ = NSMenuItem(title: "Sort Desks A to Z", action: #selector(sortDesks), keyEquivalent: "")
         sortAZ.target = self
         deskMenu.addItem(sortAZ)
@@ -705,6 +725,51 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
     }
     var stoppedNote: NSView?
+
+    // MARK: - keep active groups on top
+
+    /// When each desk was last opened, for "most recently used".
+    var lastVisited: [String: Date] = [:]
+    var liveTimer: Timer?
+    var lastLiveApply = Date.distantPast
+
+    @objc func toggleLiveRail() {
+        ui.liveRail.toggle()
+        ui.save()
+        sidebar.liveOn = ui.liveRail
+        applyLiveOrder(force: true)
+        installMenu()
+    }
+
+    func watchLiveRail() {
+        applyLiveOrder(force: true)
+        liveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.applyLiveOrder() }
+    }
+
+    /// Reorder groups by activity, at a calm moment: not while the pointer
+    /// is over the rail, not mid-drag, and not more than every 30 seconds.
+    /// Only the display moves; desks.toml, and so cmd-1..9, keep your order.
+    func applyLiveOrder(force: Bool = false) {
+        guard ui.liveRail else {
+            if sidebar.groupOrder != nil { sidebar.groupOrder = nil; refreshRail() }
+            return
+        }
+        if !force {
+            guard !sidebar.pointerInside, !sidebar.isDragging,
+                  Date().timeIntervalSince(lastLiveApply) >= 30 else { return }
+        }
+        var waiting: [String: Date] = [:], used: [String: Date] = [:]
+        for (name, s) in sessions {
+            if case .ready = s.activity, let l = s.lastOutput { waiting[name] = l }
+            if let l = s.lastOutput { used[name] = l }
+        }
+        for (name, d) in lastVisited { used[name] = max(used[name] ?? .distantPast, d) }
+        let order = DeskOrder.liveGroups(desks, waiting: waiting, used: used)
+        lastLiveApply = Date()
+        guard order != sidebar.groupOrder else { return }
+        sidebar.groupOrder = order
+        refreshRail()
+    }
 
     /// Out of the rail and cmd-1..9, kept in desks.toml. A running desk is
     /// offered a stop too, so a desk you can't see isn't quietly holding a

@@ -10,6 +10,8 @@ public struct UIState: Codable {
     public var readerHidden: Bool = false
     public var readerPoppedOut: Bool = false
     public var meterHidden: Bool = false
+    /// "Keep Active Groups on Top" in the rail.
+    public var liveRail: Bool = false
 
     public init() {}
 
@@ -30,6 +32,7 @@ public struct UIState: Codable {
         readerHidden    = try c.decodeIfPresent(Bool.self, forKey: .readerHidden) ?? false
         readerPoppedOut = try c.decodeIfPresent(Bool.self, forKey: .readerPoppedOut) ?? false
         meterHidden     = try c.decodeIfPresent(Bool.self, forKey: .meterHidden) ?? false
+        liveRail        = try c.decodeIfPresent(Bool.self, forKey: .liveRail) ?? false
     }
 
     public static var path: String { NSString(string: "~/.config/coldfall/ui.json").expandingTildeInPath }
