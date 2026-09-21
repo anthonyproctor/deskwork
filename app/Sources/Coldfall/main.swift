@@ -288,6 +288,16 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 sidebar.build(desks: desks)
             }
             sidebar.status = sample
+            // `--toggle-tree`: flip Tree on Top once after launch, the way cmd-T
+            // does, without saving the setting.
+            if CommandLine.arguments.contains("--toggle-tree") {
+                ui.treeOnTop.toggle()
+                applyRailOrder()
+                window.contentView?.layoutSubtreeIfNeeded()
+                let h = window.contentView?.bounds.height ?? 800
+                let want = ui.treeOnTop ? h * 0.5 : min(sidebar.contentHeight, h * 0.45)
+                rail.setPosition(max(120, min(want, h - 120)), ofDividerAt: 0)
+            }
             // `--update-available <version>`: the title strip's release link.
             if let k = CommandLine.arguments.firstIndex(of: "--update-available"), k + 1 < CommandLine.arguments.count {
                 strip.setUpdate(CommandLine.arguments[k + 1])
@@ -306,11 +316,21 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                         "clip.bounds      \(clip.bounds)",
                         "sidebar.frame    \(me.sidebar.frame)",
                         "rows             \(rows)",
+                        "tree.frame       \(me.tree.frame)  railOrder=\(me.rail.arrangedSubviews.map { $0 === me.tree ? "tree" : "desks" })",
                         "state            hidden=\(me.deskScroll.isHidden) alpha=\(me.deskScroll.alphaValue) doc=\(me.deskScroll.documentView === me.sidebar) sidebarSuper=\(String(describing: me.sidebar.superview.map { type(of: $0) })) sidebarHidden=\(me.sidebar.isHidden) layer=\(me.deskScroll.wantsLayer) clipLayerBG=\(String(describing: me.deskScroll.contentView.layer?.backgroundColor)) subviews=\(me.sidebar.subviews.count) inWindow=\(me.deskScroll.window != nil)",
                     ]
                     FileHandle.standardError.write((lines.joined(separator: "\n") + "\n").data(using: .utf8)!)
                     // The desk list on its own, to tell a drawing fault in it
                     // from one in how the whole window is captured.
+                    let sb = me.sidebar
+                    if let srep2 = sb.bitmapImageRepForCachingDisplay(in: sb.bounds) {
+                        sb.cacheDisplay(in: sb.bounds, to: srep2)
+                        try? srep2.representation(using: .png, properties: [:])?
+                            .write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-sidebar.png"))
+                    }
+                    // On macOS 26 a scroll view at the top of the window gets a
+                    // blurred edge layer that cacheDisplay can't draw, which is why
+                    // the desks-on-top picture comes out blank; the list itself draws.
                     let ds = me.deskScroll
                     if let drep = ds.bitmapImageRepForCachingDisplay(in: ds.bounds) {
                         ds.cacheDisplay(in: ds.bounds, to: drep)
@@ -1389,6 +1409,11 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         } else {
             rail.addArrangedSubview(deskScroll); rail.addArrangedSubview(tree)
         }
+        // Re-seated views keep their old frames until the split view lays
+        // them out again, which it doesn't do on its own: cmd-T swapped the
+        // order and nothing on screen moved.
+        rail.adjustSubviews()
+        rail.needsDisplay = true
     }
 
     @objc func toggleTreePosition() {

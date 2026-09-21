@@ -26,6 +26,8 @@ opens this file.
 - The update check only opens release links on this project's GitHub page.
 
 ### Fixed
+- Tree on Top (cmd-T) moves the desks and the file tree on screen again. It
+  changed the setting but left both where they were until a relaunch.
 - Starting a desk no longer reads session files on the main thread, so the
   app can't stall on a Mac with a long history. Config files too big to be
   real are skipped instead of read.
