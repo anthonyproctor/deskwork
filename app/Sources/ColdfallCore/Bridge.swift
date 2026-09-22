@@ -59,12 +59,13 @@ public enum Bridge {
                     a.append(p); return a
                 },
                 readOnlyEnforced: true, hasFinalMessageFlag: true, isLocal: false),
-        Runtime(name: "gemini", bin: "gemini",
-                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
         // Google's CLI for its AI Pro and Ultra plans, which replaced Gemini
         // CLI sign-in for personal accounts in June 2026.
+        // Plan mode asks it not to change anything; nothing documents that as
+        // enforced, so the panel doesn't claim it. The timeout is there
+        // because print mode has been reported to hang without a terminal.
         Runtime(name: "antigravity", bin: "agy",
-                argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
+                argv: { p, _ in ["-p", p, "--mode", "plan", "--print-timeout", "10m"] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
         Runtime(name: "copilot", bin: "copilot",
                 argv: { p, _ in ["-p", p] }, readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: false),
         // grok has a headless -p but no sandbox flag, so read-only can only be

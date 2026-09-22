@@ -203,6 +203,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onMoveGroup = { [weak self] g, b in self?.moveGroup(g, before: b) }
         sidebar.onSortDesks = { [weak self] in self?.sortDesks() }
         sidebar.onJumpToWaiting = { [weak self] n in self?.showDesk(named: n) }
+        sidebar.onClearWaiting = { [weak self] in self?.clearWaiting() }
 
         // Set the appearance BEFORE showing: every semantic colour in the app
         // resolves off it, so flipping after the fact repaints everything.
@@ -296,7 +297,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             }
             // `--meter-demo`: the usage meter with made-up numbers.
             if CommandLine.arguments.contains("--meter-demo") {
-                meter.showDemo(summary: "claude wk 72%→sat 11 am · 5h 18%     codex wk 12%→mon 8 pm     gemini 1.4M",
+                meter.showDemo(summary: "claude wk 72%→sat 11 am · 5h 18%     codex wk 12%→mon 8 pm     copilot 1.4M",
                                hint: "claude 72% used, codex only 12% — send the next one to codex.")
             }
             // `--toggle-tree`: flip Tree on Top once after launch, the way cmd-T
@@ -762,8 +763,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             }
         }
 
+        let before = desks
         desks.remove(at: i)
         persist()
+        noteRemovedRuntimes(before: before, after: desks)
         sidebar.build(desks: desks)
         installMenu()
         if visible?.desk.name == d.name, !desks.isEmpty { show(0) }
@@ -927,6 +930,16 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         desks = DeskOrder.grouped(desks)
         sidebar.offers.removeAll { $0 == runtime }
         refreshRail()
+    }
+
+    /// A runtime whose last desk was removed isn't offered again.
+    func noteRemovedRuntimes(before: [Desk], after: [Desk]) {
+        for rt in AgentOffer.removed(before: before, after: after) { dismissOffer(rt) }
+    }
+
+    /// The needs-you line's Clear: every waiting desk counts as seen.
+    func clearWaiting() {
+        for name in sidebar.waiting { sessions[name]?.markSeen() }
     }
 
     func dismissOffer(_ runtime: String) {
@@ -1217,6 +1230,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             if let v = memory.removeValue(forKey: from) { memory[to] = v }
         }
         for (name, s) in sessions { if let d = fresh.first(where: { $0.name == name }) { s.desk = d } }
+        // A desk gone from the file is gone: its processes end, and nothing
+        // it left behind (a "needs you", a memory figure) outlives it.
+        for (name, s) in sessions where !fresh.contains(where: { $0.name == name }) { endDesk(s.desk) }
+        noteRemovedRuntimes(before: desks, after: fresh)
         desks = fresh
         knownConfig = DeskSync.snapshot()
         refreshRail()
@@ -1340,7 +1357,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             guard let self else { return }
             var map: [String: DeskStatus] = [:]
             var waiting = 0
-            for (name, s) in self.sessions {
+            for (name, s) in self.sessions where self.desks.contains(where: { $0.name == name }) {
                 let a = s.activity
                 map[name] = DeskStatus(activity: a, lastOutput: s.lastOutput, running: s.started,
                                        memory: self.memory[name], news: self.inventoryNews[name] ?? 0)

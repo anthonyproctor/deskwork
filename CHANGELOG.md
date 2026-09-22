@@ -15,10 +15,19 @@ opens this file.
   desk to use. Welcome and Settings show how to install it, the rail offers
   a desk once it's installed, and What This Desk Has lists its MCP servers
   and skills.
+- The "needs you" line at the top of the rail has an ×, and Clear on its
+  right-click menu, to mark every waiting desk as seen without opening them.
+
+### Removed
+- Gemini CLI. Google no longer lets personal accounts sign in to it, so
+  Coldfall stops offering, installing or making desks for it. Antigravity
+  takes its place.
 
 ### Fixed
-- Welcome's Gemini setup says you need a Gemini API key. Google no longer
-  lets personal accounts sign in to Gemini CLI.
+- A desk removed from desks.toml kept its terminal running out of sight,
+  and could keep a "needs you" line up for a desk that no longer existed.
+  Its processes now end with it.
+- Removing an agent's last desk no longer brings back the offer to add one.
 
 ## [0.3.6] - 2026-09-21
 

@@ -45,7 +45,7 @@ public struct Desk {
     /// Whether Coldfall launches this desk itself, and so decides whether it
     /// resumes. A desk with its own command leaves that to the command.
     public var resumesItself: Bool {
-        (command ?? "").isEmpty && (runtime == "claude" || runtime == "codex")
+        (command ?? "").isEmpty && ["claude", "codex", "antigravity"].contains(runtime)
     }
 
     /// This desk renamed from `old`. A built-in Claude desk keeps its
@@ -64,7 +64,8 @@ public struct Desk {
     /// when there is one. Looks on disk, so call it off the main thread for
     /// a desk with a long history.
     public func resumingLaunchCommand(claudeRoot: String = Resume.claudeProjectsRoot,
-                                      codexRoot: String = Resume.codexSessionsRoot) -> String {
+                                      codexRoot: String = Resume.codexSessionsRoot,
+                                      agyProjects: String = Resume.antigravityProjectsFile) -> String {
         guard resumesItself else { return launchCommand() }
         if runtime == "claude" {
             // A remembered conversation first, while it still exists; then
@@ -74,7 +75,10 @@ public struct Desk {
             }
             return launchCommand(claudeSession: Resume.claudeSession(named: name, cwd: resolvedCwd, root: claudeRoot))
         }
-        return launchCommand(codexResume: Resume.codexHasSession(cwd: resolvedCwd, root: codexRoot))
+        if runtime == "antigravity" {
+            return launchCommand(resumeLast: Resume.antigravityHasProject(cwd: resolvedCwd, file: agyProjects))
+        }
+        return launchCommand(resumeLast: Resume.codexHasSession(cwd: resolvedCwd, root: codexRoot))
     }
 
     /// argv for the login shell. Coldfall never reimplements an agent — it
@@ -82,9 +86,9 @@ public struct Desk {
     /// model pins all apply untouched.
     ///
     /// `claudeSession` is the id of this desk's earlier Claude conversation and
-    /// `codexResume` says Codex has one in this directory; either reopens it
+    /// `resumeLast` says Codex or Antigravity has one in this directory; either reopens it
     /// instead of starting fresh. A desk with its own command ignores both.
-    public func launchCommand(claudeSession: String? = nil, codexResume: Bool = false) -> String {
+    public func launchCommand(claudeSession: String? = nil, resumeLast: Bool = false) -> String {
         if let c = command, !c.isEmpty { return c }
         switch runtime {
         case "shell":
@@ -99,10 +103,9 @@ public struct Desk {
             if let s = McpTrim.settingsJSON(off: mcpOff) { parts += ["--settings", "'\(s)'"] }
             return parts.joined(separator: " ")
         case "codex":
-            let base = codexResume ? ["codex", "resume", "--last"] : ["codex"]
+            let base = resumeLast ? ["codex", "resume", "--last"] : ["codex"]
             return (base + McpTrim.codexArgs(off: mcpOff)).joined(separator: " ")
-        case "gemini": return "gemini"
-        case "antigravity": return "agy"
+        case "antigravity": return resumeLast ? "agy --continue" : "agy"
         case "copilot": return "copilot"
         case "ollama":
             // `ollama run <model>` is interactive; the model is required.
@@ -144,7 +147,7 @@ public enum DeskConfig {
         cwd = "~"
 
         """
-        for (runtime, bin) in [("claude", "claude"), ("codex", "codex"), ("gemini", "gemini"), ("antigravity", "agy"),
+        for (runtime, bin) in [("claude", "claude"), ("codex", "codex"), ("antigravity", "agy"),
                                ("copilot", "copilot"), ("grok", "grok"), ("ollama", "ollama")] {
             guard which(bin) != nil else { continue }
             out += """

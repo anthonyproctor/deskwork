@@ -46,6 +46,8 @@ final class SidebarView: NSView {
     var onSortDesks: (() -> Void)?
     /// The "needs you" line was clicked: go to this desk.
     var onJumpToWaiting: ((String) -> Void)?
+    /// The needs-you line's ×, or Clear from its right-click menu.
+    var onClearWaiting: (() -> Void)?
     /// Installed agents with no desk yet, offered at the top of the rail.
     var offers: [String] = [] { didSet { if offers != oldValue, let d = lastDesks { build(desks: d) } } }
     var onAddOffer: ((String) -> Void)?
@@ -133,6 +135,7 @@ final class SidebarView: NSView {
             strip.autoresizingMask = [.width]
             strip.configure(text)
             strip.onClick = { [weak self] in self?.onJumpToWaiting?(first) }
+            strip.onClear = { [weak self] in self?.onClearWaiting?() }
             addSubview(strip)
             y += 34
         }
@@ -454,7 +457,9 @@ final class GroupHeader: NSView {
 /// that has waited longest.
 final class NeedsYouStrip: NSView {
     var onClick: (() -> Void)?
+    var onClear: (() -> Void)?
     private let label = NSTextField(labelWithString: "")
+    private let clear = NSButton(title: "×", target: nil, action: nil)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -464,11 +469,24 @@ final class NeedsYouStrip: NSView {
         label.font = .systemFont(ofSize: 12, weight: .medium)
         label.textColor = .systemGreen
         label.lineBreakMode = .byTruncatingTail
-        label.frame = NSRect(x: 10, y: 5, width: frame.width - 20, height: 16)
+        label.frame = NSRect(x: 10, y: 5, width: frame.width - 38, height: 16)
         label.autoresizingMask = [.width]
         addSubview(label)
-        toolTip = "Go to the desk that has waited longest (⌘0)"
+        clear.isBordered = false
+        clear.font = .systemFont(ofSize: 14, weight: .medium)
+        clear.contentTintColor = .systemGreen
+        clear.frame = NSRect(x: frame.width - 26, y: 2, width: 22, height: 22)
+        clear.autoresizingMask = [.minXMargin]
+        clear.target = self
+        clear.action = #selector(clearAll)
+        clear.toolTip = "Clear: mark these desks as seen"
+        addSubview(clear)
+        toolTip = "Go to the desk that has waited longest (⌘0). Right-click to clear."
+        let m = NSMenu()
+        m.addItem(withTitle: "Clear", action: #selector(clearAll), keyEquivalent: "").target = self
+        menu = m
     }
+    @objc private func clearAll() { onClear?() }
     required init?(coder: NSCoder) { fatalError() }
 
     func configure(_ text: String) { label.stringValue = "● " + text }

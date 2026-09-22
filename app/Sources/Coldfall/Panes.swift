@@ -320,6 +320,7 @@ final class DeskSession {
     }
 
     func noteOutput() { activityState.noteOutput() }
+    func markSeen() { activityState.markSeen() }
 
     /// What the rail should draw right now.
     var activity: DeskActivity { activityState.activity() }

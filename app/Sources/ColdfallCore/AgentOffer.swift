@@ -1,7 +1,7 @@
 // Offering a desk for an agent that's installed but has none.
 //
 // The Welcome screen makes a desk for every agent it finds, but only on the
-// first run. Install Copilot or Gemini a week later and nothing happened:
+// first run. Install Copilot or Antigravity a week later and nothing happened:
 // the app didn't know, and the only way in was editing desks.toml. Now the
 // rail offers a desk for each installed agent that has none, until it's added
 // or waved off.
@@ -18,9 +18,20 @@ public enum AgentOffer {
         return installed.filter { !have.contains($0) && !dismissed.contains($0) }
     }
 
+    /// Runtimes that had a desk in `before` and have none in `after`. The
+    /// person removed that desk, so offering it again would undo them.
+    public static func removed(before: [Desk], after: [Desk]) -> [String] {
+        let now = Set(after.map(\.runtime))
+        var out: [String] = []
+        for d in before where d.runtime != "shell" && !now.contains(d.runtime) && !out.contains(d.runtime) {
+            out.append(d.runtime)
+        }
+        return out
+    }
+
     /// The name people use for it, short enough for the rail.
     public static func shortName(_ runtime: String) -> String {
-        ["claude": "Claude Code", "codex": "Codex", "gemini": "Gemini", "antigravity": "Antigravity", "copilot": "Copilot",
+        ["claude": "Claude Code", "codex": "Codex", "antigravity": "Antigravity", "copilot": "Copilot",
          "grok": "Grok", "ollama": "Ollama"][runtime] ?? runtime
     }
 

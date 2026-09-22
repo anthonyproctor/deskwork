@@ -73,7 +73,7 @@ public enum Limits {
         var out: [VendorLimits] = []
         if let c = fromDroppedFile("claude") ?? legacyClaudeFile() { out.append(c) }
         if let x = fromCodexRollouts() { out.append(x) }
-        for v in ["gemini", "copilot"] {
+        for v in ["antigravity", "copilot"] {
             if let g = fromDroppedFile(v) { out.append(g) }
         }
         // Anything else someone dropped in.

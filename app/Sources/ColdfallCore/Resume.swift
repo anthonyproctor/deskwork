@@ -13,6 +13,10 @@
 // Codex: sessions have no names, but `codex resume --last` picks the newest
 // session started in the current directory. Used only when one exists there,
 // so a first start is an ordinary `codex`.
+//
+// Antigravity: `agy --continue` picks up the most recent conversation. It
+// lists each folder it has worked in in ~/.gemini/projects.json, so it is
+// used only once the desk's folder is there.
 
 import Foundation
 
@@ -24,7 +28,7 @@ public enum Resume {
         if desk.resumesItself {
             return desk.runtime == "claude"
                 ? "Starting it again picks up the same conversation. Anything it was in the middle of stops."
-                : "Starting it again picks up its latest Codex conversation in this folder. Anything it was in the middle of stops."
+                : "Starting it again picks up its latest conversation in this folder. Anything it was in the middle of stops."
         }
         if desk.runtime == "shell" { return nil }
         return "Starting it again runs its own command, which decides whether the conversation comes back."
@@ -79,6 +83,20 @@ public enum Resume {
 
     /// Whether an interactive Codex session was started in `cwd`. Reads only
     /// each session file's first line, where Codex writes its metadata.
+    public static var antigravityProjectsFile: String {
+        NSString(string: "~/.gemini/projects.json").expandingTildeInPath
+    }
+
+    /// Whether Antigravity has worked in `cwd`, so there is a conversation
+    /// for `--continue` to reopen.
+    public static func antigravityHasProject(cwd: String, file: String = antigravityProjectsFile) -> Bool {
+        guard let d = FileManager.default.contents(atPath: file),
+              let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              let p = o["projects"] as? [String: Any] else { return false }
+        let want = (cwd as NSString).standardizingPath
+        return p.keys.contains { (NSString(string: $0).expandingTildeInPath as NSString).standardizingPath == want }
+    }
+
     public static func codexHasSession(cwd: String, root: String = codexSessionsRoot) -> Bool {
         guard let walk = FileManager.default.enumerator(atPath: root) else { return false }
         let wanted = Data("\"cwd\":\"\(TomlText.escape(cwd))\"".utf8)

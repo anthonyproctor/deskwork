@@ -87,7 +87,7 @@ public enum Fanout {
                               limits: [VendorLimits]) -> FanoutBudget {
         let mine = limits.first { $0.vendor == vendor && $0.isUsable }
 
-        // No quota data is not a reason to block. Gemini and Copilot keep no
+        // No quota data is not a reason to block. Antigravity and Copilot keep no
         // quota locally, and refusing to fan out on those would punish the
         // user for their vendor's choice.
         guard let used = mine?.liveWeekPct else {

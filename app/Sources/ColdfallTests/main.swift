@@ -226,9 +226,9 @@ do {
                               limits: [lim("claude", 40), lim("codex", 30)])
     eq("a marginally emptier vendor stays quiet", close.advice, nil)
 
-    // No local quota (Gemini, Copilot) must not become a block. Punishing the
+    // No local quota (Antigravity, Copilot) must not become a block. Punishing the
     // user for their vendor exposing nothing would be the wrong default.
-    let blind = Fanout.budget(vendor: "gemini", slices: 8, limits: [])
+    let blind = Fanout.budget(vendor: "antigravity", slices: 8, limits: [])
     check("unknown quota allows the run", blind.allowsRun)
 
     // Stale data is not usable data: a reading from last week says nothing
@@ -1208,11 +1208,11 @@ do {
     eq("a trimmed Codex desk starts with that one off",
        d.launchCommand(), "codex -c 'mcp_servers.search.enabled=false'")
     eq("and keeps it off when it resumes",
-       d.launchCommand(codexResume: true), "codex resume --last -c 'mcp_servers.search.enabled=false'")
+       d.launchCommand(resumeLast: true), "codex resume --last -c 'mcp_servers.search.enabled=false'")
     d.mcpOff = ["x'; rm -rf ~"]
     eq("an unsafe name never reaches the shell", d.launchCommand(), "codex")
     eq("vendors without a checked way have nothing to trim",
-       McpTrim.servers(for: Desk(name: "g", runtime: "gemini"), home: root), [])
+       McpTrim.servers(for: Desk(name: "g", runtime: "antigravity"), home: root), [])
 }
 
 // MARK: - hiding a desk
@@ -1383,8 +1383,33 @@ do {
     eq("antigravity: launches agy", Desk(name: "g", runtime: "antigravity").launchCommand(), "agy")
     check("antigravity: Coldfall knows its binary", Bridge.runtime(named: "antigravity")?.bin == "agy")
     check("antigravity: has install help", VendorInstall.of("antigravity") != nil)
+    try? #"{"projects":{"\#(cwd)":"work"}}"#.write(toFile: root + "/projects.json", atomically: true, encoding: .utf8)
+    check("antigravity: a folder it has worked in resumes", Resume.antigravityHasProject(cwd: cwd, file: root + "/projects.json"))
+    check("antigravity: another folder doesn't", !Resume.antigravityHasProject(cwd: root, file: root + "/projects.json"))
+    eq("antigravity: resume is --continue",
+       Desk(name: "g", runtime: "antigravity", cwd: cwd).resumingLaunchCommand(agyProjects: root + "/projects.json"), "agy --continue")
+    eq("antigravity: a first start is plain agy",
+       Desk(name: "g", runtime: "antigravity", cwd: root).resumingLaunchCommand(agyProjects: root + "/projects.json"), "agy")
     eq("antigravity: short name", AgentOffer.shortName("antigravity"), "Antigravity")
     try? fm.removeItem(atPath: root)
+}
+
+// MARK: - clearing needs-you, and desks that stay removed
+
+do {
+    var st = ActivityState()
+    let t0 = Date()
+    st.noteOutput(at: t0)
+    eq("needs you: output unseen", st.activity(now: t0.addingTimeInterval(10)), .ready)
+    st.markSeen()
+    eq("needs you: Clear counts as seen", st.activity(now: t0.addingTimeInterval(10)), .quiet)
+    let a = Desk(name: "g", runtime: "antigravity"), c = Desk(name: "c", runtime: "claude")
+    eq("removed: a runtime whose last desk went", AgentOffer.removed(before: [a, c], after: [c]), ["antigravity"])
+    eq("removed: not while another desk has it",
+       AgentOffer.removed(before: [a, Desk(name: "g2", runtime: "antigravity")], after: [a]), [])
+    eq("removed: a shell desk is not an agent",
+       AgentOffer.removed(before: [Desk(name: "sh", runtime: "shell")], after: []), [])
+    check("gemini is no longer a runtime", Bridge.runtime(named: "gemini") == nil && VendorInstall.of("gemini") == nil)
 }
 
 // MARK: - Copilot usage
@@ -1419,14 +1444,14 @@ do {
     eq("an agent that isn't installed isn't offered",
        AgentOffer.missing(installed: ["claude", "codex"], desks: desks, dismissed: []), [])
     eq("Not now is remembered",
-       AgentOffer.missing(installed: ["copilot", "gemini"], desks: desks, dismissed: ["copilot"]), ["gemini"])
+       AgentOffer.missing(installed: ["copilot", "antigravity"], desks: desks, dismissed: ["copilot"]), ["antigravity"])
     let d = AgentOffer.desk(for: "copilot", in: desks, home: "/srv/home")
     eq("the new desk is named after the agent", d.name, "copilot")
     eq("it's that agent's home desk", d.isDefault, true)
     eq("and works where the other home desks do", d.cwd, ws)
     eq("a taken name gets a number", AgentOffer.desk(for: "codex", in: desks).name, "codex-2")
     eq("with no desks at all it works in the home folder",
-       AgentOffer.desk(for: "gemini", in: [], home: "/srv/home").cwd, "/srv/home")
+       AgentOffer.desk(for: "antigravity", in: [], home: "/srv/home").cwd, "/srv/home")
     eq("it launches that agent's own CLI", d.launchCommand(), "copilot")
 }
 

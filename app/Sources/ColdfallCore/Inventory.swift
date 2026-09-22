@@ -48,7 +48,6 @@ public struct Inventory: Equatable {
         switch desk.runtime {
         case "claude": return claude(cwd: desk.resolvedCwd, home: home, off: desk.mcpOff)
         case "codex":  return codex(cwd: desk.resolvedCwd, home: home)
-        case "gemini": return gemini(home: home)
         case "antigravity": return antigravity(cwd: desk.resolvedCwd, home: home)
         default:
             var i = Inventory()
@@ -155,24 +154,9 @@ public struct Inventory: Equatable {
         return inv
     }
 
-    // MARK: - Gemini
-
-    static func gemini(home: String) -> Inventory {
-        var inv = Inventory()
-        let dir = (home as NSString).appendingPathComponent(".gemini")
-        for (name, cfg) in servers(json(at: (dir as NSString).appendingPathComponent("settings.json"))) {
-            inv.mcp.append(Item(name: name, detail: serverDetail(cfg), source: "you, every folder"))
-        }
-        let ext = (dir as NSString).appendingPathComponent("extensions")
-        for name in ((try? FileManager.default.contentsOfDirectory(atPath: ext)) ?? []).sorted() where !name.hasPrefix(".") {
-            inv.plugins.append(Item(name: name, detail: "Gemini extension", source: "you, every folder"))
-        }
-        return inv
-    }
-
     // MARK: - Antigravity
 
-    /// Antigravity keeps its own files under ~/.gemini, apart from Gemini CLI's.
+    /// Antigravity keeps its files under ~/.gemini, a name left from Gemini CLI.
     static func antigravity(cwd: String, home: String) -> Inventory {
         var inv = Inventory()
         let dir = (home as NSString).appendingPathComponent(".gemini")

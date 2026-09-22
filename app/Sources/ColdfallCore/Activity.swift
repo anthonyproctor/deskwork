@@ -69,6 +69,10 @@ public struct ActivityState {
         if v { unseen = false }
     }
 
+    /// "Clear" on the needs-you line: counts as having looked, without
+    /// opening the desk.
+    public mutating func markSeen() { unseen = false }
+
     public func activity(now: Date = Date()) -> DeskActivity {
         // A desk you are looking at never badges: you can see it.
         guard !visible, let last = lastOutput else { return .quiet }
