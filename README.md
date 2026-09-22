@@ -120,6 +120,11 @@ runtime = "claude"
 cwd     = "~/src/api"
 mcp_off = ["browser"]     # MCP servers from ~/src/api/.mcp.json this desk doesn't start
 
+[desk.side]
+runtime = "claude"
+account = "~/.claude-second"  # a second Claude login: first start asks you to sign in
+cwd     = "~/src/side"
+
 [desk.review]
 group   = "work"
 runtime = "codex"         # a second vendor, kept for cross-checking
@@ -137,6 +142,8 @@ cwd     = "~/src/api"
 command = "~/bin/desk notes"
 cwd     = "~/notes"
 ```
+
+**Two Claude accounts.** `account` names a folder for Claude Code to keep a second login in (it's passed as `CLAUDE_CONFIG_DIR`). The desk resumes from that account's conversations, the meter counts it separately as `claude-second` (named after the folder), and agent mail and fan out can send a question to it, so one plan can hand work to the other. Its live limits need their own recorder: Settings, Runtimes, **Turn on live limits for claude-second**.
 
 **Trimming MCP servers.** Every Claude desk starts every MCP server in its folder's `.mcp.json`, and every Codex desk every server in `~/.codex/config.toml`, each a separate process with its own memory. Right-click a desk and choose **MCP Servers…** to switch off the ones it doesn't need; it's saved as `mcp_off`. For Claude, claude.ai connectors and plugins aren't affected. A desk with its own command gets the choice in `COLDFALL_CLAUDE_SETTINGS`, and passes it on with one line in its script:
 

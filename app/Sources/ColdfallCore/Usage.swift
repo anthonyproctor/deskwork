@@ -76,10 +76,13 @@ public enum Usage {
     /// that no longer exist instead of growing forever.
     private static var live = Set<String>()
 
-    public static func scan(since: Date) -> Report {
+    /// `accounts`: Claude accounts besides the default one, each counted
+    /// under its own name ("claude-second") so two plans can be compared.
+    public static func scan(since: Date, accounts: [ClaudeAccount] = []) -> Report {
         var r = Report()
         live.removeAll()
         scanClaude(since: since, into: &r)
+        for a in accounts { scanClaude(since: since, into: &r, root: a.projectsRoot(), vendor: a.vendor) }
         scanCodex(since: since, into: &r)
         scanCopilot(since: since, into: &r)
         UsageCache.flush(keeping: live)
@@ -103,8 +106,9 @@ public enum Usage {
         r.byDay[k, default: [:]][vendor, default: 0] += tokens
     }
 
-    private static func scanClaude(since: Date, into r: inout Report) {
-        let root = NSString(string: "~/.claude/projects").expandingTildeInPath
+    private static func scanClaude(since: Date, into r: inout Report,
+                                   root: String = NSString(string: "~/.claude/projects").expandingTildeInPath,
+                                   vendor: String = "claude") {
         guard let projects = try? FileManager.default.contentsOfDirectory(atPath: root) else { return }
         for proj in projects {
             let dir = (root as NSString).appendingPathComponent(proj)
@@ -154,7 +158,7 @@ public enum Usage {
                     let (pin, pout) = claudePrices[model] ?? (5, 25)
                     let usd = (Double(i) + 1.25 * Double(cw) + 0.10 * Double(cr)) / 1e6 * pin
                             + Double(out) / 1e6 * pout
-                    collect(&mine, vendor: "claude", desk: desk,
+                    collect(&mine, vendor: vendor, desk: desk,
                             tokens: i + cw + cr + out, usd: usd, when: when)
                 }
                 let slices = Array(mine.values)

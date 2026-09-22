@@ -13,6 +13,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let table = NSTableView()
     private let name = NSTextField(), group = NSTextField()
     private let cwd = NSTextField(), command = NSTextField()
+    private let account = NSTextField()
     private let runtime = NSPopUpButton()
     private let themePalette = NSPopUpButton()
     private let themeMode = NSPopUpButton()
@@ -88,6 +89,9 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             field(group, "group (optional), e.g. work"),
             caps("RUNTIME"), runtime,
             field(cwd, "working directory, e.g. ~/src/api"),
+            field(account, "account, e.g. ~/.claude-second"),
+            note("Optional, Claude only: the folder of a second Claude login. The first start asks you to sign in; "
+               + "after that it stays on that account.", width: 350),
             caps("OR RUN THIS VERBATIM"),
             field(command, "command (optional) — overrides runtime"),
             note("Leave command empty to launch the runtime's own CLI. Use it when you "
@@ -155,6 +159,16 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         limitsBtn.bezelStyle = .rounded
         limitsBtn.isEnabled = !Limits.recorderInstalled
         rtLines.append(limitsBtn)
+        // Each other Claude account has its own statusline, so its own recorder.
+        for a in ClaudeAccount.used(by: desks) {
+            let on = Limits.recorderInstalled(for: a)
+            let b = NSButton(title: on ? "\(a.vendor) recorder installed ✓" : "Turn on live limits for \(a.vendor)",
+                             target: self, action: #selector(installAccountLimits(_:)))
+            b.bezelStyle = .rounded
+            b.identifier = NSUserInterfaceItemIdentifier(a.folder)
+            b.isEnabled = !on
+            rtLines.append(b)
+        }
         var seen: [String] = []
         for l in Limits.all() {
             var t = "✓  \(l.vendor)"
@@ -291,7 +305,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         switch col?.identifier.rawValue {
         case "name":  s = d.name
         case "group": s = d.group ?? "—"
-        default:      s = d.command ?? (d.agent.map { "\(d.runtime) --agent \($0)" } ?? d.runtime)
+        default:      s = d.command ?? (d.agent.map { "\(d.vendorLabel) --agent \($0)" } ?? d.vendorLabel)
         }
         let l = NSTextField(labelWithString: s)
         l.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
@@ -309,6 +323,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         group.stringValue = d.group ?? ""
         cwd.stringValue = d.cwd ?? ""
         command.stringValue = d.command ?? ""
+        account.stringValue = d.account ?? ""
         runtime.selectItem(withTitle: d.runtime)
     }
 
@@ -388,6 +403,8 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         d.cwd = cwd.stringValue.isEmpty ? nil : cwd.stringValue
         d.command = command.stringValue.isEmpty ? nil : command.stringValue
         d.runtime = runtime.titleOfSelectedItem ?? "claude"
+        let acct = account.stringValue.trimmingCharacters(in: .whitespaces)
+        d.account = acct.isEmpty || d.runtime != "claude" ? nil : acct
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
         dirty = true
         table.reloadData()
@@ -398,6 +415,13 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         s.enabled = sender.state == .on
         s.noticeShown = true        // they have plainly seen it now
         s.save()
+    }
+
+    @objc private func installAccountLimits(_ sender: NSButton) {
+        guard let f = sender.identifier?.rawValue, let a = ClaudeAccount(folder: f) else { return }
+        let msg = Limits.installRecorder(for: a)
+        let al = NSAlert(); al.messageText = "Live plan limits for \(a.vendor)"; al.informativeText = msg
+        al.runModal()
     }
 
     @objc private func installLimits() {

@@ -1394,6 +1394,57 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - a second Claude account
+
+do {
+    let home = "/srv/home"
+    eq("account: named after its folder", ClaudeAccount(folder: "~/.claude-second", home: home)?.label, "second")
+    eq("account: any folder name works", ClaudeAccount(folder: "/srv/accounts/Work", home: home)?.vendor, "claude-work")
+    check("account: the default folder is not another account", ClaudeAccount(folder: "~/.claude", home: home) == nil)
+    check("account: nor is an empty one", ClaudeAccount(folder: " ", home: home) == nil)
+
+    var d = Desk(name: "side", runtime: "claude", cwd: "/srv/demo")
+    d.account = "/srv/accounts/claude-second"
+    check("account: the desk starts Claude on that folder",
+          d.launchCommand().hasPrefix("CLAUDE_CONFIG_DIR=/srv/accounts/claude-second claude "))
+    var spaced = d; spaced.account = "/srv/my accounts/second"
+    check("account: a folder with a space is quoted",
+          spaced.launchCommand().hasPrefix("CLAUDE_CONFIG_DIR='/srv/my accounts/second' claude "))
+    eq("account: the rail names it", d.vendorLabel, "claude-second")
+    var codex = Desk(name: "cx", runtime: "codex"); codex.account = "/srv/accounts/claude-second"
+    eq("account: only Claude desks have one", codex.claudeAccount(), nil)
+    eq("account: a Codex desk's command is untouched", codex.launchCommand(), "codex")
+
+    // desks.toml round trip
+    let tmp = NSTemporaryDirectory() + "coldfall-acct-\(UUID().uuidString).toml"
+    DeskConfig.write([d], to: tmp)
+    eq("account: saved and read back", DeskConfig.load(path: tmp).first?.account, "/srv/accounts/claude-second")
+    try? FileManager.default.removeItem(atPath: tmp)
+
+    // one list per account, each once
+    var d2 = d; d2.name = "side2"
+    eq("account: used by desks, once each", ClaudeAccount.used(by: [d, d2, Desk(name: "hub")], home: home).map(\.vendor), ["claude-second"])
+
+    // agent mail can ask Claude on the other account
+    let accts = ClaudeAccount.used(by: [d], home: home)
+    let rt = Bridge.runtime(named: "claude-second", accounts: accts)
+    eq("account: mail can address it by name", rt?.name, "claude-second")
+    eq("account: and runs Claude on its folder", rt?.env["CLAUDE_CONFIG_DIR"], "/srv/accounts/claude-second")
+    eq("account: still read-only enforced", rt?.readOnlyEnforced, true)
+
+    // resume reads that account's conversations
+    let root = NSTemporaryDirectory() + "coldfall-acctresume-\(UUID().uuidString)"
+    var r = Desk(name: "side", runtime: "claude", cwd: "/srv/demo"); r.account = root
+    let proj = Resume.claudeProjectDir(for: "/srv/demo", root: root + "/projects")
+    try? FileManager.default.createDirectory(atPath: proj, withIntermediateDirectories: true)
+    let sid = "11111111-2222-3333-4444-555555555555"
+    try? #"{"type":"custom-title","customTitle":"side","sessionId":"x"}"#
+        .write(toFile: proj + "/\(sid).jsonl", atomically: true, encoding: .utf8)
+    check("account: resumes from that account's history",
+          r.resumingLaunchCommand(claudeRoot: "/srv/nowhere").contains("--resume \(sid)"))
+    try? FileManager.default.removeItem(atPath: root)
+}
+
 // MARK: - a repaint is not news
 
 do {

@@ -233,7 +233,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 let d = desks[i]
                 strip.setContext(d.name)
                 termHeader.set(desk: d.name,
-                               detail: d.runtime == "shell" ? "shell" : d.runtime + (d.isDefault ? " home" : ""),
+                               detail: d.runtime == "shell" ? "shell" : d.vendorLabel + (d.isDefault ? " home" : ""),
                                panes: 1)
             }
             // `--terminal <file>`: that desk's terminal showing the file's
@@ -1719,7 +1719,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func updateTermHeader() {
         guard let s = visible else { return }
         let d = s.desk
-        let detail = d.runtime == "shell" ? "shell" : d.runtime + (d.isDefault ? " home" : "")
+        let detail = d.runtime == "shell" ? "shell" : d.vendorLabel + (d.isDefault ? " home" : "")
         termHeader.set(desk: d.name, detail: detail, panes: s.panes.count)
     }
 

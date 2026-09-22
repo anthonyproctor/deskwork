@@ -9,6 +9,13 @@ opens this file.
 ## [Unreleased]
 
 ### Added
+- **More than one Claude plan.** `account = "~/.claude-second"` on a desk,
+  or the account field in Settings, runs that desk's Claude on a second
+  login (Claude Code's `CLAUDE_CONFIG_DIR`). The rail and the meter name it
+  `claude-second`, with its own usage and, once its recorder is on, its own
+  weekly limit, so you can see which plan has room. It resumes from that
+  account's conversations, What This Desk Has reads that account's
+  settings, and agent mail and fan out can send a question to it.
 - A guide at https://project-coldfall.vercel.app/guide: what the app is
   for, your first ten minutes, setting up desks, a normal day, agent mail,
   usage, and every shortcut.

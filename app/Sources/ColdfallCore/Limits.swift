@@ -180,9 +180,24 @@ public enum Limits {
 
     // MARK: - the Claude recorder
 
-    public static var recorderInstalled: Bool {
-        guard let d = FileManager.default.contents(atPath:
-                NSString(string: "~/.claude/settings.json").expandingTildeInPath),
+    public static var recorderInstalled: Bool { recorderInstalled(for: nil) }
+
+    /// The settings file the recorder goes in: the account's own, for an
+    /// account other than the default.
+    static func settingsPath(_ account: ClaudeAccount?) -> String {
+        account.map { ($0.path() as NSString).appendingPathComponent("settings.json") }
+            ?? NSString(string: "~/.claude/settings.json").expandingTildeInPath
+    }
+
+    /// One script per account: each chains to that account's own statusline,
+    /// and writes its limits under that account's name.
+    static func recorderPath(_ account: ClaudeAccount?) -> String {
+        account.map { NSString(string: "~/.config/coldfall/statusline-recorder-\($0.label).sh").expandingTildeInPath }
+            ?? recorderPath
+    }
+
+    public static func recorderInstalled(for account: ClaudeAccount?) -> Bool {
+        guard let d = FileManager.default.contents(atPath: settingsPath(account)),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let sl = j["statusLine"] as? [String: Any],
               let c = sl["command"] as? String else { return false }
@@ -190,10 +205,18 @@ public enum Limits {
     }
 
     @discardableResult
-    public static func installRecorder() -> String {
-        let settings = NSString(string: "~/.claude/settings.json").expandingTildeInPath
-        guard let data = FileManager.default.contents(atPath: settings),
-              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+    public static func installRecorder(for account: ClaudeAccount? = nil) -> String {
+        let settings = settingsPath(account)
+        let vendor = account?.vendor ?? "claude"
+        let recorderPath = recorderPath(account)
+        // A new account's folder may have no settings yet.
+        var json: [String: Any] = [:]
+        if let data = FileManager.default.contents(atPath: settings) {
+            guard let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return "Could not read \(settings)"
+            }
+            json = j
+        } else if account == nil {
             return "Could not read ~/.claude/settings.json"
         }
         var wrapped = ""
@@ -205,13 +228,13 @@ public enum Limits {
         #!/bin/bash
         # Installed by Project Coldfall. Captures Claude Code's live rate limits so the
         # meter can show remaining quota, then hands stdin to your own statusline
-        # unchanged. To undo, point statusLine in ~/.claude/settings.json back at
+        # unchanged. To undo, point statusLine in \(settings) back at
         # your own script.
         input=$(cat)
-        out="$HOME/.local/share/coldfall/limits/claude.json"
+        out="$HOME/.local/share/coldfall/limits/\(vendor).json"
         mkdir -p "$(dirname "$out")"
         printf '%s' "$input" | jq -c '{
-          vendor: "claude",
+          vendor: "\(vendor)",
           weekPct:          (.rate_limits.seven_day.used_percentage // null),
           weekResetsAt:     (.rate_limits.seven_day.resets_at       // null),
           fiveHourPct:      (.rate_limits.five_hour.used_percentage // null),
@@ -248,9 +271,11 @@ public enum Limits {
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: recorderPath)
 
         json["statusLine"] = ["type": "command", "command": recorderPath, "padding": 0]
+        try? FileManager.default.createDirectory(
+            atPath: (settings as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         guard let out = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
               (try? out.write(to: URL(fileURLWithPath: settings))) != nil else {
-            return "Could not write ~/.claude/settings.json"
+            return "Could not write \(settings)"
         }
         return wrapped.isEmpty
             ? "Installed. Limits appear after your next Claude message."

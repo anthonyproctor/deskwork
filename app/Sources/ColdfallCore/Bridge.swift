@@ -28,7 +28,7 @@ public struct BridgeError: Error {
 public enum Bridge {
 
     public struct Runtime {
-        public let name: String
+        public var name: String
         public let bin: String
         /// argv for a headless, read-only answer. `out` is a file the runtime
         /// may write its FINAL message to; without it some CLIs return their
@@ -44,6 +44,8 @@ public enum Bridge {
         /// host — which is the honest answer to a workspace holding anything
         /// you would not hand to a vendor.
         public let isLocal: Bool
+        /// Set for the process, e.g. CLAUDE_CONFIG_DIR for another account.
+        public var env: [String: String] = [:]
     }
 
     public static let known: [Runtime] = [
@@ -80,8 +82,26 @@ public enum Bridge {
                 readOnlyEnforced: false, hasFinalMessageFlag: false, isLocal: true),
     ]
 
-    public static func available() -> [Runtime] { known.filter { DeskConfig.which($0.bin) != nil } }
-    public static func runtime(named n: String) -> Runtime? { known.first { $0.name == n } }
+    /// What can answer: every installed runtime, and Claude once more for
+    /// each other account desks use, so one plan can ask another.
+    public static func available(accounts: [ClaudeAccount] = ClaudeAccount.known()) -> [Runtime] {
+        let installed = known.filter { DeskConfig.which($0.bin) != nil }
+        return installed + (installed.first { $0.name == "claude" }.map { claude in
+            accounts.map { account(claude, $0) } } ?? [])
+    }
+    public static func runtime(named n: String, accounts: [ClaudeAccount] = []) -> Runtime? {
+        if let r = known.first(where: { $0.name == n }) { return r }
+        guard let a = accounts.first(where: { $0.vendor == n }),
+              let claude = known.first(where: { $0.name == "claude" }) else { return nil }
+        return account(claude, a)
+    }
+    /// Claude, on another account.
+    static func account(_ claude: Runtime, _ a: ClaudeAccount) -> Runtime {
+        var r = claude
+        r.name = a.vendor
+        r.env = ["CLAUDE_CONFIG_DIR": a.path()]
+        return r
+    }
 
     /// Wraps the thread so the responder knows it is reviewing, not driving.
     public static func framePrompt(thread: String, ask: String, enforced: Bool) -> String {
@@ -191,6 +211,7 @@ public struct Mailbox {
             // A nested agent session refuses to start; clear the marker.
             var env = ProcessInfo.processInfo.environment
             env["CLAUDECODE"] = ""; env["CLAUDE_CODE_ENTRYPOINT"] = ""
+            env.merge(rt.env) { $1 }
             p.environment = env
             let out = Pipe(), err = Pipe()
             p.standardOutput = out; p.standardError = err

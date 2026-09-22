@@ -148,7 +148,7 @@ final class Palette: NSObject, NSTextFieldDelegate, NSTableViewDataSource, NSTab
         restyle()
         desks = deskList.enumerated().map { i, d in
             .desk(index: i, name: d.name,
-                  detail: d.runtime == "shell" ? "shell" : d.runtime + (d.isDefault ? " home" : ""))
+                  detail: d.runtime == "shell" ? "shell" : d.vendorLabel + (d.isDefault ? " home" : ""))
         }
         if root != self.root { files = []; self.root = root }
         field.stringValue = query

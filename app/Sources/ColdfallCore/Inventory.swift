@@ -46,7 +46,8 @@ public struct Inventory: Equatable {
     /// What `desk` has, read from `home` (overridable for tests).
     public static func of(_ desk: Desk, home: String = NSHomeDirectory()) -> Inventory {
         switch desk.runtime {
-        case "claude": return claude(cwd: desk.resolvedCwd, home: home, off: desk.mcpOff)
+        case "claude": return claude(cwd: desk.resolvedCwd, home: home, off: desk.mcpOff,
+                                     account: desk.claudeAccount(home: home)?.path(home: home))
         case "codex":  return codex(cwd: desk.resolvedCwd, home: home)
         case "antigravity": return antigravity(cwd: desk.resolvedCwd, home: home)
         default:
@@ -60,9 +61,11 @@ public struct Inventory: Equatable {
 
     // MARK: - Claude
 
-    static func claude(cwd: String, home: String, off: [String]) -> Inventory {
+    /// `account` is another account's folder (CLAUDE_CONFIG_DIR), which holds
+    /// what ~/.claude and ~/.claude.json hold for the default one.
+    static func claude(cwd: String, home: String, off: [String], account: String? = nil) -> Inventory {
         var inv = Inventory()
-        let claudeDir = (home as NSString).appendingPathComponent(".claude")
+        let claudeDir = account ?? (home as NSString).appendingPathComponent(".claude")
         let projectClaude = (cwd as NSString).appendingPathComponent(".claude")
         let here = "this folder", you = "you, every folder"
 
@@ -70,7 +73,8 @@ public struct Inventory: Equatable {
         for (name, cfg) in servers(json(at: (cwd as NSString).appendingPathComponent(".mcp.json"))) {
             inv.mcp.append(Item(name: name, detail: serverDetail(cfg), source: here, off: off.contains(name)))
         }
-        let claudeJSON = json(at: (home as NSString).appendingPathComponent(".claude.json"))
+        let claudeJSON = json(at: account.map { ($0 as NSString).appendingPathComponent(".claude.json") }
+                                  ?? (home as NSString).appendingPathComponent(".claude.json"))
         for (name, cfg) in servers(claudeJSON) {
             inv.mcp.append(Item(name: name, detail: serverDetail(cfg), source: you))
         }

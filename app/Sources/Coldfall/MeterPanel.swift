@@ -86,7 +86,7 @@ final class MeterPanel: NSWindowController {
             stack.addArrangedSubview(mono("no live quota — turn it on in Settings"))
         }
         for l in limits.sorted(by: { ($0.liveWeekPct ?? 0) > ($1.liveWeekPct ?? 0) }) {
-            var line = pad(l.vendor, 9)
+            var line = pad(l.vendor, 15)
             if let w = l.liveWeekPct {
                 line += "week  \(bar(w))  " + String(format: "%5.1f%%", w)
                 if let r = l.weekResetsAt {
@@ -118,7 +118,7 @@ final class MeterPanel: NSWindowController {
 
         stack.addArrangedSubview(caps("SCANNING…"))
         DispatchQueue.global(qos: .userInitiated).async {
-            let r = Usage.scan(since: since)
+            let r = Usage.scan(since: since, accounts: ClaudeAccount.known())
             DispatchQueue.main.async { self.report = r; self.renderUsage(since: since) }
         }
     }
@@ -134,14 +134,14 @@ final class MeterPanel: NSWindowController {
         stack.addArrangedSubview(caps("THIS WEEK, SINCE \(df.string(from: since).uppercased())"))
         for (v, b) in report.byVendor.sorted(by: { $0.value.tokens > $1.value.tokens }) {
             let share = total > 0 ? Double(b.tokens) / Double(total) * 100 : 0
-            var s = pad(v, 9) + lpad(fmt(b.tokens), 9) + " tokens  "
+            var s = pad(v, 15) + lpad(fmt(b.tokens), 9) + " tokens  "
                   + bar(share, width: 20) + lpad(String(format: "%.1f%%", share), 7)
             if let usd = b.usd { s += String(format: "   $%.0f", usd) }
             stack.addArrangedSubview(mono(s))
         }
         if report.byVendor.isEmpty { stack.addArrangedSubview(mono("nothing recorded this week")) }
         if let p = report.copilotPremium {
-            stack.addArrangedSubview(mono(pad("copilot", 9) + String(format: "%9.0f premium requests this month", p)
+            stack.addArrangedSubview(mono(pad("copilot", 15) + String(format: "%9.0f premium requests this month", p)
                 + "  (your plan's allowance is on github.com, not on this Mac)"))
         }
 

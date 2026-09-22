@@ -409,6 +409,7 @@ extension Mailbox {
             p.currentDirectoryURL = URL(fileURLWithPath: cwd)
             var env = ProcessInfo.processInfo.environment
             env["CLAUDECODE"] = ""; env["CLAUDE_CODE_ENTRYPOINT"] = ""
+            env.merge(rt.env) { $1 }
             p.environment = env
             let out = Pipe(), err = Pipe()
             p.standardOutput = out; p.standardError = err

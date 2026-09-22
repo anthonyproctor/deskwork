@@ -23,6 +23,9 @@ public struct Desk {
     /// MCP servers from the folder's .mcp.json switched off for this desk
     /// (see McpTrim). Empty means all of them, as before.
     public var mcpOff: [String] = []
+    /// The folder of the Claude account this desk runs on, e.g.
+    /// "~/.claude-second". Unset is the default account (see ClaudeAccount).
+    public var account: String?
     /// The Claude conversation this desk reopens, by id. Set when a built-in
     /// desk is renamed: its conversation is titled with the OLD name, so the
     /// lookup by name would stop finding it. Unset, the desk finds its
@@ -55,7 +58,7 @@ public struct Desk {
         var d = self
         d.name = new
         if resumesItself, runtime == "claude", d.session == nil {
-            d.session = Resume.claudeSession(named: old, cwd: resolvedCwd, root: claudeRoot)
+            d.session = Resume.claudeSession(named: old, cwd: resolvedCwd, root: claudeAccount()?.projectsRoot() ?? claudeRoot)
         }
         return d
     }
@@ -68,6 +71,8 @@ public struct Desk {
                                       agyProjects: String = Resume.antigravityProjectsFile) -> String {
         guard resumesItself else { return launchCommand() }
         if runtime == "claude" {
+            // Another account keeps its conversations in its own folder.
+            let claudeRoot = claudeAccount()?.projectsRoot() ?? claudeRoot
             // A remembered conversation first, while it still exists; then
             // the newest one titled with the desk's name.
             if let s = session, Resume.claudeTranscriptExists(s, cwd: resolvedCwd, root: claudeRoot) {
@@ -95,6 +100,7 @@ public struct Desk {
             return command ?? "exec $SHELL -l"
         case "claude":
             var parts = ["claude"]
+            if let a = claudeAccount() { parts = ["CLAUDE_CONFIG_DIR=" + Shell.quote(a.path()), "claude"] }
             // Every value from desks.toml is quoted: see Shell.quote.
             if let a = agent, !a.isEmpty { parts += ["--agent", Shell.quote(a)] }
             if let s = claudeSession, !s.isEmpty { parts += ["--resume", Shell.quote(s)] } else { parts += ["-n", Shell.quote(name)] }
@@ -347,6 +353,7 @@ public enum DeskConfig {
                 explicitRuntime = true
             case "model":   current?.model = val
             case "mcp_off": current?.mcpOff = TomlText.stringArray(val) ?? []
+            case "account": current?.account = val.isEmpty ? nil : val
             case "hidden":  current?.hidden = val == "true"
             case "session": current?.session = UUID(uuidString: val) != nil ? val.lowercased() : nil
             case "cwd":     current?.cwd = val
@@ -471,6 +478,7 @@ public enum DeskConfig {
             }
             if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
             if let m = d.model { out += "model = \"\(TomlText.escape(m))\"\n" }
+            if let a = d.account { out += "account = \"\(TomlText.escape(a))\"\n" }
             if let s = d.session { out += "session = \"\(TomlText.escape(s))\"\n" }
             if d.hidden { out += "hidden = true\n" }
             if !d.mcpOff.isEmpty {

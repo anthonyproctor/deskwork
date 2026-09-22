@@ -304,7 +304,13 @@ cwd = "~/notes"</code></pre>
       <li><strong>Group them.</strong> Desks with the same <code>group</code> fold together. Drag desks and whole groups into the order you like, or right-click and sort A to Z.</li>
       <li><strong>Hide what you're not using.</strong> Right-click, Hide Desk. It stays in the file and comes back with one click.</li>
     </ul>
-    <div class="tip"><p><strong>Two accounts with the same vendor?</strong> A desk can run its own command. For Claude Code, <code>command = "CLAUDE_CONFIG_DIR=~/.claude-second claude"</code> gives that desk a second login, kept apart from your first.</p></div>
+    <h3>Two Claude plans</h3>
+    <p>Give a desk <code>account = "~/.claude-second"</code>, or fill in <strong>account</strong> in Settings. That desk runs Claude on a second login, kept apart from your first; its first start asks you to sign in. After that:</p>
+    <ul>
+      <li>The rail and the meter name it <strong>claude-second</strong>, after its folder, so you can see which plan has room this week.</li>
+      <li>It picks its conversation back up like any other Claude desk.</li>
+      <li>Agent mail can ask it. A desk on your first plan can hand a question to the second, and the second answers read-only, on its own quota.</li>
+    </ul>
 
     <h2 id="day">A normal day</h2>
     <p>Hand a desk a job, move on to another desk, and let Coldfall tell you when to come back.</p>

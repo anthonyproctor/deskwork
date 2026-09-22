@@ -49,6 +49,8 @@ final class DeskRow: NSView {
 
     let deskName: String
     private let runtime: String
+    /// "claude-second" for a desk on another Claude account.
+    private let label: String
     private let isDefault: Bool
 
     private let glyph = NSTextField(labelWithString: "")
@@ -85,6 +87,7 @@ final class DeskRow: NSView {
     init(desk: Desk) {
         deskName = desk.name
         runtime = desk.runtime
+        label = desk.vendorLabel
         isDefault = desk.isDefault
         super.init(frame: .zero)
         wantsLayer = true
@@ -175,7 +178,7 @@ final class DeskRow: NSView {
         // What it is, then what it is doing. A plain shell has no vendor, so
         // it says so rather than implying one.
         var parts: [String] = []
-        parts.append(runtime == "shell" ? "shell" : runtime + (isDefault ? " home" : ""))
+        parts.append(runtime == "shell" ? "shell" : label + (isDefault ? " home" : ""))
         if runtime != "shell" || status.running { parts.append(state) }
         if let m = status.memory { parts.append(m) }
         // Something was added to this desk since it was last looked at, a

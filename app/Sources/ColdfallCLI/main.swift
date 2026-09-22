@@ -49,7 +49,7 @@ case "usage":
     if let i = args.firstIndex(of: "--days"), args.count > i + 1, let n = Int(args[i + 1]) { days = n }
     let since = days == 7 ? Usage.weekStart()
                           : Date().addingTimeInterval(-Double(days) * 86_400)
-    let r = Usage.scan(since: since)
+    let r = Usage.scan(since: since, accounts: ClaudeAccount.known())
     out([
         "since": ISO8601DateFormatter().string(from: since),
         "byVendor": r.byVendor.mapValues { ["tokens": $0.tokens, "calls": $0.calls, "usd": $0.usd ?? 0] },

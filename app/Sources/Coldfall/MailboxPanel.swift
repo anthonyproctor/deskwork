@@ -51,8 +51,8 @@ final class MailboxPanel: NSWindowController {
 
     private func build() {
         guard let c = window?.contentView else { return }
-        let avail = Bridge.available()
-        target.addItems(withTitles: avail.map(\.name))
+        runtimes = Bridge.available()
+        target.addItems(withTitles: runtimes.map(\.name))
         target.target = self; target.action = #selector(targetChanged)
 
         sendBtn.title = "Send"
@@ -98,10 +98,11 @@ final class MailboxPanel: NSWindowController {
         targetChanged()
     }
 
+    /// What can answer, including Claude on each other account.
+    private var runtimes: [Bridge.Runtime] = []
     private var selectedRuntime: Bridge.Runtime? {
-        let a = Bridge.available()
         let i = target.indexOfSelectedItem
-        return a.indices.contains(i) ? a[i] : nil
+        return runtimes.indices.contains(i) ? runtimes[i] : nil
     }
 
     @objc private func targetChanged() {

@@ -67,7 +67,7 @@ final class MeterBar: NSView {
         lastScan = Date()
         let since = Usage.weekStart()
         DispatchQueue.global(qos: .utility).async {
-            let r = Usage.scan(since: since)
+            let r = Usage.scan(since: since, accounts: ClaudeAccount.known())
             DispatchQueue.main.async { self.render(r, since: since) }
         }
     }
