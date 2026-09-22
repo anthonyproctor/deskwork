@@ -40,6 +40,10 @@ zip of the local bundle. The local bundle carries the builder's home path (in
 Info.plist and in debug symbols) and a personal signing certificate; the
 script strips all of it and refuses to finish if any home path is left.
 
+`coldfall-cli menu [desk]` prints a desk's right-click menu as data. A
+context menu cannot be captured in an offscreen snapshot, so its order,
+wording and tone are checked there and in the core's tests.
+
 `COLDFALL_SNAPSHOT_DEBUG=1` prints measured frames with a snapshot.
 
 ## Rules

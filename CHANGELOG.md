@@ -8,6 +8,13 @@ opens this file.
 
 ## [Unreleased]
 
+### Changed
+- A desk's right-click menu tells Stop and Remove apart. Stop Desk has an
+  orange stop icon, Remove Desk a red trash icon and red text, each with a
+  line saying what it does, and Remove sits alone at the bottom behind its
+  own separator. Two plain lines of text, one above the other, made the
+  destructive one the easy one to hit.
+
 ## [0.3.11] - 2026-09-22
 
 One look at what's new answers for every desk.

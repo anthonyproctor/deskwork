@@ -231,56 +231,47 @@ final class DeskRow: NSView {
 
     override func rightMouseDown(with e: NSEvent) {
         let m = NSMenu()
-        if onReveal != nil {
-            let r = NSMenuItem(title: "Reveal Agent Definition", action: #selector(reveal), keyEquivalent: "")
-            r.target = self
-            m.addItem(r); m.addItem(.separator())
+        let entries = DeskMenu.items(runtime: runtime, running: status.running, hidden: onUnhide != nil,
+                                     canReveal: onReveal != nil, canMakeDefault: onMakeDefault != nil,
+                                     hasInventory: onInventory != nil, hasMcp: onMcp != nil)
+        for e in entries {
+            guard e.action != .separator else { m.addItem(NSMenuItem.separator()); continue }
+            let sel: Selector
+            switch e.action {
+            case .reveal:      sel = #selector(reveal)
+            case .makeDefault: sel = #selector(makeDefault)
+            case .rename:      sel = #selector(rename)
+            case .inventory:   sel = #selector(inventory)
+            case .mcp:         sel = #selector(mcp)
+            case .stop:        sel = #selector(stop)
+            case .hide:        sel = #selector(hide)
+            case .unhide:      sel = #selector(unhide)
+            case .remove:      sel = #selector(remove)
+            case .separator:   continue
+            }
+            let it = NSMenuItem(title: e.title, action: sel, keyEquivalent: "")
+            it.target = self
+            it.toolTip = e.subtitle
+            // The line underneath says what the item does, which is the
+            // difference between stopping a desk and removing it.
+            if #available(macOS 14.4, *), let sub = e.subtitle { it.subtitle = sub }
+            let tint: NSColor? = e.tone == .danger ? .systemRed : (e.tone == .caution ? .systemOrange : nil)
+            if let name = e.symbol,
+               let img = NSImage(systemSymbolName: name, accessibilityDescription: e.title) {
+                it.image = tint.map {
+                    img.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [$0])) ?? img
+                } ?? img
+            }
+            // Red for the one that changes the desk list. Everything else
+            // keeps the system's own colour, so red still means something.
+            if e.tone == .danger {
+                it.attributedTitle = NSAttributedString(
+                    string: e.title,
+                    attributes: [.foregroundColor: NSColor.systemRed,
+                                 .font: NSFont.menuFont(ofSize: 0)])
+            }
+            m.addItem(it)
         }
-        if onMakeDefault != nil {
-            let g = NSMenuItem(title: "Make this the \(runtime) home",
-                               action: #selector(makeDefault), keyEquivalent: "")
-            g.target = self
-            g.toolTip = "The home desk for a vendor is where Project Coldfall sends work that belongs "
-                + "to the vendor rather than to one agent. One per vendor. The home marked default "
-                + "also opens when Project Coldfall starts."
-            m.addItem(g); m.addItem(.separator())
-        }
-        let rn = NSMenuItem(title: "Rename Desk…", action: #selector(rename), keyEquivalent: "")
-        rn.target = self
-        m.addItem(rn)
-        if onInventory != nil {
-            let iv = NSMenuItem(title: "What This Desk Has…", action: #selector(inventory), keyEquivalent: "")
-            iv.target = self
-            iv.toolTip = "Its MCP servers, hooks, skills and plugins, read from disk."
-            m.addItem(iv)
-        }
-        if onMcp != nil {
-            let mc = NSMenuItem(title: "MCP Servers…", action: #selector(mcp), keyEquivalent: "")
-            mc.target = self
-            mc.toolTip = "Choose which of this folder's MCP servers this desk starts."
-            m.addItem(mc)
-        }
-        if status.running, onStop != nil {
-            let st = NSMenuItem(title: "Stop Desk…", action: #selector(stop), keyEquivalent: "")
-            st.target = self
-            st.toolTip = "Ends this desk's processes and frees their memory. Click the desk to start it again."
-            m.addItem(st)
-        }
-        m.addItem(.separator())
-        if onHide != nil {
-            let h = NSMenuItem(title: "Hide Desk", action: #selector(hide), keyEquivalent: "")
-            h.target = self
-            h.toolTip = "Out of the rail and cmd-1 to cmd-9, but kept. Show hidden desks from the bottom of the rail."
-            m.addItem(h)
-        }
-        if onUnhide != nil {
-            let u = NSMenuItem(title: "Unhide Desk", action: #selector(unhide), keyEquivalent: "")
-            u.target = self
-            m.addItem(u)
-        }
-        let d = NSMenuItem(title: "Remove Desk…", action: #selector(remove), keyEquivalent: "")
-        d.target = self
-        m.addItem(d)
         NSMenu.popUpContextMenu(m, with: e, for: self)
     }
     @objc private func remove() { onRemove?() }

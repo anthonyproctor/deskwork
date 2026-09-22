@@ -1394,6 +1394,33 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - the desk menu
+
+do {
+    let m = DeskMenu.items(runtime: "claude", running: true, hidden: false,
+                           canReveal: false, canMakeDefault: false, hasInventory: true, hasMcp: true)
+    let stop = m.first { $0.action == .stop }
+    let remove = m.first { $0.action == .remove }
+    eq("menu: stopping a desk is a caution, not a danger", stop?.tone, .caution)
+    eq("menu: removing one is the danger", remove?.tone, .danger)
+    check("menu: each says what it does",
+          stop?.subtitle?.contains("start it again") == true && remove?.subtitle?.contains("desks.toml") == true)
+    check("menu: and carries its own icon", stop?.symbol == "stop.circle.fill" && remove?.symbol == "trash")
+    check("menu: the destructive one is kept apart", DeskMenu.destructiveIsIsolated(m))
+    eq("menu: it is last, where nothing follows it by accident", m.last?.action, .remove)
+    check("menu: stop and remove are never neighbours",
+          !zip(m, m.dropFirst()).contains { ($0.action == .stop && $1.action == .remove)
+                                            || ($0.action == .remove && $1.action == .stop) })
+    let idle = DeskMenu.items(runtime: "codex", running: false, hidden: false,
+                              canReveal: false, canMakeDefault: false, hasInventory: true, hasMcp: false)
+    check("menu: a desk that isn't running has nothing to stop", !idle.contains { $0.action == .stop })
+    check("menu: still isolated without it", DeskMenu.destructiveIsIsolated(idle))
+    let hidden = DeskMenu.items(runtime: "claude", running: false, hidden: true,
+                                canReveal: true, canMakeDefault: true, hasInventory: false, hasMcp: false)
+    check("menu: a hidden desk offers to come back", hidden.contains { $0.action == .unhide })
+    check("menu: and is not offered hiding twice", !hidden.contains { $0.action == .hide })
+}
+
 // MARK: - one look answers for every desk
 
 do {

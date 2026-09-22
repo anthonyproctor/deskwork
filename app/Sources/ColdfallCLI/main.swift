@@ -34,6 +34,23 @@ case "desks":
         return o
     })
 
+case "menu":
+    // The right-click menu for a desk, as data. Here because a context menu
+    // cannot be captured in an offscreen snapshot, and its order and wording
+    // are the part that matters.
+    let name = args.count > 1 ? args[1] : nil
+    let d = name.flatMap { n in DeskConfig.load().first { $0.name == n } } ?? Desk(name: "example")
+    out(DeskMenu.items(runtime: d.runtime, running: true, hidden: d.hidden,
+                       canReveal: d.agent != nil, canMakeDefault: !d.isDefault,
+                       hasInventory: d.runtime != "shell", hasMcp: ["claude", "codex"].contains(d.runtime))
+        .map { e -> [String: Any] in
+            var o: [String: Any] = ["action": e.action.rawValue, "title": e.title]
+            if let s = e.subtitle { o["subtitle"] = s }
+            if let s = e.symbol { o["symbol"] = s }
+            o["tone"] = e.tone == .danger ? "danger" : (e.tone == .caution ? "caution" : "normal")
+            return o
+        })
+
 case "limits":
     out(Limits.all().map { l -> [String: Any] in
         var o: [String: Any] = ["vendor": l.vendor, "ageSeconds": Int(l.age)]
