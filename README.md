@@ -14,6 +14,8 @@ macOS · Swift · early, but it runs
 
 ---
 
+New here? The [guide](https://project-coldfall.vercel.app/guide) covers what it's for, setting up desks, and a normal day with it.
+
 ## The idea
 
 Every coding tool picks one of two units of work. VS Code and its descendants treat the **file** as the unit. Zed's agent panel, Copilot and Cursor treat the **thread** as the unit — a conversation starts, does a job, gets thrown away.

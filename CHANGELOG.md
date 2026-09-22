@@ -8,6 +8,11 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- A guide at https://project-coldfall.vercel.app/guide: what the app is
+  for, your first ten minutes, setting up desks, a normal day, agent mail,
+  usage, and every shortcut.
+
 ### Fixed
 - A desk you had just read no longer turns green again on its own. Agents
   repaint their screen when you leave them, and when their status line

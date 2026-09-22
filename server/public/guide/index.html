@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guide: Project Coldfall</title>
+<meta name="description" content="What Project Coldfall is for, how to set up your desks in a few minutes, and what a normal day with it looks like.">
+<link rel="canonical" href="https://project-coldfall.vercel.app/guide">
+<meta name="theme-color" content="#0f0f12" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
+<meta property="og:title" content="How to work in Project Coldfall">
+<meta property="og:description" content="What the app is for, how to set it up, and what a normal day with it looks like.">
+<meta property="og:image" content="https://project-coldfall.vercel.app/og.png">
+<meta property="og:url" content="https://project-coldfall.vercel.app/guide">
+<meta property="og:type" content="article">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2318181b'/%3E%3Crect x='11' y='7' width='3' height='18' rx='1.5' fill='%236acd63'/%3E%3Crect x='18' y='7' width='3' height='18' rx='1.5' fill='%236acd63'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0f0f12; --bg2: #141418; --panel: #19191e; --line: #26262d; --line2: #33333b;
+    --text: #ededf1; --dim: #a8a8b2; --faint: #8a8a94;
+    --green: #6acd63; --green-ink: #0c1a0b; --green-soft: rgba(106, 205, 99, .12);
+    --orange: #f0a04b; --blue: #5b9dea;
+    --shadow: 0 40px 100px -30px rgba(0, 0, 0, .75), 0 0 0 1px rgba(255, 255, 255, .04);
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --r: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f7f8; --bg2: #efeff2; --panel: #ffffff; --line: #e3e3e8; --line2: #d4d4db;
+      --text: #17171a; --dim: #4c4c55; --faint: #62626b;
+      --green: #1f7a33; --green-ink: #ffffff; --green-soft: rgba(47, 158, 68, .1);
+      --orange: #c26b0f; --blue: #2667c9;
+      --shadow: 0 40px 90px -35px rgba(20, 20, 40, .35), 0 0 0 1px rgba(0, 0, 0, .06);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 76px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 6px; }
+  img { max-width: 100%; height: auto; display: block; }
+  .skip { position: absolute; left: -9999px; top: 8px; z-index: 20; background: var(--green); color: var(--green-ink); padding: 8px 14px; border-radius: 8px; font-weight: 600; }
+  .skip:focus { left: 12px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  .narrow { max-width: 760px; }
+
+  /* header */
+  header { position: sticky; top: 0; z-index: 10; background: var(--bg); background: color-mix(in srgb, var(--bg) 86%, transparent);
+           backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px);
+           border-bottom: 1px solid transparent; transition: border-color .2s; }
+  header.scrolled { border-bottom-color: var(--line); }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+  .mark { font: 500 21px var(--mono); letter-spacing: .4px; text-decoration: none; }
+  .mark b { color: var(--green); font-weight: 500; }
+  header nav { display: flex; align-items: center; gap: 22px; font-size: 15px; }
+  header nav a { color: var(--dim); text-decoration: none; }
+  header nav a:hover { color: var(--text); }
+  header nav a.small-btn { color: var(--green-ink); background: var(--green); padding: 7px 14px; border-radius: 8px; font-weight: 600; }
+
+  /* hero */
+  .hero { text-align: center; padding-top: 72px; padding-bottom: 32px; }
+  .eyebrow { display: inline-flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--dim);
+             border: 1px solid var(--line2); border-radius: 999px; padding: 5px 13px; margin-bottom: 26px; background: var(--panel); }
+  .eyebrow i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+  .hero h1 { font-size: clamp(34px, 9vw, 72px); line-height: 1.02; letter-spacing: -.035em; margin: 0 auto 20px; max-width: 13em; }
+  .hero .lede { color: var(--dim); font-size: clamp(17px, 2vw, 20px); max-width: 36em; margin: 0 auto 30px; }
+  .say { font-size: 15px; color: var(--faint); margin: 0 auto 30px; max-width: 34em; }
+  .say .mono { font-family: var(--mono); color: var(--dim); }
+  .say .mono b { color: var(--green); font-weight: 400; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .btn { display: inline-flex; align-items: center; gap: 9px; padding: 13px 22px; border-radius: 11px; text-decoration: none;
+         font-weight: 600; font-size: 16px; border: 1px solid var(--line2); background: var(--panel); transition: transform .15s, filter .15s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.primary { background: var(--green); border-color: var(--green); color: var(--green-ink); }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn svg { width: 17px; height: 17px; }
+  .fine { color: var(--faint); font-size: 14px; margin-top: 16px; }
+
+  /* the app window */
+  .window { margin: 56px auto 0; max-width: 1080px; border-radius: 12px; overflow: hidden; background: #1f1f1f; box-shadow: var(--shadow); position: relative; }
+  .window .bar { height: 30px; background: #181818; display: flex; align-items: center; gap: 8px; padding: 0 13px; }
+  .window .bar span { width: 12px; height: 12px; border-radius: 50%; }
+  .window .bar span:nth-child(1) { background: #ff5f57; } .window .bar span:nth-child(2) { background: #febc2e; } .window .bar span:nth-child(3) { background: #28c840; }
+  .glow { position: absolute; inset: auto 10% -40px 10%; height: 120px; background: radial-gradient(closest-side, var(--green-soft), transparent); filter: blur(30px); z-index: -1; }
+  .caption { text-align: center; color: var(--faint); font-size: 14px; margin-top: 16px; }
+
+  /* strip of three */
+  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding-top: 72px; padding-bottom: 24px; }
+  .three h3 { font-size: 17px; margin: 0 0 6px; }
+  .three p { color: var(--dim); margin: 0; font-size: 15.5px; }
+  .three .n { font: 600 12.5px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--green); margin-bottom: 4px; display: block; }
+
+  /* feature rows */
+  section { padding: 88px 0; }
+  section + section { border-top: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: .9fr 1.25fr; gap: 56px; align-items: center; }
+  .row.flip { grid-template-columns: 1.25fr .9fr; }
+  .row.flip .text { order: 2; }
+  .kicker { font: 600 13px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--green); margin: 0 0 12px; }
+  h2 { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.12; letter-spacing: -.02em; margin: 0 0 16px; }
+  .text p { color: var(--dim); margin: 0 0 14px; }
+  .text ul { color: var(--dim); margin: 14px 0 0; padding: 0; list-style: none; }
+  .text li { padding-left: 24px; position: relative; margin-bottom: 8px; font-size: 16px; }
+  .text li::before { content: ""; position: absolute; left: 3px; top: .62em; width: 8px; height: 8px; border-radius: 2px; background: var(--green); opacity: .8; }
+  .pic { background: var(--bg2); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: flex; justify-content: center; }
+  .pic img { border-radius: 9px; box-shadow: 0 18px 50px -20px rgba(0,0,0,.6); }
+  .pic.tall img { max-height: 520px; width: auto; }
+  .pic img.w-sm { max-width: 400px; width: 100%; }
+  kbd { font: 13px var(--mono); border: 1px solid var(--line2); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; background: var(--panel); color: var(--text); }
+
+  /* more */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 36px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 22px; }
+  .card h3 { font-size: 16.5px; margin: 0 0 6px; }
+  .card p { color: var(--dim); margin: 0; font-size: 15px; }
+  .center { text-align: center; }
+  .center .sub { margin-left: auto; margin-right: auto; }
+  .sub { color: var(--dim); max-width: 40em; margin: 0; }
+
+  .vendors { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 28px; }
+  .vendors span { border: 1px solid var(--line2); border-radius: 999px; padding: 8px 16px; font-size: 15.5px; background: var(--panel); }
+
+  /* install */
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 32px 0 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 0 0 26px 52px; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: -2px; width: 32px; height: 32px; border-radius: 50%;
+                          display: grid; place-items: center; font: 600 15px var(--sans); background: var(--green-soft); color: var(--green); }
+  ol.steps strong { display: block; margin-bottom: 4px; }
+  ol.steps p { color: var(--dim); margin: 0; }
+  .code { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; padding: 10px 10px 10px 14px; margin: 10px 0 8px; }
+  .code code { font: 14px var(--mono); white-space: nowrap; overflow-x: auto; flex: 1; min-width: 0; }
+  .code button { font: 600 13px var(--sans); color: var(--text); background: var(--bg2); border: 1px solid var(--line2); border-radius: 7px; padding: 6px 11px; cursor: pointer; flex: none; }
+  .note { color: var(--faint); font-size: 15px; }
+
+  .sends { background: var(--green-soft); border: 1px solid var(--line); border-radius: var(--r); padding: 26px 28px; margin-top: 28px; }
+  .sends ul { margin: 12px 0 14px; padding-left: 20px; }
+  .sends p { margin: 0; color: var(--dim); }
+
+  details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+  details:first-of-type { border-top: 1px solid var(--line); }
+  summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--faint); font-weight: 400; font-size: 20px; line-height: 1; }
+  details[open] summary::after { content: "\2212"; }
+  details p { color: var(--dim); margin: 10px 0 0; }
+
+  .final { text-align: center; }
+  .final h2 { margin-bottom: 12px; }
+
+  footer { padding: 36px 0 60px; border-top: 1px solid var(--line); color: var(--faint); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+  footer a { color: var(--dim); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+  footer .links { display: flex; gap: 20px; flex-wrap: wrap; }
+
+  @media (max-width: 880px) {
+    .row, .row.flip { grid-template-columns: 1fr; gap: 32px; }
+    .row.flip .text { order: 0; }
+    .three, .grid { grid-template-columns: 1fr; }
+    .three { gap: 26px; padding-top: 56px; }
+    section { padding: 64px 0; }
+    .hero { padding-top: 44px; }
+    header nav a.hide-sm { display: none; }
+    .pic { padding: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn, header { transition: none; } }
+  @media (max-width: 480px) {
+    .wrap { padding: 0 16px; }
+    .sends { padding: 20px 18px; }
+    .code { flex-direction: column; align-items: stretch; }
+    .code code { white-space: normal; overflow-wrap: anywhere; }
+    .code button { align-self: flex-start; }
+    header nav a.small-btn { padding: 7px 11px; }
+  }
+  @media (forced-colors: active) { summary::after { content: none; } summary { list-style: revert; } }
+  .three h2 { font-size: 17px; letter-spacing: 0; line-height: 1.4; margin: 0 0 6px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+<style>
+  .doc { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; padding-top: 48px; padding-bottom: 40px; }
+  .toc { position: sticky; top: 90px; align-self: start; font-size: 14.5px; }
+  .toc p { font: 600 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 0 0 10px; }
+  .toc ol { list-style: none; padding: 0; margin: 0; counter-reset: t; }
+  .toc li { counter-increment: t; margin: 0 0 8px; }
+  .toc a { color: var(--dim); text-decoration: none; }
+  .toc a::before { content: counter(t) ". "; color: var(--faint); }
+  .toc a:hover { color: var(--text); }
+  article { min-width: 0; max-width: 720px; }
+  article h1 { font-size: clamp(32px, 6vw, 52px); line-height: 1.05; letter-spacing: -.03em; margin: 0 0 16px; }
+  article .lede { color: var(--dim); font-size: 19px; margin: 0 0 8px; }
+  article h2 { font-size: clamp(24px, 3vw, 30px); margin: 64px 0 14px; scroll-margin-top: 80px; }
+  article h3 { font-size: 18px; margin: 28px 0 8px; }
+  article p, article li { color: var(--dim); }
+  article p { margin: 0 0 14px; }
+  article strong { color: var(--text); font-weight: 600; }
+  article ul, article ol.plain { margin: 0 0 16px; padding-left: 22px; }
+  article li { margin-bottom: 6px; }
+  article code { font: 14px var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--text); }
+  pre { background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 0 0 16px; }
+  pre code { background: none; border: 0; padding: 0; font: 13.5px/1.6 var(--mono); }
+  pre .c { color: var(--faint); }
+  .idea { background: var(--green-soft); border: 1px solid var(--line); border-radius: var(--r); padding: 20px 24px; margin: 24px 0; }
+  .idea p { margin: 0; color: var(--text); }
+  .tip { border-left: 3px solid var(--green); padding: 2px 0 2px 16px; margin: 20px 0; }
+  .tip p { margin: 0; }
+  figure { margin: 20px 0 24px; }
+  figure .pic { padding: 14px; }
+  figure .pic img { max-height: 460px; width: auto; }
+  figcaption { color: var(--faint); font-size: 14px; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 0 0 16px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--faint); font-weight: 600; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  td { color: var(--dim); }
+  td:first-child { white-space: nowrap; color: var(--text); }
+  .next { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  @media (max-width: 880px) {
+    .doc { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-top: 28px; }
+    .toc { position: static; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; }
+    article h2 { margin-top: 48px; }
+  }
+  @media (max-width: 480px) { td:first-child { white-space: normal; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header id="top">
+  <div class="wrap">
+    <a class="mark" href="/" aria-label="Project Coldfall, home">coldfa<b>||</b></a>
+    <nav aria-label="Main">
+      <a class="hide-sm" href="/#features">Features</a>
+      <a class="hide-sm" href="/guide" aria-current="page">Guide</a>
+      <a class="hide-sm" href="https://github.com/anthonyproctor/project-coldfall">GitHub</a>
+      <a class="small-btn" href="https://github.com/anthonyproctor/project-coldfall/releases/latest/download/Project-Coldfall.app.zip">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap doc">
+  <nav class="toc" aria-label="On this page">
+    <p>On this page</p>
+    <ol>
+      <li><a href="#idea">The idea</a></li>
+      <li><a href="#start">Your first ten minutes</a></li>
+      <li><a href="#desks">Set up your desks</a></li>
+      <li><a href="#day">A normal day</a></li>
+      <li><a href="#mail">Second opinions</a></li>
+      <li><a href="#usage">Watch your usage</a></li>
+      <li><a href="#lean">Keep desks lean</a></li>
+      <li><a href="#keys">Shortcuts</a></li>
+    </ol>
+  </nav>
+
+  <article>
+    <p class="kicker">Guide</p>
+    <h1>How to work in Project Coldfall.</h1>
+    <p class="lede">What the app is for, how to set it up in a few minutes, and what a normal day with it looks like.</p>
+
+    <h2 id="idea">The idea</h2>
+    <p>If you use Claude Code, Codex or another agent in the terminal, you probably have a pile of tabs: one for the app you're building, one for research, one you forgot about. Each one starts from scratch when you close it, and you only find out one of them finished, or is waiting on a yes, when you happen to click on it.</p>
+    <div class="idea"><p><strong>A desk is one agent for one ongoing job.</strong> It has its own folder, its own instructions and its own conversation, and you come back to it for weeks. Project Coldfall keeps your desks in a list, tells you which ones need you, and lets them check each other's work.</p></div>
+    <p>Each desk runs the vendor's own tool, the same <code>claude</code> or <code>codex</code> you already use, in a real terminal. Your logins, settings, memory files and hooks all work exactly as they do now. Coldfall doesn't replace your agents; it organizes them.</p>
+
+    <h2 id="start">Your first ten minutes</h2>
+    <ol class="plain">
+      <li><strong>Install it.</strong> <a href="/#install">Download it</a>, drag it into Applications, and let macOS open it the first time (the install steps show how).</li>
+      <li><strong>Open it.</strong> The Welcome screen lists the agents it found on your Mac and makes a desk for each one. If you don't have any yet, it shows how to install one, with a Copy button.</li>
+      <li><strong>Click a desk.</strong> Its agent starts in the middle of the window. Work in it the way you always do.</li>
+      <li><strong>Click another desk, then come back.</strong> Nothing was lost. Desks keep running while you look at something else.</li>
+    </ol>
+    <figure>
+      <div class="pic"><img src="/img/welcome.png" width="1230" height="620" loading="lazy" decoding="async" alt="The Welcome screen listing agents to install, each with a Copy button."></div>
+      <figcaption>On a Mac with no agents yet, Welcome shows how to get one.</figcaption>
+    </figure>
+
+    <h2 id="desks">Set up your desks</h2>
+    <p>The desks Welcome makes are a start. The app gets useful when you make one for each job you keep coming back to.</p>
+    <h3>Make a desk</h3>
+    <p>Open <strong>Settings</strong> (<kbd>⌘,</kbd>) and go to <strong>Desks</strong>. Give it a name, pick the agent, choose the folder it works in, then click <strong>Add / Update</strong> and <strong>Save</strong>. Agents you've already defined, like Claude Code subagents, are listed there too, one click each.</p>
+    <h3>Or edit the file</h3>
+    <p>Every desk lives in one plain text file, <code>~/.config/coldfall/desks.toml</code>. Edit it in any editor, or let an agent edit it, and the app picks up the change within a second.</p>
+<pre><code><span class="c"># one desk per ongoing job</span>
+[desk.api]
+runtime = "claude"
+cwd = "~/code/api"
+group = "work"
+
+[desk.review]
+runtime = "codex"
+cwd = "~/code/api"
+group = "work"
+
+[desk.research]
+runtime = "claude"
+agent = "researcher"        <span class="c"># a Claude Code subagent you've defined</span>
+cwd = "~/notes"</code></pre>
+    <h3>Good habits</h3>
+    <ul>
+      <li><strong>A desk per job, not per task.</strong> "The API", "the newsletter", "my budget". Start a new conversation inside a desk when you want a clean slate; keep the desk.</li>
+      <li><strong>Point each desk at its own folder.</strong> The agent reads and writes there, and its memory files there apply.</li>
+      <li><strong>Group them.</strong> Desks with the same <code>group</code> fold together. Drag desks and whole groups into the order you like, or right-click and sort A to Z.</li>
+      <li><strong>Hide what you're not using.</strong> Right-click, Hide Desk. It stays in the file and comes back with one click.</li>
+    </ul>
+    <div class="tip"><p><strong>Two accounts with the same vendor?</strong> A desk can run its own command. For Claude Code, <code>command = "CLAUDE_CONFIG_DIR=~/.claude-second claude"</code> gives that desk a second login, kept apart from your first.</p></div>
+
+    <h2 id="day">A normal day</h2>
+    <p>Hand a desk a job, move on to another desk, and let Coldfall tell you when to come back.</p>
+    <figure>
+      <div class="pic"><img src="/img/rail.png" width="480" height="714" loading="lazy" decoding="async" alt="The desk list, with a green line reading 3 need you."></div>
+      <figcaption>The desk list. The green line names the desks waiting on you.</figcaption>
+    </figure>
+    <ul>
+      <li><strong>A green check</strong> on a desk means it finished while you were looking at something else, and its screen changed. It might want an answer, or it's just done.</li>
+      <li><strong>The green line</strong> at the top names every waiting desk, oldest first. Click it, or press <kbd>⌘0</kbd>, to go to the one that's waited longest. The <strong>×</strong> clears it without visiting them.</li>
+      <li><strong>Jump around</strong> with <kbd>⌘1</kbd> to <kbd>⌘9</kbd> for your first nine desks, or <kbd>⌘P</kbd> to find any desk or file by a few letters.</li>
+      <li><strong>Need a plain shell?</strong> <kbd>⌘D</kbd> splits one in beside the agent, in the same desk and folder.</li>
+      <li><strong>Files your agents write</strong> open in the reader on the right, with Markdown and PDFs shown properly.</li>
+      <li><strong>Done with a desk for now?</strong> Right-click, Stop Desk. That frees its memory. Claude, Codex and Antigravity desks pick their conversation back up when you click them again.</li>
+    </ul>
+
+    <h2 id="mail">Second opinions</h2>
+    <p>Different models catch different mistakes. Agent mail lets one of your agents ask another about the work in its folder.</p>
+    <ol class="plain">
+      <li>In the desk whose work you want checked, press <kbd>⇧⌘M</kbd> for <strong>Agent Mail</strong>.</li>
+      <li>Pick who should answer, say Codex if you've been working in Claude, write the question, and click <strong>Send</strong>.</li>
+      <li>The answer comes back in the thread. The whole exchange is saved as a plain text file, so the desk's agent can read it too.</li>
+    </ol>
+    <p>The answering agent is kept read-only by its vendor's own setting for Claude and Codex, so it can look at your files but not change them. For other agents it's asked to stay read-only, and the panel tells you that.</p>
+    <p><strong>Fan out</strong>, from the same panel, asks one question across several project folders at once, and checks the cost against your weekly limit before it runs.</p>
+    <figure>
+      <div class="pic"><img src="/img/mail.png" width="1280" height="1280" loading="lazy" decoding="async" alt="An agent mail thread: one desk asks Codex to review a calculation, and Codex points out a rounding error."></div>
+      <figcaption>A made-up review: Codex, read-only, checks a Claude desk's work.</figcaption>
+    </figure>
+
+    <h2 id="usage">Watch your usage</h2>
+    <p>The strip along the bottom shows how much of each plan you've used this week, side by side. When one is running hot and another has room, it says so. Click it, or press <kbd>⇧⌘U</kbd>, for the breakdown by vendor, by desk and by day.</p>
+    <ul>
+      <li>Codex and Copilot usage is read automatically. For Claude's weekly and five-hour limits, turn on the recorder in Settings; it's one click.</li>
+      <li>Each desk's row also shows how much memory it's using, so the heavy one is easy to spot.</li>
+    </ul>
+
+    <h2 id="lean">Keep desks lean</h2>
+    <p>Plugins, skills and MCP servers pile up, and some run on every session or every tool call. Right-click a desk and choose <strong>What This Desk Has</strong> to see what it loads: servers, skills, plugins and hooks, read from the vendor's own files. Anything new since you last looked is marked, and the desk's row says "2 new" until you've checked.</p>
+    <p>If a Claude or Codex desk doesn't need a server, right-click, <strong>MCP Servers</strong>, and switch it off for that desk only.</p>
+
+    <h2 id="keys">Shortcuts</h2>
+    <table>
+      <thead><tr><th>Keys</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>⌘1</kbd> to <kbd>⌘9</kbd></td><td>Go to one of your first nine desks</td></tr>
+        <tr><td><kbd>⌘0</kbd></td><td>Go to the desk that's waited longest</td></tr>
+        <tr><td><kbd>⌘P</kbd></td><td>Find any desk or file</td></tr>
+        <tr><td><kbd>⇧⌘M</kbd></td><td>Agent Mail</td></tr>
+        <tr><td><kbd>⇧⌘U</kbd></td><td>Usage breakdown</td></tr>
+        <tr><td><kbd>⇧⌘A</kbd></td><td>Every agent definition on your Mac</td></tr>
+        <tr><td><kbd>⌘D</kbd> / <kbd>⇧⌘D</kbd></td><td>Split a shell in to the right / below</td></tr>
+        <tr><td><kbd>⌘]</kbd> / <kbd>⌘[</kbd></td><td>Next / previous pane</td></tr>
+        <tr><td><kbd>⌘W</kbd></td><td>Close a pane</td></tr>
+        <tr><td><kbd>⌘B</kbd></td><td>Show or hide the desk list</td></tr>
+        <tr><td><kbd>⌥⌘B</kbd></td><td>Show or hide the reader</td></tr>
+        <tr><td><kbd>⌘J</kbd></td><td>Show or hide the usage strip</td></tr>
+        <tr><td><kbd>⌘T</kbd></td><td>Put the file tree above the desks, or below</td></tr>
+        <tr><td><kbd>⌘,</kbd></td><td>Settings</td></tr>
+      </tbody>
+    </table>
+    <p>Right-click almost anything, a desk, a group, the green line, for more.</p>
+
+    <div class="next">
+      <a class="btn primary" href="https://github.com/anthonyproctor/project-coldfall/releases/latest/download/Project-Coldfall.app.zip">Download for macOS</a>
+      <a class="btn" href="https://github.com/anthonyproctor/project-coldfall/issues">Ask a question</a>
+    </div>
+    <p class="caption" style="text-align:left">Every desk name and folder in this guide is made up.</p>
+  </article>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span><span class="mark" style="font-size:15px">coldfa<b>||</b></span> &nbsp;Project Coldfall, open source under the MIT license.</span>
+    <span class="links">
+      <a href="/">Home</a>
+      <a href="https://github.com/anthonyproctor/project-coldfall">GitHub</a>
+      <a href="https://github.com/anthonyproctor/project-coldfall/blob/main/CHANGELOG.md">What's new</a>
+      <a href="/#privacy">Privacy</a>
+    </span>
+  </div>
+</footer>
+<script>
+  var h = document.querySelector("header");
+  var onScroll = function () { h.classList.toggle("scrolled", window.scrollY > 8); };
+  window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
+</script>
+</body>
+</html>
