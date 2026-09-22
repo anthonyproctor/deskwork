@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-09-22
+
+One look at what's new answers for every desk.
+
 ### Fixed
 - Seeing what's new on one desk now answers for every desk of that runtime.
   Your own skills, hooks and plugins apply to all of them, so one plugin
@@ -326,7 +330,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.10...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.11...HEAD
+[0.3.11]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.7...v0.3.8
