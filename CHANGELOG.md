@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-09-22
+
+More than one Claude plan, a guide, and green checks that mean something.
+
 ### Added
 - **More than one Claude plan.** `account = "~/.claude-second"` on a desk,
   or the account field in Settings, runs that desk's Claude on a second
@@ -288,7 +292,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.7...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.8...HEAD
+[0.3.8]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.4...v0.3.5
