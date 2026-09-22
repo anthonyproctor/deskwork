@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-09-22
+
+Stop Desk and Remove Desk no longer look alike.
+
 ### Changed
 - A desk's right-click menu tells Stop and Remove apart. Stop Desk has an
   orange stop icon, Remove Desk a red trash icon and red text, each with a
@@ -337,7 +341,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.11...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.12...HEAD
+[0.3.12]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.8...v0.3.9
