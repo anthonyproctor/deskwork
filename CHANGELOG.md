@@ -8,6 +8,12 @@ opens this file.
 
 ## [Unreleased]
 
+### Changed
+- A new app icon: the two pipes from the `coldfa||` wordmark, in the same
+  green as the app, offset so they read as pipes rather than as a pause
+  button. The old one was a dark grey square that disappeared into a dark
+  Dock and said nothing about the app.
+
 ## [0.3.9] - 2026-09-22
 
 A crash fix, and a way out.

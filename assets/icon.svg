@@ -1,16 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
-  <rect width="1024" height="1024" rx="228" fill="#1b1f24"/>
-  <g>
-    <rect x="212" y="268" width="150" height="46" rx="23" fill="#4a5462"/>
-    <rect x="212" y="380" width="150" height="46" rx="23" fill="#b4632a"/>
-    <rect x="212" y="492" width="150" height="46" rx="23" fill="#4a5462"/>
-    <rect x="212" y="604" width="150" height="46" rx="23" fill="#4a5462"/>
-    <rect x="212" y="716" width="150" height="46" rx="23" fill="#4a5462"/>
-  </g>
-  <rect x="420" y="268" width="392" height="494" rx="28" fill="#0f1216"/>
-  <rect x="462" y="330" width="150" height="26" rx="13" fill="#d98a4e"/>
-  <rect x="462" y="392" width="250" height="26" rx="13" fill="#3b444f"/>
-  <rect x="462" y="454" width="196" height="26" rx="13" fill="#3b444f"/>
-  <rect x="462" y="516" width="286" height="26" rx="13" fill="#3b444f"/>
-  <rect x="462" y="642" width="60" height="30" rx="8" fill="#6aa87e"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Project Coldfall">
+  <!-- The mark from the wordmark coldfa||: the two L's drawn as pipes, the
+       terminal symbol for passing one program's output to the next. Offset so
+       it reads as pipes rather than as a pause button. -->
+  <rect x="95" y="95" width="834" height="834" rx="188" fill="#18181c"/>
+  <rect x="424" y="251" width="87" height="430" rx="44" fill="#6acd63"/>
+  <rect x="513" y="343" width="87" height="430" rx="44" fill="#6acd63"/>
 </svg>
