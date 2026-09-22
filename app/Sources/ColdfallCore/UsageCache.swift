@@ -72,6 +72,9 @@ public enum UsageCache {
 
     private static var loaded: [String: CachedFile]?
     private static var dirty = false
+    /// Two scans can run at once (the meter strip and the usage panel each
+    /// have their own background queue), and both read and write these.
+    private static let lock = NSLock()
 
     /// Fingerprint a file cheaply. Nil when it cannot be read at all, which
     /// callers treat as "skip", not as "unchanged".
@@ -93,6 +96,7 @@ public enum UsageCache {
     /// A file's cached contribution, or nil if it changed, is new, or was
     /// computed for a different window.
     public static func slices(for path: String, key: String, since: Date) -> [UsageSlice]? {
+        lock.lock(); defer { lock.unlock() }
         guard let hit = all()[path], hit.key == key,
               abs(hit.since - since.timeIntervalSince1970) < 1 else { return nil }
         return hit.slices
@@ -100,6 +104,7 @@ public enum UsageCache {
 
     public static func store(_ slices: [UsageSlice], for path: String,
                              key: String, since: Date) {
+        lock.lock(); defer { lock.unlock() }
         var l = all()
         l[path] = CachedFile(key: key, since: since.timeIntervalSince1970, slices: slices)
         loaded = l
@@ -109,6 +114,7 @@ public enum UsageCache {
     /// Write once at the end of a scan rather than after each file, and drop
     /// entries for files that are gone so the cache cannot grow without bound.
     public static func flush(keeping live: Set<String>) {
+        lock.lock(); defer { lock.unlock() }
         guard dirty else { return }
         var l = all()
         for k in l.keys where !live.contains(k) { l.removeValue(forKey: k) }
@@ -124,6 +130,7 @@ public enum UsageCache {
 
     /// Forget everything. Derived data, so this is always safe.
     public static func clear() {
+        lock.lock(); defer { lock.unlock() }
         loaded = [:]
         dirty = false
         try? FileManager.default.removeItem(atPath: path)

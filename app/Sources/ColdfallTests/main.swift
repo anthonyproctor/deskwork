@@ -1394,6 +1394,40 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - two usage scans at once
+
+do {
+    // The meter strip and the usage panel each scan on their own queue. When
+    // both ran at once they wrote to one shared set and the app died inside
+    // Set.insert (a real crash, v0.3.8). Nothing may be shared between passes.
+    let root = NSTemporaryDirectory() + "coldfall-usagerace-\(UUID().uuidString)"
+    let wasRoot = UsageCache.root
+    UsageCache.root = root
+    let slice = UsageSlice(vendor: "claude", desk: "api", day: "2026-09-22", tokens: 10, calls: 1, usd: 1)
+    let group = DispatchGroup()
+    for i in 0..<8 {
+        DispatchQueue.global().async(group: group) {
+            for j in 0..<200 {
+                let path = "/srv/demo/\(i)-\(j).jsonl"
+                UsageCache.store([slice], for: path, key: "k", since: Date(timeIntervalSince1970: 0))
+                _ = UsageCache.slices(for: path, key: "k", since: Date(timeIntervalSince1970: 0))
+            }
+            UsageCache.flush(keeping: [])
+        }
+    }
+    check("usage cache: survives eight scanners at once", group.wait(timeout: .now() + 30) == .success)
+
+    // And the scan itself, twice over, on two queues.
+    let g2 = DispatchGroup()
+    for _ in 0..<2 {
+        DispatchQueue.global().async(group: g2) { _ = Usage.scan(since: Date()) }
+    }
+    check("usage: two scans at once finish", g2.wait(timeout: .now() + 60) == .success)
+    UsageCache.clear()
+    UsageCache.root = wasRoot
+    try? FileManager.default.removeItem(atPath: root)
+}
+
 // MARK: - a second Claude account
 
 do {

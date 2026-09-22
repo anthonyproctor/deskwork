@@ -8,6 +8,12 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- The app could crash while the usage meter refreshed. The strip at the
+  bottom and the usage panel each scan on their own thread, and two scans
+  running at once wrote to the same list. Each scan now keeps its own, and
+  the usage cache is locked.
+
 ## [0.3.8] - 2026-09-22
 
 More than one Claude plan, a guide, and green checks that mean something.

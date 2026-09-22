@@ -72,18 +72,23 @@ public enum Usage {
         return start
     }
 
-    /// Every file seen this pass, so the cache can drop entries for files
-    /// that no longer exist instead of growing forever.
-    private static var live = Set<String>()
+    /// Every file seen in ONE pass, so the cache can drop entries for files
+    /// that no longer exist instead of growing forever. Passed through the
+    /// scan rather than held in a static: the meter strip and the usage panel
+    /// each scan on their own background queue, and when two passes overlapped
+    /// they both wrote to the one shared set and crashed the app inside
+    /// Set.insert. Nothing here is shared between passes now.
 
     /// `accounts`: Claude accounts besides the default one, each counted
     /// under its own name ("claude-second") so two plans can be compared.
     public static func scan(since: Date, accounts: [ClaudeAccount] = []) -> Report {
         var r = Report()
-        live.removeAll()
-        scanClaude(since: since, into: &r)
-        for a in accounts { scanClaude(since: since, into: &r, root: a.projectsRoot(), vendor: a.vendor) }
-        scanCodex(since: since, into: &r)
+        var live = Set<String>()
+        scanClaude(since: since, into: &r, live: &live)
+        for a in accounts {
+            scanClaude(since: since, into: &r, live: &live, root: a.projectsRoot(), vendor: a.vendor)
+        }
+        scanCodex(since: since, into: &r, live: &live)
         scanCopilot(since: since, into: &r)
         UsageCache.flush(keeping: live)
         return r
@@ -106,7 +111,7 @@ public enum Usage {
         r.byDay[k, default: [:]][vendor, default: 0] += tokens
     }
 
-    private static func scanClaude(since: Date, into r: inout Report,
+    private static func scanClaude(since: Date, into r: inout Report, live: inout Set<String>,
                                    root: String = NSString(string: "~/.claude/projects").expandingTildeInPath,
                                    vendor: String = "claude") {
         guard let projects = try? FileManager.default.contentsOfDirectory(atPath: root) else { return }
@@ -199,7 +204,7 @@ public enum Usage {
         r.byDay[sl.day, default: [:]][sl.vendor, default: 0] += sl.tokens
     }
 
-    private static func scanCodex(since: Date, into r: inout Report) {
+    private static func scanCodex(since: Date, into r: inout Report, live: inout Set<String>) {
         let root = NSString(string: "~/.codex/sessions").expandingTildeInPath
         guard let e = FileManager.default.enumerator(atPath: root) else { return }
         for case let rel as String in e where rel.hasSuffix(".jsonl") {
