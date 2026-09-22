@@ -81,6 +81,36 @@ public struct ActivityState {
     }
 }
 
+/// Whether a hidden desk's output changed anything worth coming back for.
+///
+/// Output alone was the signal, and it cried wolf: an agent's full-screen
+/// display repaints itself when it loses focus, when its status line ticks,
+/// when a hook prints a notice. Each repaint is output while hidden, so a desk
+/// you had just read turned green again. What matters is the screen: if what
+/// the desk shows, above its input box and status line, is what it showed when
+/// you left, nothing happened.
+public enum ScreenChange {
+
+    /// Rows at the bottom that change without anything happening: the input
+    /// box, the status line, the hint under it.
+    public static let footerRows = 5
+
+    public static func meaningful(before: [String], after: [String], footer: Int = footerRows) -> Bool {
+        func body(_ lines: [String]) -> [String] {
+            let trimmed = lines.map { line -> String in
+                var s = Substring(line)
+                while let last = s.last, last.isWhitespace { s = s.dropLast() }
+                return String(s)
+            }
+            // Blank rows at the foot are the unused part of the screen.
+            var end = trimmed.count
+            while end > 0, trimmed[end - 1].isEmpty { end -= 1 }
+            return Array(trimmed[0..<max(0, end - footer)])
+        }
+        return body(before) != body(after)
+    }
+}
+
 /// The desks waiting on you, gathered in one place.
 ///
 /// A green check on each row is not enough once there are a dozen desks: a

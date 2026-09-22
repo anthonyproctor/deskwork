@@ -316,10 +316,32 @@ final class DeskSession {
 
     var isVisible: Bool {
         get { activityState.visible }
-        set { activityState.setVisible(newValue) }
+        set {
+            if activityState.visible, !newValue { hiddenScreen = screen() }
+            activityState.setVisible(newValue)
+        }
     }
 
-    func noteOutput() { activityState.noteOutput() }
+    /// The screen as it was when the desk went out of view.
+    private var hiddenScreen: [String]?
+    /// Whether this burst of hidden output has been checked against it.
+    private var screenChecked = false
+
+    func noteOutput() { activityState.noteOutput(); screenChecked = false }
+
+    /// The agent terminal's visible rows as text.
+    func screen() -> [String] {
+        let t = agentTerm.getTerminal()
+        return (0..<t.rows).map { t.getLine(row: $0)?.translateToString(trimRight: true) ?? "" }
+    }
+
+    /// Once a desk has gone quiet and would show as waiting: if its screen
+    /// is what it was when you left, the output was a repaint, not news.
+    func dropRepaint() {
+        guard !screenChecked, case .ready = activity, let before = hiddenScreen else { return }
+        screenChecked = true
+        if !ScreenChange.meaningful(before: before, after: screen()) { markSeen() }
+    }
     func markSeen() { activityState.markSeen() }
 
     /// What the rail should draw right now.

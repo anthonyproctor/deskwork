@@ -1394,6 +1394,19 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - a repaint is not news
+
+do {
+    let left = ["> fix the build", "", "Done. Tests pass.", "", "╭────╮", "│ >  │", "╰────╯", "  ctx 40%", "  ? for shortcuts", "", ""]
+    var repaint = left; repaint[7] = "  ctx 41%"
+    check("repaint: status line ticking is not news", !ScreenChange.meaningful(before: left, after: repaint))
+    check("repaint: an identical screen is not news", !ScreenChange.meaningful(before: left, after: left.map { $0 + "  " }))
+    var reply = left; reply[3] = "Also pushed it."
+    check("repaint: a new line above the input box is news", ScreenChange.meaningful(before: left, after: reply))
+    let scrolled = Array(left.dropFirst()) + [""]
+    check("repaint: scrolled content is news", ScreenChange.meaningful(before: left, after: scrolled))
+}
+
 // MARK: - clearing needs-you, and desks that stay removed
 
 do {

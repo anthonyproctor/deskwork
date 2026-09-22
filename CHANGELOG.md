@@ -8,6 +8,13 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- A desk you had just read no longer turns green again on its own. Agents
+  repaint their screen when you leave them, and when their status line
+  ticks, and that output counted as news. Now a desk only shows as needing
+  you if what it shows, above its input box and status line, has changed
+  since you left it.
+
 ## [0.3.7] - 2026-09-21
 
 Antigravity replaces Gemini CLI, and the needs-you line can be cleared.

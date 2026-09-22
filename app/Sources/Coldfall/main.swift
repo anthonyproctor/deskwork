@@ -1358,6 +1358,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             var map: [String: DeskStatus] = [:]
             var waiting = 0
             for (name, s) in self.sessions where self.desks.contains(where: { $0.name == name }) {
+                s.dropRepaint()
                 let a = s.activity
                 map[name] = DeskStatus(activity: a, lastOutput: s.lastOutput, running: s.started,
                                        memory: self.memory[name], news: self.inventoryNews[name] ?? 0)
