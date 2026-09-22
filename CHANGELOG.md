@@ -8,6 +8,12 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- Seeing what's new on one desk now answers for every desk of that runtime.
+  Your own skills, hooks and plugins apply to all of them, so one plugin
+  update lit up "1 new" on every Claude desk and had to be dismissed desk
+  by desk. Anything from a desk's own folder is still that desk's own.
+
 ## [0.3.10] - 2026-09-22
 
 A new app icon.

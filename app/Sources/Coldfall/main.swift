@@ -1008,7 +1008,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func checkInventory(_ d: Desk) {
         guard d.runtime != "shell" else { return }
         let inv = Inventory.of(d)
-        guard let before = InventorySeen.load(d.name) else { InventorySeen.save(d.name, inv.seen); return }
+        guard let before = InventorySeen.baseline(desk: d.name, runtime: d.runtime, current: inv.seen) else {
+            InventorySeen.markSeen(desk: d.name, runtime: d.runtime, seen: inv.seen); return
+        }
         let n = inv.changes(since: before).count
         inventoryNews[d.name] = n > 0 ? n : nil
     }
@@ -1017,13 +1019,33 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         guard desks.indices.contains(i) else { return }
         let d = desks[i]
         let inv = Inventory.of(d)
-        let before = InventorySeen.load(d.name)
+        let before = InventorySeen.baseline(desk: d.name, runtime: d.runtime, current: inv.seen)
         inventoryWindow = InventoryWindow(desk: d, inventory: inv, changes: before.map { inv.changes(since: $0) })
-        // Looked at: this is now what the desk has.
-        InventorySeen.save(d.name, inv.seen)
+        // Looked at: this is now what the desk has. Account-wide items count
+        // as seen for every desk of this runtime, so the same plugin does not
+        // have to be dismissed desk by desk.
+        InventorySeen.markSeen(desk: d.name, runtime: d.runtime, seen: inv.seen)
         inventoryNews[d.name] = nil
+        clearSharedNews(runtime: d.runtime, except: d.name)
         inventoryWindow?.showWindow(nil)
         inventoryWindow?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// The other desks of this runtime may have been showing the same
+    /// account-wide change. Recount them now it has been seen.
+    func clearSharedNews(runtime: String, except name: String) {
+        let others = desks.filter { $0.runtime == runtime && $0.name != name && inventoryNews[$0.name] != nil }
+        guard !others.isEmpty else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let counts = others.map { d -> (String, Int) in
+                let inv = Inventory.of(d)
+                let before = InventorySeen.baseline(desk: d.name, runtime: d.runtime, current: inv.seen)
+                return (d.name, before.map { inv.changes(since: $0).count } ?? 0)
+            }
+            DispatchQueue.main.async {
+                for (n, c) in counts { self.inventoryNews[n] = c > 0 ? c : nil }
+            }
+        }
     }
 
     /// Which of the folder's MCP servers this desk starts. Saved at once;

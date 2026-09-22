@@ -339,14 +339,31 @@ extension Inventory {
         return p[0] == "hook" && p.count >= 4 ? "hook \(p[1]) (\(p[3]))" : "\(p[0]) \(p[1])"
     }
 
+    /// Whether a key describes something the whole account has, rather than
+    /// something in one desk's folder. Your own skills, hooks and plugins
+    /// apply to every desk, so seeing them once is seeing them.
+    public static func isShared(key: String) -> Bool {
+        let p = key.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard p.count >= 3 else { return true }
+        return !p[2].hasPrefix("this folder")
+    }
+
     /// The key an item has in `seen`, for marking it in a list.
     public static func key(kind: String, _ i: Item) -> String {
         kind == "hook" ? "hook|\(i.name)|\(i.source)|\(i.detail)" : "\(kind)|\(i.name)|\(i.source)"
     }
 }
 
-/// What each desk had the last time someone looked, one small JSON file per
-/// desk. Overridable so tests never touch the real data directory.
+/// What each desk had the last time someone looked.
+///
+/// Split in two, because most of what a desk loads is not the desk's: your own
+/// skills, hooks and plugins apply to every Claude desk, so a plugin that
+/// added a hook lit up "1 new" on every one of them and had to be dismissed
+/// desk by desk. Account-wide items are remembered once per runtime, so
+/// looking at any desk answers for all of them; what came from a desk's own
+/// folder is still remembered per desk.
+///
+/// Overridable so tests never touch the real data directory.
 public enum InventorySeen {
     /// COLDFALL_INVENTORY_DIR points it elsewhere, for snapshots.
     public static var root: String = ProcessInfo.processInfo.environment["COLDFALL_INVENTORY_DIR"]
@@ -366,5 +383,36 @@ public enum InventorySeen {
         if let d = try? JSONEncoder().encode(seen) {
             try? d.write(to: URL(fileURLWithPath: path(desk)), options: .atomic)
         }
+    }
+
+    /// Where the account-wide half lives: one file per runtime.
+    static func sharedName(_ runtime: String) -> String { "shared-" + runtime }
+
+    /// What this desk should be compared against: its own folder's items as
+    /// this desk last saw them, plus the account-wide items as ANY desk of the
+    /// same runtime last saw them. A half with no baseline yet is taken from
+    /// what is there now, so a first look is never a list of everything.
+    public static func baseline(desk: String, runtime: String, current: [String: String]) -> [String: String]? {
+        let local = load(desk), shared = load(sharedName(runtime))
+        guard local != nil || shared != nil else { return nil }
+        var out: [String: String] = [:]
+        for (k, v) in current where Inventory.isShared(key: k) {
+            out[k] = shared?[k] ?? (shared == nil ? v : nil)
+        }
+        for (k, v) in current where !Inventory.isShared(key: k) {
+            out[k] = local?[k] ?? (local == nil ? v : nil)
+        }
+        // Things that are gone still have to be in the baseline to read as
+        // removed, and a nil above means "new since that half was saved".
+        for (k, v) in (shared ?? [:]) where Inventory.isShared(key: k) { if out[k] == nil { out[k] = v } }
+        for (k, v) in (local ?? [:]) where !Inventory.isShared(key: k) { if out[k] == nil { out[k] = v } }
+        return out.compactMapValues { $0 }
+    }
+
+    /// Looked at: this desk's folder is now seen, and so is everything the
+    /// account shares, for every desk of this runtime.
+    public static func markSeen(desk: String, runtime: String, seen: [String: String]) {
+        save(desk, seen.filter { !Inventory.isShared(key: $0.key) })
+        save(sharedName(runtime), seen.filter { Inventory.isShared(key: $0.key) })
     }
 }

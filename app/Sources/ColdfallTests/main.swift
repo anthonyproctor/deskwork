@@ -1394,6 +1394,56 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - one look answers for every desk
+
+do {
+    let root = NSTemporaryDirectory() + "coldfall-seen-\(UUID().uuidString)"
+    let was = InventorySeen.root
+    InventorySeen.root = root
+
+    check("shared: your own skill counts for every desk", Inventory.isShared(key: "skill|writing|you, every folder"))
+    check("shared: so does anything a plugin brought", Inventory.isShared(key: "hook|SessionStart|plugin acme|cmd"))
+    check("local: this folder's server is this desk's own", !Inventory.isShared(key: "MCP server|db|this folder"))
+    check("local: including Claude's per-folder settings",
+          !Inventory.isShared(key: "MCP server|db|this folder, in Claude's settings"))
+
+    // Two desks, same account. One sees a new account-wide hook; the other
+    // must not still be asking about it afterwards.
+    let before = ["skill|writing|you, every folder": "v1", "MCP server|db|this folder": "local"]
+    InventorySeen.markSeen(desk: "api", runtime: "claude", seen: before)
+    InventorySeen.markSeen(desk: "docs", runtime: "claude", seen: before)
+
+    var now = before
+    now["hook|SessionStart|you, every folder|run.sh"] = "run.sh"     // installed since
+    now["MCP server|new|this folder"] = "only api has this"
+
+    var inv = Inventory()
+    inv.skills = [Inventory.Item(name: "writing", detail: "v1", source: "you, every folder")]
+    inv.hooks = [Inventory.Item(name: "SessionStart", detail: "run.sh", source: "you, every folder")]
+    inv.mcp = [Inventory.Item(name: "db", detail: "local", source: "this folder")]
+
+    let apiBefore = InventorySeen.baseline(desk: "api", runtime: "claude", current: inv.seen)
+    eq("shared: the new hook shows up", inv.changes(since: apiBefore).count, 1)
+    let docsBefore = InventorySeen.baseline(desk: "docs", runtime: "claude", current: inv.seen)
+    eq("shared: on the other desk too, until someone looks", inv.changes(since: docsBefore).count, 1)
+
+    // api's turn to look
+    InventorySeen.markSeen(desk: "api", runtime: "claude", seen: inv.seen)
+    let docsAfter = InventorySeen.baseline(desk: "docs", runtime: "claude", current: inv.seen)
+    eq("shared: one look answers for every desk", inv.changes(since: docsAfter).count, 0)
+
+    // but a change in ONE desk's own folder is still that desk's
+    var inv2 = inv
+    inv2.mcp.append(Inventory.Item(name: "cache", detail: "runs node", source: "this folder"))
+    let apiLocal = InventorySeen.baseline(desk: "api", runtime: "claude", current: inv2.seen)
+    eq("local: this folder's new server is still news", inv2.changes(since: apiLocal).count, 1)
+    let codexSide = InventorySeen.baseline(desk: "cx", runtime: "codex", current: inv.seen)
+    eq("shared: a runtime with no baseline yet starts clean", codexSide, nil)
+
+    InventorySeen.root = was
+    try? FileManager.default.removeItem(atPath: root)
+}
+
 // MARK: - leaving
 
 do {
