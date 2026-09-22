@@ -197,7 +197,12 @@ public enum Limits {
     }
 
     public static func recorderInstalled(for account: ClaudeAccount?) -> Bool {
-        guard let d = FileManager.default.contents(atPath: settingsPath(account)),
+        recorderInstalledAt(settingsPath(account))
+    }
+
+    /// Whether this settings file points at Coldfall's recorder.
+    public static func recorderInstalledAt(_ settings: String) -> Bool {
+        guard let d = FileManager.default.contents(atPath: settings),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let sl = j["statusLine"] as? [String: Any],
               let c = sl["command"] as? String else { return false }

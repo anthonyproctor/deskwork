@@ -1394,6 +1394,76 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - leaving
+
+do {
+    let fm = FileManager.default
+    let root = NSTemporaryDirectory() + "coldfall-bye-\(UUID().uuidString)"
+    let cfg = root + "/config", data = root + "/data", home = root + "/home"
+    for d in [cfg, data, home + "/.claude", home + "/.claude-second"] {
+        try? fm.createDirectory(atPath: d, withIntermediateDirectories: true)
+    }
+    try? String(repeating: "x", count: 2048).write(toFile: cfg + "/desks.toml", atomically: true, encoding: .utf8)
+    try? "{}".write(toFile: data + "/ui.json", atomically: true, encoding: .utf8)
+
+    let items = Uninstall.items(configRoot: cfg, dataRoot: data)
+    eq("leaving: both folders are listed", items.count, 2)
+    eq("leaving: with what is in them", items.first?.bytes, 2048)
+    eq("leaving: sizes are readable", Uninstall.humanSize(2_100_000), "2.0 MB")
+    eq("leaving: a folder that isn't there isn't listed",
+       Uninstall.items(configRoot: root + "/gone", dataRoot: root + "/gone2").count, 0)
+
+    // the statusline: Coldfall's recorder, wrapping someone's own command
+    let recorder = cfg + "/statusline-recorder.sh"
+    try? "#!/bin/bash\ninput=$(cat)\nWRAPPED=\"~/bin/my-statusline\"\n"
+        .write(toFile: recorder, atomically: true, encoding: .utf8)
+    eq("leaving: the wrapped statusline is read back", Uninstall.wrappedStatusline(recorder: recorder), "~/bin/my-statusline")
+    let settings = home + "/.claude/settings.json"
+    try? #"{"statusLine":{"type":"command","command":"\#(recorder)","padding":0},"model":"opus"}"#
+        .write(toFile: settings, atomically: true, encoding: .utf8)
+    check("leaving: the recorder is spotted", Limits.recorderInstalledAt(settings))
+    _ = Uninstall.revertStatusline(settings: settings)
+    let after = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: settings)))) as? [String: Any]
+    eq("leaving: their own statusline is back",
+       (after?["statusLine"] as? [String: Any])?["command"] as? String, "~/bin/my-statusline")
+    eq("leaving: the rest of their settings is untouched", after?["model"] as? String, "opus")
+
+    // one that wrapped nothing loses the key entirely
+    let bare = cfg + "/statusline-recorder-second.sh"
+    try? "#!/bin/bash\nWRAPPED=\"\"\n".write(toFile: bare, atomically: true, encoding: .utf8)
+    let s2 = home + "/.claude-second/settings.json"
+    try? #"{"statusLine":{"type":"command","command":"\#(bare)"}}"#
+        .write(toFile: s2, atomically: true, encoding: .utf8)
+    _ = Uninstall.revertStatusline(settings: s2)
+    let after2 = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: s2)))) as? [String: Any]
+    check("leaving: a recorder that wrapped nothing leaves no statusLine", after2?["statusLine"] == nil)
+
+    // someone else's statusline is not ours to touch
+    let theirs = home + "/.claude/other.json"
+    try? #"{"statusLine":{"type":"command","command":"~/bin/theirs"}}"#
+        .write(toFile: theirs, atomically: true, encoding: .utf8)
+    eq("leaving: a statusline that isn't Coldfall's is left alone", Uninstall.revertStatusline(settings: theirs), nil)
+
+    // every account's settings file is checked
+    var d = Desk(name: "side", runtime: "claude"); d.account = home + "/.claude-second"
+    eq("leaving: the default account and each other one",
+       Uninstall.settingsFiles(desks: [d], home: home),
+       [home + "/.claude/settings.json", home + "/.claude-second/settings.json"])
+
+    let words = Uninstall.summary(items: items, recorders: [settings])
+    check("leaving: it leads with what is NOT touched", words.hasPrefix("Your agents are not touched."))
+    check("leaving: it names each folder and its size", words.contains(cfg) && words.contains("2 KB"))
+    check("leaving: it says the desk list goes too", words.contains("Your desk list goes with it"))
+    check("leaving: with nothing left, it says so",
+          Uninstall.summary(items: [], recorders: []).hasSuffix("There is nothing of Coldfall's left to remove."))
+
+    let log = Uninstall.removeEverything(desks: [d], configRoot: cfg, dataRoot: data, home: home)
+    check("leaving: the folders are gone", !fm.fileExists(atPath: cfg) && !fm.fileExists(atPath: data))
+    check("leaving: and it says what it did", log.contains { $0.hasPrefix("deleted ") })
+    check("leaving: the agent's own files stay", fm.fileExists(atPath: settings))
+    try? fm.removeItem(atPath: root)
+}
+
 // MARK: - two usage scans at once
 
 do {

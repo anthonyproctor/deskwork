@@ -8,6 +8,18 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-09-22
+
+A crash fix, and a way out.
+
+### Added
+- **Project Coldfall ▸ Remove Project Coldfall's Files…** It lists the two
+  folders Coldfall owns and what's in them, with sizes, puts `statusLine`
+  in each Claude account's settings.json back the way it was, and deletes
+  the folders. It says up front that your agents aren't touched, because
+  they aren't: Coldfall launches the vendors' CLIs and nothing it does is
+  load-bearing for them.
+
 ### Fixed
 - The app could crash while the usage meter refreshed. The strip at the
   bottom and the usage panel each scan on their own thread, and two scans
@@ -298,7 +310,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.5...v0.3.6

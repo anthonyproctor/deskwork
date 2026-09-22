@@ -577,6 +577,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         news.target = self
         appMenu.addItem(news)
         appMenu.addItem(.separator())
+        // Leaving is part of the product. Somebody deciding whether to try
+        // this deserves to see the way out before they start.
+        let bye = NSMenuItem(title: "Remove Project Coldfall's Files…", action: #selector(openUninstall), keyEquivalent: "")
+        bye.target = self
+        appMenu.addItem(bye)
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Project Coldfall", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
@@ -1077,6 +1083,34 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     }
 
     /// The changelog lives in the repo, so the app and GitHub read one file.
+    /// What Coldfall would leave behind, and an offer to remove it. Nothing
+    /// here touches the agents: that is the first thing the alert says.
+    @objc func openUninstall() {
+        let items = Uninstall.items()
+        let recorders = Uninstall.settingsFiles(desks: desks).filter { Limits.recorderInstalledAt($0) }
+
+        let a = NSAlert()
+        a.messageText = "Remove Project Coldfall's files?"
+        let body = Uninstall.summary(items: items, recorders: recorders)
+        a.informativeText = body
+        if items.isEmpty && recorders.isEmpty {
+            a.addButton(withTitle: "OK")
+            a.runModal(); return
+        }
+        a.addButton(withTitle: "Delete These Files")
+        a.addButton(withTitle: "Cancel")
+        a.buttons.first?.hasDestructiveAction = true
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+
+        let log = Uninstall.removeEverything(desks: desks)
+        let done = NSAlert()
+        done.messageText = "Removed"
+        done.informativeText = log.joined(separator: "\n")
+            + "\n\nQuit Project Coldfall and drag it to the Trash to finish. "
+            + "Your agents are as they were."
+        done.runModal()
+    }
+
     @objc func openChangelog() {
         NSWorkspace.shared.open(URL(string: "https://github.com/anthonyproctor/project-coldfall/blob/main/CHANGELOG.md")!)
     }
