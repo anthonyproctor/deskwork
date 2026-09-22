@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-09-22
+
+A new app icon.
+
 ### Changed
 - A new app icon: the two pipes from the `coldfa||` wordmark, in the same
   green as the app, offset so they read as pipes rather than as a pause
@@ -316,7 +320,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.9...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.10...HEAD
+[0.3.10]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.7...v0.3.8
 [0.3.7]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.6...v0.3.7
