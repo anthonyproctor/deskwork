@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-09-23
+
+Where your tokens go, and what to change; picking up where you left off, or starting clean.
+
 ### Fixed
 - **Claude prices were out of date.** Opus 5.5 (released 2026-09-22) wasn't
   priced at all, cache reads were assumed to cost a tenth of input on every
@@ -53,7 +57,7 @@ opens this file.
   cache reuse, model mix, the smallest turn each desk sent, and what to
   change). It was one long column, and the answer you wanted was three
   scrolls away. The scan runs once; switching tabs re-reads nothing.
-- **Where it went**, at the foot of the usage window (⇧⌘U). How much of your
+- **Where it went**, a tab in the usage window (⇧⌘U). How much of your
   input was read from cache rather than sent fresh, the model mix with what
   the same tokens would have cost on a smaller model, the smallest turn each
   desk sent all week, and a short list of what to change, written from your
@@ -394,7 +398,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.12...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.13...HEAD
+[0.3.13]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.9...v0.3.10
