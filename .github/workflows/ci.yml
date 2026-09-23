@@ -50,11 +50,12 @@ jobs:
           fi
           echo "clean"
 
-      # The app must not spend anybody's tokens by itself. Only agent mail
-      # and fan out send a prompt to a vendor, and only when someone asks for
-      # one. Everything else Coldfall does is reading files, and this keeps it
-      # that way: any new place that runs a vendor's CLI with a prompt has to
-      # be added here on purpose.
+      # The app must not spend anybody's tokens by itself. Three things send
+      # a prompt, each only on a click: agent mail and fan out (checked here,
+      # the places that run a vendor's CLI with a prompt), and Wrap Up & Stop,
+      # which types one message into a desk the person is looking at.
+      # Everything else Coldfall does is reading files, and any new place that
+      # runs a vendor's CLI with a prompt has to be added here on purpose.
       - name: only agent mail and fan out spend tokens
         run: |
           cd app
