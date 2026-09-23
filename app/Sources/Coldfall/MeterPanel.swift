@@ -9,6 +9,33 @@ final class MeterPanel: NSWindowController {
     private(set) var content: NSView?
     private var report = Usage.Report()
 
+    /// One window, three questions: what is left, where it went this week,
+    /// and why. They were one column, and the answer you wanted was always
+    /// three scrolls away.
+    enum Tab: Int, CaseIterable {
+        case plans, week, why
+        var title: String {
+            switch self {
+            case .plans: return "Plans"
+            case .week:  return "This week"
+            case .why:   return "Where it went"
+            }
+        }
+        /// For `--usage <name>`.
+        static func named(_ s: String) -> Tab? {
+            let want = s.lowercased()
+            return Tab.allCases.first { $0.title.lowercased().contains(want) }
+        }
+    }
+    private(set) var tab: Tab = .plans
+    private let picker = NSSegmentedControl()
+    /// Scanned once when the window opens; switching tabs redraws from this
+    /// rather than reading 800MB of transcripts again.
+    private var tokens = Tokenomics()
+    private var servers: [String: Int] = [:]
+    private var scanned = false
+    private var since = Usage.weekStart()
+
     convenience init() {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 760),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
@@ -40,7 +67,38 @@ final class MeterPanel: NSWindowController {
             stack.trailingAnchor.constraint(equalTo: doc.trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
         ])
-        w.contentView = scroll
+        picker.segmentStyle = .automatic
+        picker.trackingMode = .selectOne
+        picker.segmentCount = Tab.allCases.count
+        for t in Tab.allCases {
+            picker.setLabel(t.title, forSegment: t.rawValue)
+            picker.setWidth(150, forSegment: t.rawValue)
+        }
+        picker.selectedSegment = tab.rawValue
+        picker.target = self
+        picker.action = #selector(tabPicked)
+        picker.translatesAutoresizingMaskIntoConstraints = false
+
+        let header = NSView()
+        header.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(picker)
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        let root = NSView()
+        root.addSubview(header)
+        root.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
+            header.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            header.heightAnchor.constraint(equalToConstant: 28),
+            picker.centerXAnchor.constraint(equalTo: header.centerXAnchor),
+            picker.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            scroll.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 8),
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
+        w.contentView = root
         content = doc
         w.center()
         reload()
@@ -79,11 +137,56 @@ final class MeterPanel: NSWindowController {
     }
 
     func reload() {
-        stack.subviews.forEach { $0.removeFromSuperview() }
-        let since = Usage.weekStart()
-        let df = DateFormatter(); df.dateFormat = "EEE h a"
+        since = Usage.weekStart()
+        draw()
+        guard !scanned else { return }
+        stack.addArrangedSubview(caps("SCANNING…"))
+        let since = self.since
+        DispatchQueue.global(qos: .userInitiated).async {
+            let accounts = ClaudeAccount.known()
+            let r = Usage.scan(since: since, accounts: accounts)
+            let t = Tokenomics.scan(since: since, accounts: accounts)
+            // How many MCP servers each desk starts, so the advice can point
+            // at the ones a desk doesn't need.
+            var servers: [String: Int] = [:]
+            for d in DeskConfig.load() where d.runtime == "claude" || d.runtime == "codex" {
+                let n = Inventory.of(d).mcp.filter { !$0.off }.count
+                if n > 0 { servers[d.name] = n }
+            }
+            DispatchQueue.main.async {
+                self.report = r
+                self.tokens = t
+                self.servers = servers
+                self.scanned = true
+                self.draw()
+            }
+        }
+    }
 
-        // ---- quota, the number that changes behaviour
+    @objc private func tabPicked() {
+        guard let t = Tab(rawValue: picker.selectedSegment) else { return }
+        show(t)
+    }
+
+    /// Switch tabs. Nothing is re-read: the scan is already in hand.
+    func show(_ t: Tab) {
+        tab = t
+        picker.selectedSegment = t.rawValue
+        draw()
+    }
+
+    private func draw() {
+        stack.subviews.forEach { $0.removeFromSuperview() }
+        switch tab {
+        case .plans: drawPlans()
+        case .week:  if scanned { renderUsage(since: since) } else { stack.addArrangedSubview(caps("SCANNING…")) }
+        case .why:   if scanned { renderTokenomics(tokens, servers: servers) } else { stack.addArrangedSubview(caps("SCANNING…")) }
+        }
+    }
+
+    /// What is left of each plan: the number that changes what you do next.
+    private func drawPlans() {
+        let df = DateFormatter(); df.dateFormat = "EEE h a"
         stack.addArrangedSubview(caps("PLAN REMAINING"))
         let limits = Limits.all()
         if limits.isEmpty {
@@ -113,38 +216,22 @@ final class MeterPanel: NSWindowController {
                 stack.addArrangedSubview(f)
             }
         }
-
         if let call = MeterBar.routerCall(limits) {
             let c = NSTextField(labelWithString: "→ " + call)
             c.font = .systemFont(ofSize: 12, weight: .semibold)
             stack.addArrangedSubview(c)
         }
-
-        stack.addArrangedSubview(caps("SCANNING…"))
-        DispatchQueue.global(qos: .userInitiated).async {
-            let accounts = ClaudeAccount.known()
-            let r = Usage.scan(since: since, accounts: accounts)
-            let t = Tokenomics.scan(since: since, accounts: accounts)
-            // How many MCP servers each desk starts, so the advice can point
-            // at the ones a desk doesn't need.
-            var servers: [String: Int] = [:]
-            for d in DeskConfig.load() where d.runtime == "claude" || d.runtime == "codex" {
-                let n = Inventory.of(d).mcp.filter { !$0.off }.count
-                if n > 0 { servers[d.name] = n }
-            }
-            DispatchQueue.main.async {
-                self.report = r
-                self.renderUsage(since: since)
-                self.renderTokenomics(t, servers: servers)
-            }
-        }
+        let note = NSTextField(wrappingLabelWithString:
+            "Claude and Codex report what is left of a plan; the other vendors keep it on their own "
+          + "side, so they appear under This week as consumption only.")
+        note.font = .systemFont(ofSize: 11)
+        note.textColor = .tertiaryLabelColor
+        note.preferredMaxLayoutWidth = 700
+        stack.addArrangedSubview(caps(""))
+        stack.addArrangedSubview(note)
     }
 
     private func renderUsage(since: Date) {
-        // drop the placeholder
-        if let last = stack.arrangedSubviews.last as? NSTextField, last.stringValue == "SCANNING…" {
-            last.removeFromSuperview()
-        }
         let df = DateFormatter(); df.dateFormat = "EEE h a"
         let total = report.byVendor.values.reduce(0) { $0 + $1.tokens }
 

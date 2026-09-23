@@ -40,6 +40,9 @@ zip of the local bundle. The local bundle carries the builder's home path (in
 Info.plist and in debug symbols) and a personal signing certificate; the
 script strips all of it and refuses to finish if any home path is left.
 
+`--usage [tab]` snapshots the usage window on a tab (Plans, This week,
+Where it went), to shot-usage.png.
+
 `coldfall-cli tokenomics` prints where the week's tokens went, the same
 reading the usage window shows; `--usage` snapshots that window.
 

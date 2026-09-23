@@ -9,6 +9,11 @@ opens this file.
 ## [Unreleased]
 
 ### Added
+- The usage window has three tabs: **Plans** (what's left of each), **This
+  week** (where it went, by vendor, desk and day) and **Where it went** (why:
+  cache reuse, model mix, the smallest turn each desk sent, and what to
+  change). It was one long column, and the answer you wanted was three
+  scrolls away. The scan runs once; switching tabs re-reads nothing.
 - **Where it went**, at the foot of the usage window (⇧⌘U). How much of your
   input was read from cache rather than sent fresh, the model mix with what
   the same tokens would have cost on a smaller model, the smallest turn each

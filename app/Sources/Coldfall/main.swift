@@ -380,8 +380,13 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 }
                 // `--usage`: the usage window, to <out>-usage.png. It scans
                 // in the background, so this waits longer than the others.
-                if CommandLine.arguments.contains("--usage") {
+                if let k = CommandLine.arguments.firstIndex(of: "--usage") {
                     let mw = MeterPanel()
+                    // `--usage where` picks a tab; the default is the first.
+                    if k + 1 < CommandLine.arguments.count,
+                       let t = MeterPanel.Tab.named(CommandLine.arguments[k + 1]) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { mw.show(t) }
+                    }
                     guard let mv = mw.content ?? mw.window?.contentView else { exit(1) }
                     mv.wantsLayer = true
                     mv.effectiveAppearance.performAsCurrentDrawingAppearance {
@@ -390,8 +395,16 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                     DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
                         _ = mw
                         mv.layoutSubtreeIfNeeded()
-                        guard let mrep = mv.bitmapImageRepForCachingDisplay(in: mv.bounds) else { exit(1) }
-                        mv.cacheDisplay(in: mv.bounds, to: mrep)
+                        // Grow the window to the content's height, then shoot
+                        // the whole thing: the tab strip lives outside the
+                        // scroll view, so a shot of the content alone loses it.
+                        guard let win = mw.window, let rootView = win.contentView else { exit(1) }
+                        let h = mv.fittingSize.height + 60
+                        win.setContentSize(NSSize(width: win.contentView?.bounds.width ?? 820, height: h))
+                        rootView.layoutSubtreeIfNeeded()
+                        let shot = rootView
+                        guard let mrep = shot.bitmapImageRepForCachingDisplay(in: shot.bounds) else { exit(1) }
+                        shot.cacheDisplay(in: shot.bounds, to: mrep)
                         if let png = mrep.representation(using: .png, properties: [:]) {
                             try? png.write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-usage.png"))
                         }

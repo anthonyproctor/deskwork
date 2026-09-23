@@ -50,6 +50,24 @@ jobs:
           fi
           echo "clean"
 
+      # The app must not spend anybody's tokens by itself. Only agent mail
+      # and fan out send a prompt to a vendor, and only when someone asks for
+      # one. Everything else Coldfall does is reading files, and this keeps it
+      # that way: any new place that runs a vendor's CLI with a prompt has to
+      # be added here on purpose.
+      - name: only agent mail and fan out spend tokens
+        run: |
+          cd app
+          allowed='Sources/ColdfallCore/Bridge.swift Sources/ColdfallCore/Fanout.swift'
+          found=$(grep -rln 'rt.argv(' Sources/ | sort)
+          for f in $found; do
+            case " $allowed " in
+              *" $f "*) ;;
+              *) echo "::error::$f runs a vendor CLI with a prompt; only agent mail and fan out may"; exit 1 ;;
+            esac
+          done
+          echo "clean: $found"
+
       # Nothing from anyone's workspace belongs in this repo. This repo sits
       # beside a workspace holding medical, financial and client files, and the
       # rule separating them has so far been attention. Attention is not a
