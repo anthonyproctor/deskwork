@@ -1,0 +1,367 @@
+// Where a week's tokens actually went, and what to change.
+//
+// The meter answers "how much". This answers "why", from the same records,
+// because a week that ran out is rarely explained by the total. Four things
+// explain most of it:
+//
+//   1. WHAT EVERY TURN CARRIES. Each request re-sends the system prompt, the
+//      tool definitions of every MCP server the desk started, the memory
+//      files, and whatever hooks printed. That is paid on every turn, before
+//      you type anything. Measured here as the first request of a
+//      conversation: input that was neither read from nor written to cache,
+//      plus what was written to cache that first time.
+//   2. CACHE. A cache READ costs a tenth of fresh input; a cache WRITE costs
+//      a quarter more. Reused context is nearly free, rebuilt context is not,
+//      so the split between them is the difference between a cheap week and
+//      an expensive one.
+//   3. MODEL. The same work on a smaller model costs a fraction. What the
+//      week would have cost on Sonnet is arithmetic, not an opinion.
+//   4. THE DESK. Cost per turn varies enormously between desks doing
+//      different work, and the outlier is the one worth looking at.
+//
+// Everything here is read from files the CLIs already write. Nothing is sent
+// anywhere, and anything that is an estimate says so where it is shown.
+
+import Foundation
+
+public struct Tokenomics {
+
+    /// One desk's week.
+    public struct DeskStats: Equatable, Codable {
+        public var turns = 0
+        /// Input that was not served from cache: the expensive kind.
+        public var fresh = 0
+        public var cacheRead = 0
+        public var cacheWrite = 0
+        public var output = 0
+        public var usd: Double = 0
+        /// Tokens per model, to see the mix.
+        public var byModel: [String: Int] = [:]
+        /// The smallest input any turn sent this week. Nothing can be sent
+        /// for less than the system prompt, the memory files, hook output and
+        /// the tool definitions of every MCP server the desk starts, so the
+        /// cheapest turn of the week is what the desk pays to say anything.
+        ///
+        /// The first record of a transcript looked like the obvious place for
+        /// this and was wrong: reopening a conversation re-sends the whole
+        /// history, so it read as 800K tokens of "overhead" that was really
+        /// the conversation itself.
+        public var floor: Int = 0
+        public var input: Int { fresh + cacheRead + cacheWrite }
+        public var total: Int { input + output }
+        public var perTurn: Double { turns > 0 ? Double(total) / Double(turns) : 0 }
+        public var usdPerTurn: Double { turns > 0 ? usd / Double(turns) : 0 }
+ 
+        public init() {}
+    }
+
+    public var byDesk: [String: DeskStats] = [:]
+    /// Everything, including turns that belong to no named desk.
+    public var all = DeskStats()
+    public var generated = Date()
+    public init() {}
+
+    public var freshShare: Double { all.input > 0 ? Double(all.fresh) / Double(all.input) : 0 }
+    public var cacheReadShare: Double { all.input > 0 ? Double(all.cacheRead) / Double(all.input) : 0 }
+
+    /// Share of tokens per model, biggest first.
+    public var modelMix: [(model: String, share: Double)] {
+        let total = all.byModel.values.reduce(0, +)
+        guard total > 0 else { return [] }
+        return all.byModel.map { ($0.key, Double($0.value) / Double(total)) }
+            .sorted { $0.1 > $1.1 }
+    }
+
+    // MARK: - reading
+
+    /// Claude prices, $ per million (input, output), as in Usage.
+    static let prices: [String: (Double, Double)] = [
+        "claude-fable-5-1": (10, 50), "claude-fable-5": (10, 50),
+        "claude-opus-5": (5, 25), "claude-opus-4-8": (5, 25),
+        "claude-opus-4-7": (5, 25), "claude-opus-4-6": (5, 25),
+        "claude-sonnet-5": (2, 10), "claude-sonnet-4-6": (3, 15),
+        "claude-haiku-4-5": (1, 5),
+    ]
+
+    public static func price(_ model: String) -> (Double, Double) { prices[model] ?? (5, 25) }
+
+    /// A model id as a person says it: "claude-opus-5" is "opus".
+    public static func family(_ model: String) -> String {
+        for f in ["fable", "opus", "sonnet", "haiku"] where model.contains(f) { return f }
+        return model.isEmpty ? "unknown" : model
+    }
+
+    /// Read Claude's transcripts for the window. `root` and the file list are
+    /// injectable so tests read a fixture rather than a real home.
+    public static func scan(since: Date,
+                            root: String = NSString(string: "~/.claude/projects").expandingTildeInPath,
+                            accounts: [ClaudeAccount] = []) -> Tokenomics {
+        var t = Tokenomics()
+        for r in [root] + accounts.map({ $0.projectsRoot() }) {
+            scan(root: r, since: since, into: &t)
+        }
+        return t
+    }
+
+    static func scan(root: String, since: Date, into t: inout Tokenomics) {
+        let fm = FileManager.default
+        guard let projects = try? fm.contentsOfDirectory(atPath: root) else { return }
+        for proj in projects {
+            let dir = (root as NSString).appendingPathComponent(proj)
+            guard let files = try? fm.contentsOfDirectory(atPath: dir) else { continue }
+            for file in files where file.hasSuffix(".jsonl") {
+                let path = (dir as NSString).appendingPathComponent(file)
+                guard let fp = UsageCache.fingerprint(path), fp.modified >= since else { continue }
+                // A transcript that has not changed gives the same answer as
+                // last time. Without this the panel re-parsed 800MB on every
+                // open, which took ten seconds.
+                if let hit = TokenomicsCache.stats(for: path, key: fp.key, since: since) {
+                    t.merge(hit)
+                    continue
+                }
+                guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+                var one = Tokenomics()
+                read(text, since: since, into: &one)
+                TokenomicsCache.store(one, for: path, key: fp.key, since: since)
+                t.merge(one)
+            }
+        }
+    }
+
+    /// Fold one transcript's numbers in.
+    mutating func merge(_ other: Tokenomics) {
+        Tokenomics.add(other.all, to: &all)
+        for (name, s) in other.byDesk {
+            var mine = byDesk[name] ?? DeskStats()
+            Tokenomics.add(s, to: &mine)
+            byDesk[name] = mine
+        }
+    }
+
+    static func add(_ s: DeskStats, to out: inout DeskStats) {
+        out.turns += s.turns
+        out.fresh += s.fresh; out.cacheRead += s.cacheRead; out.cacheWrite += s.cacheWrite
+        out.output += s.output; out.usd += s.usd
+        for (m, n) in s.byModel { out.byModel[m, default: 0] += n }
+        if s.floor > 0, out.floor == 0 || s.floor < out.floor { out.floor = s.floor }
+    }
+
+    /// One transcript. Records are deduplicated on message id, as in Usage: a
+    /// streamed reply is written more than once and counting each would
+    /// roughly double everything here too.
+    public static func read(_ text: String, since: Date, into t: inout Tokenomics) {
+        var desk: String? = nil
+        var seen = Set<String>()
+        var first = true
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard let d = line.data(using: .utf8),
+                  let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { continue }
+            if desk == nil, o["type"] as? String == "custom-title" { desk = o["customTitle"] as? String }
+            guard let msg = o["message"] as? [String: Any],
+                  let u = msg["usage"] as? [String: Any] else { continue }
+            if let id = msg["id"] as? String {
+                if seen.contains(id) { continue }
+                seen.insert(id)
+            }
+            guard let ts = o["timestamp"] as? String,
+                  let when = iso.date(from: ts) ?? ISO8601DateFormatter().date(from: ts),
+                  when >= since else { continue }
+
+            let fresh = u["input_tokens"] as? Int ?? 0
+            let write = u["cache_creation_input_tokens"] as? Int ?? 0
+            let read = u["cache_read_input_tokens"] as? Int ?? 0
+            let out = u["output_tokens"] as? Int ?? 0
+            let model = msg["model"] as? String ?? ""
+            let (pin, pout) = price(model)
+            let usd = (Double(fresh) + 1.25 * Double(write) + 0.10 * Double(read)) / 1e6 * pin
+                    + Double(out) / 1e6 * pout
+
+            func add(_ s: inout DeskStats) {
+                s.turns += 1
+                s.fresh += fresh; s.cacheWrite += write; s.cacheRead += read; s.output += out
+                s.usd += usd
+                s.byModel[family(model), default: 0] += fresh + write + read + out
+                let sent = fresh + write + read
+                if sent > 0, s.floor == 0 || sent < s.floor { s.floor = sent }
+            }
+            add(&t.all)
+            if let name = desk, !name.isEmpty {
+                var s = t.byDesk[name] ?? DeskStats()
+                add(&s)
+                t.byDesk[name] = s
+            }
+            first = false
+        }
+    }
+}
+
+// MARK: - what to change
+
+extension Tokenomics {
+
+    public struct Note: Equatable {
+        /// What it is about, so the app can order and colour them.
+        public enum Kind: String, Equatable { case cache, start, model, desk }
+        public let kind: Kind
+        /// The finding, in numbers from this week.
+        public let finding: String
+        /// What to do about it.
+        public let advice: String
+        /// True when the number is arithmetic on what was recorded, false
+        /// when it is a projection. Shown, never blurred.
+        public let measured: Bool
+        public init(_ kind: Kind, _ finding: String, _ advice: String, measured: Bool = true) {
+            self.kind = kind; self.finding = finding; self.advice = advice; self.measured = measured
+        }
+    }
+
+    /// Reading the week back as things to change. `servers` is how many MCP
+    /// servers each desk starts, which the app reads from the vendors' files;
+    /// without it the advice simply says less.
+    public func notes(servers: [String: Int] = [:], minTurns: Int = 20) -> [Note] {
+        var out: [Note] = []
+        guard all.turns >= minTurns else { return out }
+
+        // 1. Reuse. A cache read costs a tenth of fresh input; rebuilding
+        // context instead of reusing it is the quietest way to burn a week.
+        if freshShare > 0.30 {
+            out.append(Note(.cache,
+                String(format: "%.0f%% of what you sent was fresh context, not reused from cache.", freshShare * 100),
+                "Cache is reused while a conversation keeps going and expires in the gaps. "
+                + "Fewer, longer sittings at one desk cost less than the same work spread out."))
+        } else if cacheReadShare > 0.70 {
+            out.append(Note(.cache,
+                String(format: "%.0f%% of your input was read from cache, at a tenth of the price.", cacheReadShare * 100),
+                "Nothing to change here. This is the cheap way to work."))
+        }
+
+        // 2. What a desk pays before you type anything.
+        let starters = byDesk.filter { $0.value.turns >= 5 }
+            .sorted { $0.value.floor > $1.value.floor }
+        if let (name, s) = starters.first, s.floor >= 20_000 {
+            // Two things make a floor: the conversation so far, and what is
+            // loaded before you type. Both are re-sent every turn, and the
+            // advice names both rather than guessing which one it is.
+            var advice = "Every turn re-sends the conversation so far, plus what's loaded before you "
+                       + "type: your memory files, hook output, and the tool definitions of every MCP "
+                       + "server the desk starts. If the topic has moved on, a new conversation drops "
+                       + "the first part."
+            if let n = servers[name], n > 0 {
+                advice += " For the second, \(name) starts \(n) MCP server\(n == 1 ? "" : "s"): "
+                        + "right-click the desk, MCP Servers, and switch off the ones it doesn't need."
+            }
+            out.append(Note(.start,
+                "Every turn on \(name) sent at least \(Tokenomics.short(s.floor)) tokens.", advice))
+        }
+
+        // 3. Model mix, with the arithmetic for a smaller one.
+        if let top = modelMix.first, top.model == "opus" || top.model == "fable", top.share > 0.5 {
+            let saved = savingsOnSonnet()
+            out.append(Note(.model,
+                String(format: "%.0f%% of this week ran on %@.", top.share * 100, top.model),
+                saved > 1
+                    ? String(format: "The same tokens on Sonnet would have cost about $%.0f instead of $%.0f. "
+                             + "Set `model` on the desks doing routine work.", saved, all.usd)
+                    : "Set `model` on the desks doing routine work and keep the big model for the hard ones.",
+                measured: false))
+        }
+
+        // 4. The desk that costs most per turn, when it is well clear of the rest.
+        let busy = byDesk.filter { $0.value.turns >= 10 }
+        if busy.count >= 3 {
+            let perTurns = busy.map(\.value.perTurn).sorted()
+            let median = perTurns[perTurns.count / 2]
+            if let (name, s) = busy.max(by: { $0.value.perTurn < $1.value.perTurn }),
+               median > 0, s.perTurn > median * 2.5 {
+                out.append(Note(.desk,
+                    "\(name) costs \(Tokenomics.short(Int(s.perTurn))) tokens a turn, "
+                    + "\(String(format: "%.1f", s.perTurn / median))x the middle desk.",
+                    "Look at what it loads and what it's asked to read. A desk that reads whole "
+                    + "folders to answer small questions is the usual reason."))
+            }
+        }
+        return out
+    }
+
+    /// What this week's tokens would have cost on Sonnet, model for model.
+    /// A projection: the same work on a smaller model is not the same work.
+    public func savingsOnSonnet() -> Double {
+        let (sin, sout) = Tokenomics.price("claude-sonnet-5")
+        let inputCost = (Double(all.fresh) + 1.25 * Double(all.cacheWrite) + 0.10 * Double(all.cacheRead)) / 1e6 * sin
+        return inputCost + Double(all.output) / 1e6 * sout
+    }
+
+    public static func short(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1e6) }
+        if n >= 1_000 { return "\(n / 1000)K" }
+        return "\(n)"
+    }
+}
+
+/// One transcript's numbers, kept so the panel does not re-parse the lot on
+/// every open. Derived data: deleting it costs one slow read.
+public enum TokenomicsCache {
+    struct Entry: Codable {
+        var key: String
+        var since: Double
+        var all: Tokenomics.DeskStats
+        var byDesk: [String: Tokenomics.DeskStats]
+    }
+
+    /// Overridable so tests never touch a real home.
+    public static var root: String =
+        NSString(string: "~/.local/share/coldfall/cache").expandingTildeInPath
+    public static var path: String { (root as NSString).appendingPathComponent("tokenomics.json") }
+
+    private static var loaded: [String: Entry]?
+    private static var dirty = false
+    private static let lock = NSLock()
+
+    static func all() -> [String: Entry] {
+        if let l = loaded { return l }
+        let l = (try? Data(contentsOf: URL(fileURLWithPath: path)))
+            .flatMap { try? JSONDecoder().decode([String: Entry].self, from: $0) } ?? [:]
+        loaded = l
+        return l
+    }
+
+    public static func stats(for path: String, key: String, since: Date) -> Tokenomics? {
+        lock.lock(); defer { lock.unlock() }
+        guard let hit = all()[path], hit.key == key,
+              abs(hit.since - since.timeIntervalSince1970) < 1 else { return nil }
+        var t = Tokenomics()
+        t.all = hit.all
+        t.byDesk = hit.byDesk
+        return t
+    }
+
+    public static func store(_ t: Tokenomics, for path: String, key: String, since: Date) {
+        lock.lock(); defer { lock.unlock() }
+        var l = all()
+        l[path] = Entry(key: key, since: since.timeIntervalSince1970, all: t.all, byDesk: t.byDesk)
+        loaded = l
+        dirty = true
+        flushLocked()
+    }
+
+    /// Written as it goes rather than at the end: this cache is read by the
+    /// panel and by the CLI, and neither owns the end of the other's scan.
+    private static func flushLocked() {
+        guard dirty, let l = loaded else { return }
+        dirty = false
+        try? FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        guard let d = try? JSONEncoder().encode(l) else { return }
+        try? d.write(to: URL(fileURLWithPath: path), options: .atomic)
+    }
+
+    public static func clear() {
+        lock.lock(); defer { lock.unlock() }
+        loaded = [:]
+        dirty = false
+        try? FileManager.default.removeItem(atPath: path)
+    }
+}

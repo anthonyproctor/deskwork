@@ -51,6 +51,34 @@ case "menu":
             return o
         })
 
+case "tokenomics":
+    // Where the week went, and what to change. The same reading the usage
+    // panel shows, as data.
+    var tdays = 7
+    if let i = args.firstIndex(of: "--days"), args.count > i + 1, let n = Int(args[i + 1]) { tdays = n }
+    let tsince = tdays == 7 ? Usage.weekStart() : Date().addingTimeInterval(-Double(tdays) * 86_400)
+    let t = Tokenomics.scan(since: tsince, accounts: ClaudeAccount.known())
+    var counts: [String: Int] = [:]
+    for d in DeskConfig.load() where d.runtime != "shell" {
+        let n = Inventory.of(d).mcp.filter { !$0.off }.count
+        if n > 0 { counts[d.name] = n }
+    }
+    out([
+        "since": ISO8601DateFormatter().string(from: tsince),
+        "turns": t.all.turns,
+        "freshPct": Int((t.freshShare * 100).rounded()),
+        "cacheReadPct": Int((t.cacheReadShare * 100).rounded()),
+        "usd": t.all.usd,
+        "usdOnSonnet": t.savingsOnSonnet(),
+        "modelMix": t.modelMix.map { ["model": $0.model, "pct": Int($0.share * 100)] },
+        "byDesk": t.byDesk.mapValues {
+            ["turns": $0.turns, "perTurn": Int($0.perTurn), "usd": $0.usd, "floor": $0.floor]
+        },
+        "notes": t.notes(servers: counts).map {
+            ["kind": $0.kind.rawValue, "finding": $0.finding, "advice": $0.advice, "measured": $0.measured]
+        },
+    ])
+
 case "limits":
     out(Limits.all().map { l -> [String: Any] in
         var o: [String: Any] = ["vendor": l.vendor, "ageSeconds": Int(l.age)]

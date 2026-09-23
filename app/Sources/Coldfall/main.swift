@@ -378,6 +378,27 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                     }
                     return
                 }
+                // `--usage`: the usage window, to <out>-usage.png. It scans
+                // in the background, so this waits longer than the others.
+                if CommandLine.arguments.contains("--usage") {
+                    let mw = MeterPanel()
+                    guard let mv = mw.content ?? mw.window?.contentView else { exit(1) }
+                    mv.wantsLayer = true
+                    mv.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        mv.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                        _ = mw
+                        mv.layoutSubtreeIfNeeded()
+                        guard let mrep = mv.bitmapImageRepForCachingDisplay(in: mv.bounds) else { exit(1) }
+                        mv.cacheDisplay(in: mv.bounds, to: mrep)
+                        if let png = mrep.representation(using: .png, properties: [:]) {
+                            try? png.write(to: URL(fileURLWithPath: (out as NSString).deletingPathExtension + "-usage.png"))
+                        }
+                        exit(0)
+                    }
+                    return
+                }
                 // `--welcome [none]`: the Welcome screen, to <out>-welcome.png;
                 // `none` draws it as a Mac with no vendor CLI would see it.
                 if let k = CommandLine.arguments.firstIndex(of: "--welcome") {

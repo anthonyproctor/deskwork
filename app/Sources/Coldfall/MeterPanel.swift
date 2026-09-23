@@ -4,6 +4,9 @@ import ColdfallCore
 /// Click the meter to open this: quota per vendor, then where it went.
 final class MeterPanel: NSWindowController {
     private let stack = NSStackView()
+    /// The scrolling content, for `--usage`: a snapshot of the window itself
+    /// would stop at the window's height and miss everything below the fold.
+    private(set) var content: NSView?
     private var report = Usage.Report()
 
     convenience init() {
@@ -38,6 +41,7 @@ final class MeterPanel: NSWindowController {
             stack.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
         ])
         w.contentView = scroll
+        content = doc
         w.center()
         reload()
     }
@@ -118,8 +122,21 @@ final class MeterPanel: NSWindowController {
 
         stack.addArrangedSubview(caps("SCANNING…"))
         DispatchQueue.global(qos: .userInitiated).async {
-            let r = Usage.scan(since: since, accounts: ClaudeAccount.known())
-            DispatchQueue.main.async { self.report = r; self.renderUsage(since: since) }
+            let accounts = ClaudeAccount.known()
+            let r = Usage.scan(since: since, accounts: accounts)
+            let t = Tokenomics.scan(since: since, accounts: accounts)
+            // How many MCP servers each desk starts, so the advice can point
+            // at the ones a desk doesn't need.
+            var servers: [String: Int] = [:]
+            for d in DeskConfig.load() where d.runtime == "claude" || d.runtime == "codex" {
+                let n = Inventory.of(d).mcp.filter { !$0.off }.count
+                if n > 0 { servers[d.name] = n }
+            }
+            DispatchQueue.main.async {
+                self.report = r
+                self.renderUsage(since: since)
+                self.renderTokenomics(t, servers: servers)
+            }
         }
     }
 
@@ -187,6 +204,58 @@ final class MeterPanel: NSWindowController {
         foot.preferredMaxLayoutWidth = 760
         stack.addArrangedSubview(caps(""))
         stack.addArrangedSubview(foot)
+    }
+
+    /// Where the week went, and what to change about it. The numbers are the
+    /// same records the rest of this panel reads; the difference is that this
+    /// half is about cause.
+    private func renderTokenomics(_ t: Tokenomics, servers: [String: Int]) {
+        guard t.all.turns > 0 else { return }
+        stack.addArrangedSubview(caps("WHERE IT WENT"))
+
+        stack.addArrangedSubview(mono(
+            pad("turns", 15) + lpad("\(t.all.turns)", 9)
+            + "   " + String(format: "%.0f%% of input read from cache, at a tenth of the price",
+                             t.cacheReadShare * 100)))
+        if !t.modelMix.isEmpty {
+            let mix = t.modelMix.filter { $0.share >= 0.01 }
+                .map { String(format: "%@ %.0f%%", $0.model, $0.share * 100) }
+                .joined(separator: " · ")
+            stack.addArrangedSubview(mono(pad("models", 15) + mix))
+        }
+        if t.all.usd > 0 {
+            stack.addArrangedSubview(mono(
+                pad("this week", 15) + String(format: "$%.0f", t.all.usd)
+                + String(format: "   ·   the same tokens on Sonnet: about $%.0f", t.savingsOnSonnet())))
+        }
+
+        // What each desk pays before it says anything.
+        let floors = t.byDesk.filter { $0.value.turns >= 5 && $0.value.floor > 0 }
+            .sorted { $0.value.floor > $1.value.floor }.prefix(6)
+        if !floors.isEmpty {
+            stack.addArrangedSubview(caps("SMALLEST TURN OF THE WEEK, PER DESK"))
+            for (name, s) in floors {
+                var line = pad(name, 15) + lpad(Tokenomics.short(s.floor), 9) + " tokens"
+                if let n = servers[name] { line += "   \(n) MCP server\(n == 1 ? "" : "s")" }
+                stack.addArrangedSubview(mono(line))
+            }
+        }
+
+        let notes = t.notes(servers: servers)
+        guard !notes.isEmpty else { return }
+        stack.addArrangedSubview(caps("WHAT TO CHANGE"))
+        for n in notes {
+            let head = NSTextField(wrappingLabelWithString: (n.measured ? "" : "estimate — ") + n.finding)
+            head.font = .systemFont(ofSize: 12.5, weight: .semibold)
+            head.textColor = n.measured ? .labelColor : .secondaryLabelColor
+            head.preferredMaxLayoutWidth = 760
+            stack.addArrangedSubview(head)
+            let body = NSTextField(wrappingLabelWithString: n.advice)
+            body.font = .systemFont(ofSize: 12)
+            body.textColor = .secondaryLabelColor
+            body.preferredMaxLayoutWidth = 760
+            stack.addArrangedSubview(body)
+        }
     }
 }
 

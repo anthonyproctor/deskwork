@@ -1394,6 +1394,79 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - where the week went
+
+func turn(_ model: String, fresh: Int, write: Int, read: Int, out: Int, id: String, at: String) -> String {
+    #"{"timestamp":"\#(at)","message":{"id":"\#(id)","model":"\#(model)","usage":{"input_tokens":\#(fresh),"cache_creation_input_tokens":\#(write),"cache_read_input_tokens":\#(read),"output_tokens":\#(out)}}}"#
+}
+
+do {
+    let since = Date(timeIntervalSince1970: 0)
+    let when = "2026-09-22T10:00:00.000Z"
+    var lines = [#"{"type":"custom-title","customTitle":"api"}"#]
+    // a conversation: a big first request, then cheap cached turns
+    lines.append(turn("claude-opus-5", fresh: 4000, write: 26000, read: 0, out: 500, id: "a1", at: when))
+    for i in 2...6 {
+        lines.append(turn("claude-opus-5", fresh: 200, write: 300, read: 30000, out: 400, id: "a\(i)", at: when))
+    }
+    // the same reply written twice, as a streamed one is
+    lines.append(turn("claude-opus-5", fresh: 200, write: 300, read: 30000, out: 400, id: "a6", at: when))
+
+    var t = Tokenomics()
+    Tokenomics.read(lines.joined(separator: "\n"), since: since, into: &t)
+    eq("week: a repeated record is counted once", t.all.turns, 6)
+    eq("week: the desk is named from the transcript", Array(t.byDesk.keys), ["api"])
+    eq("week: the cheapest turn of the week is the floor", t.byDesk["api"]?.floor, 30000)
+    check("week: most input came from cache", t.cacheReadShare > 0.8 && t.freshShare < 0.06)
+    eq("week: the model mix is by family", t.modelMix.first?.model, "opus")
+
+    // advice: quiet when there is barely anything to judge
+    check("advice: says nothing about a handful of turns", t.notes(minTurns: 50).isEmpty)
+
+    // a week spent rebuilding context rather than reusing it
+    var waste = Tokenomics()
+    var w = Tokenomics.DeskStats()
+    w.turns = 100; w.fresh = 800_000; w.cacheRead = 200_000; w.cacheWrite = 100_000; w.output = 50_000
+    w.usd = 120; w.byModel = ["opus": 1_000_000]; w.floor = 62_000
+    waste.all = w
+    waste.byDesk = ["api": w]
+    let notes = waste.notes(servers: ["api": 4])
+    check("advice: names the fresh-context share", notes.contains { $0.kind == .cache && $0.finding.contains("73%") })
+    check("advice: says what the desk pays before you type",
+          notes.contains { $0.kind == .start && $0.finding.contains("62K") })
+    check("advice: and points at that desk's MCP servers",
+          notes.contains { $0.kind == .start && $0.advice.contains("4 MCP servers") && $0.advice.contains("new conversation") })
+    check("advice: prices the same week on a smaller model",
+          notes.contains { $0.kind == .model && !$0.measured && $0.advice.contains("Sonnet") })
+    check("advice: the smaller model is quoted as the cheaper number",
+          notes.contains { $0.kind == .model && $0.advice.contains("about $2 instead of $120") })
+    check("advice: a projection is never presented as measured",
+          notes.allSatisfy { $0.kind == .model ? !$0.measured : $0.measured })
+
+    // a week that reuses context well is told so, and nothing else
+    var good = Tokenomics()
+    var g = Tokenomics.DeskStats()
+    g.turns = 100; g.fresh = 50_000; g.cacheRead = 900_000; g.cacheWrite = 50_000; g.output = 40_000
+    g.usd = 20; g.byModel = ["sonnet": 1_000_000]; g.floor = 8_000
+    good.all = g; good.byDesk = ["api": g]
+    let ok = good.notes()
+    eq("advice: a cheap week gets one note, not a lecture", ok.count, 1)
+    check("advice: and it says there is nothing to change", ok.first?.advice.contains("Nothing to change") == true)
+
+    // the desk that costs most per turn, when it stands out
+    var outlier = Tokenomics()
+    func desk(turns: Int, read: Int) -> Tokenomics.DeskStats {
+        var s = Tokenomics.DeskStats(); s.turns = turns; s.cacheRead = read; s.output = 1000
+        s.byModel = ["sonnet": read]; s.floor = 5000; return s
+    }
+    outlier.all = desk(turns: 60, read: 1_000_000)
+    outlier.byDesk = ["small": desk(turns: 20, read: 100_000),
+                      "middle": desk(turns: 20, read: 120_000),
+                      "hungry": desk(turns: 20, read: 2_000_000)]
+    check("advice: names the desk that costs the most a turn",
+          outlier.notes().contains { $0.kind == .desk && $0.finding.contains("hungry") })
+}
+
 // MARK: - the desk menu
 
 do {

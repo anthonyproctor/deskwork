@@ -8,6 +8,15 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- **Where it went**, at the foot of the usage window (⇧⌘U). How much of your
+  input was read from cache rather than sent fresh, the model mix with what
+  the same tokens would have cost on a smaller model, the smallest turn each
+  desk sent all week, and a short list of what to change, written from your
+  own numbers. Anything projected rather than measured says so.
+- `coldfall-cli tokenomics [--days N]` prints the same reading as JSON, and
+  `--usage` snapshots the usage window.
+
 ## [0.3.12] - 2026-09-22
 
 Stop Desk and Remove Desk no longer look alike.
