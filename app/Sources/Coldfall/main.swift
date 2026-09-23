@@ -197,6 +197,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onMcpDesk = { [weak self] i in self?.editMcp(i) }
         sidebar.onInventoryDesk = { [weak self] i in self?.showInventory(i) }
         sidebar.onHideDesk = { [weak self] i in self?.hideDesk(i) }
+        NotificationCenter.default.addObserver(forName: .coldfallOpenUninstall, object: nil, queue: .main) {
+            [weak self] _ in self?.openUninstall()
+        }
         sidebar.onOpenNews = { [weak self] c in
             if let u = c.url, let url = URL(string: u) { NSWorkspace.shared.open(url) }
             self?.ui.agentUpdates[c.runtime] = nil; self?.ui.save(); self?.showAgentNews()
@@ -703,12 +706,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         news.target = self
         appMenu.addItem(news)
         appMenu.addItem(.separator())
-        // Leaving is part of the product. Somebody deciding whether to try
-        // this deserves to see the way out before they start.
-        let bye = NSMenuItem(title: "Remove Project Coldfall's Files…", action: #selector(openUninstall), keyEquivalent: "")
-        bye.target = self
-        appMenu.addItem(bye)
-        appMenu.addItem(.separator())
+        // Removing Coldfall's files lives in Settings, General: it sat right
+        // above Quit here, one slip of the pointer from it.
         appMenu.addItem(withTitle: "Quit Project Coldfall", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
 
@@ -882,6 +881,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             a.accessoryView = f
             field = f
             a.buttons.first?.title = "Remove"
+        } else {
+            // Nothing typed, so nothing deliberate yet: Return cancels, and
+            // removing takes a click on Remove itself.
+            a.buttons[0].hasDestructiveAction = true
+            a.buttons[0].keyEquivalent = ""
+            a.buttons[1].keyEquivalent = "\r"
         }
 
         guard a.runModal() == .alertFirstButtonReturn else { return }
@@ -1389,7 +1394,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
         a.addButton(withTitle: "Delete These Files")
         a.addButton(withTitle: "Cancel")
-        a.buttons.first?.hasDestructiveAction = true
+        // Return must never delete. NSAlert makes the first button the
+        // default, so a habitual Return would have wiped everything; Cancel
+        // takes Return (and Escape), and deleting needs a deliberate click.
+        a.buttons[0].hasDestructiveAction = true
+        a.buttons[0].keyEquivalent = ""
+        a.buttons[1].keyEquivalent = "\r"
         guard a.runModal() == .alertFirstButtonReturn else { return }
 
         let log = Uninstall.removeEverything(desks: desks)
@@ -2106,4 +2116,6 @@ extension Notification.Name {
     static let coldfallDesksReloaded = Notification.Name("coldfallDesksReloaded")
     /// Settings changed something the controller keeps in ui.json.
     static let coldfallFreshStartChanged = Notification.Name("coldfallFreshStartChanged")
+    /// Settings asked for the Remove Files dialog, which the controller owns.
+    static let coldfallOpenUninstall = Notification.Name("coldfallOpenUninstall")
 }

@@ -218,6 +218,15 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             of: " You can turn this off any time in Settings.", with: "")
             + " The server's code is in the repo under server/."))
 
+        // Leaving, kept here on purpose: findable by someone looking for it,
+        // and nowhere near Quit.
+        updLines.append(caps("REMOVE PROJECT COLDFALL"))
+        let bye = NSButton(title: "Remove Project Coldfall's Files…", target: self, action: #selector(openUninstall))
+        bye.bezelStyle = .rounded
+        updLines.append(bye)
+        updLines.append(note("Shows exactly what it would delete first, and deletes nothing until you confirm. "
+            + "Your agents, their logins and conversations aren't touched."))
+
         // Four tabs instead of one column. The single column was taller than
         // a laptop screen, and the window could not be made to fit it.
         // Reopening lives with the desks it applies to.
@@ -243,7 +252,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         for (title, content, scrolls) in [("Desks", desksTab as NSView, false),
                                           ("Appearance", column([themeBlock]), true),
                                           ("Agents", column(rtLines), true),
-                                          ("Updates", column(updLines), true)] {
+                                          ("General", column(updLines), true)] {
             let item = NSTabViewItem(identifier: title)
             item.label = title
             item.view = pad(content, scrolls: scrolls)
@@ -419,6 +428,10 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
         dirty = true
         table.reloadData()
+    }
+
+    @objc private func openUninstall() {
+        NotificationCenter.default.post(name: .coldfallOpenUninstall, object: nil)
     }
 
     @objc private func toggleFreshStart(_ sender: NSButton) {

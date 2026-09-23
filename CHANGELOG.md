@@ -8,6 +8,12 @@ opens this file.
 
 ## [Unreleased]
 
+### Changed
+- **Remove Project Coldfall's Files moved to Settings ▸ General.** It sat
+  just above Quit in the app menu, one slip away. Its dialog, and Remove
+  Desk's when there's no name to type, now take Return as Cancel: deleting
+  needs a deliberate click. The Updates tab is now General.
+
 ## [0.3.14] - 2026-09-23
 
 Opening the app starts nothing, and shells get desks of their own.

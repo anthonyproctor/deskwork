@@ -404,7 +404,7 @@ cwd = "~/notes"</code></pre>
     <h2 id="leaving">If you want out</h2>
     <p>Coldfall runs your agents; it never replaces them. So leaving costs nothing: Claude Code, Codex and the rest keep their logins, conversations, settings, hooks and memory files, and work from a plain terminal exactly as before. Desks that run your own script are your script.</p>
     <p>Everything Coldfall has of its own is in two folders, plus one thing it changes elsewhere if you turned on live Claude limits: <code>statusLine</code> in that account's <code>settings.json</code>, which it points at its own recorder (that recorder still runs whatever statusline you had).</p>
-    <p>In the app, <strong>Project Coldfall ▸ Remove Project Coldfall's Files…</strong> shows you exactly what it would delete and how big it is, puts the statusline back the way it was, and deletes the two folders. Then quit and drag the app to the Trash. By hand it's the same three steps:</p>
+    <p>In the app, <strong>Settings ▸ General ▸ Remove Project Coldfall's Files…</strong> shows you exactly what it would delete and how big it is, puts the statusline back the way it was, and deletes the two folders. Then quit and drag the app to the Trash. By hand it's the same three steps:</p>
 <pre><code>rm -rf ~/.config/coldfall ~/.local/share/coldfall
 <span class="c"># and if you turned on live limits, point statusLine in</span>
 <span class="c"># ~/.claude/settings.json back at your own command, or delete the line</span></code></pre>
