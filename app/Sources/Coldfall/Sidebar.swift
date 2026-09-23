@@ -51,6 +51,12 @@ final class SidebarView: NSView {
     var onClearWaiting: (() -> Void)?
     /// Installed agents with no desk yet, offered at the top of the rail.
     var offers: [String] = [] { didSet { if offers != oldValue, let d = lastDesks { build(desks: d) } } }
+    /// Agents that updated since Coldfall last looked.
+    var agentNews: [AgentVersions.Change] = [] {
+        didSet { if agentNews != oldValue, let d = lastDesks { build(desks: d) } }
+    }
+    var onOpenNews: ((AgentVersions.Change) -> Void)?
+    var onDismissNews: ((AgentVersions.Change) -> Void)?
     var onAddOffer: ((String) -> Void)?
     var onDismissOffer: ((String) -> Void)?
 
@@ -128,6 +134,17 @@ final class SidebarView: NSView {
             o.onAdd = { [weak self] in self?.onAddOffer?(rt) }
             o.onDismiss = { [weak self] in self?.onDismissOffer?(rt) }
             addSubview(o)
+            y += 58
+        }
+
+        for change in agentNews {
+            let n = OfferStrip(frame: NSRect(x: 10, y: y, width: w - 20, height: 50))
+            n.autoresizingMask = [.width]
+            n.configure(text: change.line, primary: "What's New", secondary: "Dismiss",
+                        tip: change.detail + " What's New opens its own release notes.")
+            n.onAdd = { [weak self] in self?.onOpenNews?(change) }
+            n.onDismiss = { [weak self] in self?.onDismissNews?(change) }
+            addSubview(n)
             y += 58
         }
 
@@ -555,6 +572,14 @@ final class OfferStrip: NSView {
     func configure(title: String) {
         label.stringValue = "\(title) is installed. Give it a desk?"
         toolTip = "Add a desk that runs \(title), or hide this with Not now."
+    }
+
+    /// The same strip saying something else, e.g. an agent that updated.
+    func configure(text: String, primary: String, secondary: String, tip: String) {
+        label.stringValue = text
+        add.title = primary
+        later.title = secondary
+        toolTip = tip
     }
     @objc private func addTapped() { onAdd?() }
     @objc private func laterTapped() { onDismiss?() }

@@ -197,6 +197,13 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onMcpDesk = { [weak self] i in self?.editMcp(i) }
         sidebar.onInventoryDesk = { [weak self] i in self?.showInventory(i) }
         sidebar.onHideDesk = { [weak self] i in self?.hideDesk(i) }
+        sidebar.onOpenNews = { [weak self] c in
+            if let u = c.url, let url = URL(string: u) { NSWorkspace.shared.open(url) }
+            self?.ui.agentUpdates[c.runtime] = nil; self?.ui.save(); self?.showAgentNews()
+        }
+        sidebar.onDismissNews = { [weak self] c in
+            self?.ui.agentUpdates[c.runtime] = nil; self?.ui.save(); self?.showAgentNews()
+        }
         // The switch lives in Settings; the state lives here, and is what
         // gets saved, so Settings says what to set rather than writing it.
         NotificationCenter.default.addObserver(forName: .coldfallFreshStartChanged, object: nil, queue: .main) {
@@ -306,6 +313,10 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             }
             sidebar.status = sample
             // `--offer <runtime>`: the rail offering a desk for that agent.
+            // `--agent-news`: the rail saying an agent updated, with made-up versions.
+            if CommandLine.arguments.contains("--agent-news") {
+                sidebar.agentNews = [AgentVersions.Change(runtime: "claude", from: "2.1.279", to: "2.1.280")]
+            }
             if let k = CommandLine.arguments.firstIndex(of: "--offer"), k + 1 < CommandLine.arguments.count {
                 sidebar.offers = [CommandLine.arguments[k + 1]]
             }
@@ -1068,11 +1079,40 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// back to the front (you may have just installed one in Terminal), and
     /// once a minute.
     func watchNewAgents() {
-        DeskConfig.warmLoginShellPath { [weak self] in self?.checkOffers() }
+        DeskConfig.warmLoginShellPath { [weak self] in self?.checkOffers(); self?.checkAgentVersions() }
         checkOffers()
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
                                                queue: .main) { [weak self] _ in self?.checkOffers() }
         offerTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.checkOffers() }
+    }
+
+    /// Ask each installed agent its version, once per launch, and say which
+    /// ones changed since last time. Local only: no model call, no tokens.
+    func checkAgentVersions() {
+        guard !CommandLine.arguments.contains("--snapshot") else { return }
+        showAgentNews()
+        let before = ui.agentVersions
+        DispatchQueue.global(qos: .utility).async {
+            let now = AgentVersions.current()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !now.isEmpty else { return }
+                for c in AgentVersions.changes(from: before, to: now) {
+                    // Keep where it started, if an earlier update is still unread.
+                    let from = self.ui.agentUpdates[c.runtime]?.first ?? c.from
+                    self.ui.agentUpdates[c.runtime] = [from, c.to]
+                }
+                self.ui.agentVersions.merge(now) { $1 }
+                self.ui.save()
+                self.showAgentNews()
+            }
+        }
+    }
+
+    func showAgentNews() {
+        sidebar.agentNews = ui.agentUpdates.keys.sorted().compactMap { rt in
+            guard let v = ui.agentUpdates[rt], v.count == 2 else { return nil }
+            return AgentVersions.Change(runtime: rt, from: v[0], to: v[1])
+        }
     }
 
     func checkOffers() {

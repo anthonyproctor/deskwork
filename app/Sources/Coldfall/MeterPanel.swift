@@ -328,6 +328,21 @@ final class MeterPanel: NSWindowController {
             }
         }
 
+        // What's filling the conversations: tool output, by desk.
+        let filling = t.byDesk.filter { $0.value.toolTotal > 0 }
+            .sorted { $0.value.toolTotal > $1.value.toolTotal }.prefix(6)
+        if !filling.isEmpty {
+            stack.addArrangedSubview(caps("WHAT'S FILLING THE CONVERSATIONS  (tool output, estimated)"))
+            for (name, s) in filling {
+                let top = s.toolTokens.filter { $0.key != Tokenomics.subagentKind }
+                    .sorted { $0.value > $1.value }.first
+                var line = pad(name, 15) + lpad(Tokenomics.short(s.toolTotal), 9)
+                if let (k, _) = top { line += "   mostly \(k)" }
+                line += s.subagents > 0 ? "   · \(s.subagents) subagent\(s.subagents == 1 ? "" : "s")" : "   · no subagents"
+                stack.addArrangedSubview(mono(line))
+            }
+        }
+
         // Coming back to a big conversation after its cache lapsed.
         let rebuilt = t.byDesk.filter { $0.value.rebuilds > 0 }
             .sorted { $0.value.rebuildUsd > $1.value.rebuildUsd }.prefix(6)

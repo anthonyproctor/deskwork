@@ -74,7 +74,8 @@ case "tokenomics":
         "usdOnSonnet": t.savingsOnSonnet(),
         "modelMix": t.modelMix.map { ["model": $0.model, "pct": Int($0.share * 100)] },
         "byDesk": t.byDesk.mapValues {
-            ["turns": $0.turns, "perTurn": Int($0.perTurn), "usd": $0.usd, "floor": $0.floor]
+            ["turns": $0.turns, "perTurn": Int($0.perTurn), "usd": $0.usd, "floor": $0.floor,
+             "toolTokens": $0.toolTotal, "subagents": $0.subagents]
         },
         "notes": t.notes(servers: counts).map {
             ["kind": $0.kind.rawValue, "finding": $0.finding, "advice": $0.advice, "measured": $0.measured]
@@ -94,6 +95,10 @@ case "reopen":
             if Reopen.shouldAsk(c) { o["question"] = Reopen.question(desk: d, c, wrappedAt: nil).body }
             return o
         })
+
+case "versions":
+    // Each installed agent's version, as Coldfall reads it to notice updates.
+    out(AgentVersions.current())
 
 case "limits":
     out(Limits.all().map { l -> [String: Any] in

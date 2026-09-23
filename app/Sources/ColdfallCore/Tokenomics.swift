@@ -54,6 +54,16 @@ public struct Tokenomics {
         public var rebuilds = 0
         /// What those rebuilds cost, at list prices.
         public var rebuildUsd: Double = 0
+        /// Tool output that landed in the conversation, by kind ("command
+        /// output", "file reads"...), estimated in tokens. It is paid again on
+        /// every later turn, which is why a desk's conversation grows.
+        public var toolTokens: [String: Int] = [:]
+        /// Images among it: screenshots, and pictures a desk read.
+        public var images = 0
+        /// Jobs handed to a subagent, whose raw output never reached this
+        /// conversation: only the answer did.
+        public var subagents = 0
+        public var toolTotal: Int { toolTokens.values.reduce(0, +) }
         public var input: Int { fresh + cacheRead + cacheWrite }
         public var total: Int { input + output }
         public var perTurn: Double { turns > 0 ? Double(total) / Double(turns) : 0 }
@@ -146,6 +156,49 @@ public struct Tokenomics {
         for (m, n) in s.byModel { out.byModel[m, default: 0] += n }
         if s.floor > 0, out.floor == 0 || s.floor < out.floor { out.floor = s.floor }
         out.rebuilds += s.rebuilds; out.rebuildUsd += s.rebuildUsd
+        for (k, v) in s.toolTokens { out.toolTokens[k, default: 0] += v }
+        out.images += s.images; out.subagents += s.subagents
+    }
+
+    /// Roughly what one image costs in a conversation, whatever its size on
+    /// disk. Counting a screenshot by its encoded bytes made one look like
+    /// hundreds of thousands of tokens.
+    public static let imageTokens = 1600
+    public static let subagentKind = "subagent answers"
+    /// Tool output worth a word, for one desk in a week.
+    public static let contentsTokens = 300_000
+    /// Images worth a word, across a week.
+    public static let manyImages = 100
+
+    /// A tool, as a person would name what it put into the conversation.
+    public static func toolKind(_ name: String) -> String {
+        switch name {
+        case "Bash": return "command output"
+        case "Read": return "file reads"
+        case "Grep", "Glob", "LS": return "searches"
+        case "WebSearch", "WebFetch": return "web pages"
+        case "Task", "Agent": return subagentKind
+        default:
+            let n = name.lowercased()
+            if n.hasPrefix("mcp__") && (n.contains("chrome") || n.contains("browser") || n.contains("playwright")) {
+                return "browser automation"
+            }
+            if n.hasPrefix("mcp__") { return "MCP tools" }
+            return "other tools"
+        }
+    }
+
+    /// A tool result's size in tokens, estimated at four characters a token,
+    /// with images counted as images.
+    public static func measure(_ content: Any?) -> (tokens: Int, images: Int) {
+        if let s = content as? String { return (s.count / 4, 0) }
+        guard let items = content as? [[String: Any]] else { return (0, 0) }
+        var tok = 0, imgs = 0
+        for it in items {
+            if it["type"] as? String == "image" { imgs += 1; tok += imageTokens }
+            else if let s = it["text"] as? String { tok += s.count / 4 }
+        }
+        return (tok, imgs)
     }
 
     /// A cache write this big is a conversation being rebuilt, not one
@@ -159,6 +212,8 @@ public struct Tokenomics {
         var desk: String? = nil
         var seen = Set<String>()
         var first = true
+        // Which tool each call was, so its result can be sized by kind.
+        var tools: [String: String] = [:]
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -166,6 +221,34 @@ public struct Tokenomics {
             guard let d = line.data(using: .utf8),
                   let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { continue }
             if desk == nil, o["type"] as? String == "custom-title" { desk = o["customTitle"] as? String }
+            // Tool calls and their results: what fills a conversation up.
+            if let msg = o["message"] as? [String: Any], let blocks = msg["content"] as? [[String: Any]],
+               let ts = o["timestamp"] as? String,
+               let when = iso.date(from: ts) ?? ISO8601DateFormatter().date(from: ts), when >= since {
+                for b in blocks {
+                    switch b["type"] as? String {
+                    case "tool_use":
+                        guard let id = b["id"] as? String, let name = b["name"] as? String,
+                              tools[id] == nil else { continue }
+                        tools[id] = name
+                        if Tokenomics.toolKind(name) == Tokenomics.subagentKind {
+                            t.all.subagents += 1
+                            if let n = desk, !n.isEmpty { t.byDesk[n, default: DeskStats()].subagents += 1 }
+                        }
+                    case "tool_result":
+                        guard let id = b["tool_use_id"] as? String, let name = tools[id] else { continue }
+                        let (tok, imgs) = Tokenomics.measure(b["content"])
+                        let kind = Tokenomics.toolKind(name)
+                        t.all.toolTokens[kind, default: 0] += tok
+                        t.all.images += imgs
+                        if let n = desk, !n.isEmpty {
+                            t.byDesk[n, default: DeskStats()].toolTokens[kind, default: 0] += tok
+                            t.byDesk[n, default: DeskStats()].images += imgs
+                        }
+                    default: break
+                    }
+                }
+            }
             guard let msg = o["message"] as? [String: Any],
                   let u = msg["usage"] as? [String: Any] else { continue }
             if let id = msg["id"] as? String {
@@ -217,7 +300,7 @@ extension Tokenomics {
 
     public struct Note: Equatable {
         /// What it is about, so the app can order and colour them.
-        public enum Kind: String, Equatable { case cache, start, model, desk, rebuild }
+        public enum Kind: String, Equatable { case cache, start, model, desk, rebuild, contents, images }
         public let kind: Kind
         /// The finding, in numbers from this week.
         public let finding: String
@@ -263,6 +346,45 @@ extension Tokenomics {
                 "The break causes this, not stopping the desk: Claude's cache lasts an hour after "
                 + "the last message either way. When you reopen a big desk you haven't used in a while, Coldfall offers "
                 + "to start fresh. Take it when the topic has moved on and what matters is saved."))
+        }
+
+        // 1c. What is filling the conversations, and the one habit that
+        // keeps a big desk small: handing messy jobs to a subagent, whose
+        // raw output never enters the desk's own conversation.
+        if let (name, s) = byDesk.max(by: { $0.value.toolTotal < $1.value.toolTotal }),
+           s.toolTotal >= Tokenomics.contentsTokens {
+            let top = s.toolTokens.filter { $0.key != Tokenomics.subagentKind }
+                .sorted { $0.value > $1.value }.prefix(2)
+            let parts = top.map { "\($0.key) (~\(Tokenomics.short($0.value)))" }.joined(separator: " and ")
+            var advice: String
+            switch top.first?.key {
+            case "command output":
+                advice = "Ask for the part of a command's output you need, like the last lines or a count, "
+                       + "rather than the whole log. For a broad search or a long investigation, ask it to "
+                       + "use a subagent: only the answer comes back into the conversation."
+            case "browser automation":
+                advice = "Browser tools send page snapshots and screenshots back each time. For a long "
+                       + "browsing job, ask it to use a subagent to do the clicking and report back."
+            default:
+                advice = "For broad searches or reading many files, ask it to use a subagent: it does "
+                       + "the reading in its own conversation, and only the answer comes back into this one."
+            }
+            advice += s.subagents > 0
+                ? " It handed \(s.subagents) job\(s.subagents == 1 ? "" : "s") to subagents this week."
+                : " It didn't use a subagent once this week."
+            out.append(Note(.contents,
+                "\(name)'s conversation took in about \(Tokenomics.short(s.toolTotal)) tokens of tool output "
+                + "this week, mostly \(parts). Each of those is sent again on every later turn.",
+                advice, measured: false))
+        }
+        if all.images >= Tokenomics.manyImages {
+            out.append(Note(.images,
+                "\(all.images) images went into conversations this week, about "
+                + "\(Tokenomics.short(all.images * Tokenomics.imageTokens)) tokens, each sent again on every "
+                + "later turn of its conversation.",
+                "Ask for a screenshot when you need to see something. A page's text, or one element of "
+                + "it, usually answers the question for far less.",
+                measured: false))
         }
 
         // 2. What a desk pays before you type anything.

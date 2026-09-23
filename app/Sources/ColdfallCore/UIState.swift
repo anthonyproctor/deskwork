@@ -20,6 +20,10 @@ public struct UIState: Codable {
     /// Desks that were wrapped up when last stopped: name -> when. Cleared
     /// when the desk starts again, whichever way it starts.
     public var wrappedUp: [String: Double] = [:]
+    /// Each agent's version when Coldfall last looked, to notice updates.
+    public var agentVersions: [String: String] = [:]
+    /// Updates not yet dismissed: runtime -> [from, to].
+    public var agentUpdates: [String: [String]] = [:]
 
     public init() {}
 
@@ -44,6 +48,8 @@ public struct UIState: Codable {
         dismissedOffers = try c.decodeIfPresent([String].self, forKey: .dismissedOffers) ?? []
         offerFreshStart = try c.decodeIfPresent(Bool.self, forKey: .offerFreshStart) ?? true
         wrappedUp = try c.decodeIfPresent([String: Double].self, forKey: .wrappedUp) ?? [:]
+        agentVersions = try c.decodeIfPresent([String: String].self, forKey: .agentVersions) ?? [:]
+        agentUpdates = try c.decodeIfPresent([String: [String]].self, forKey: .agentUpdates) ?? [:]
     }
 
     public static var path: String { NSString(string: "~/.config/coldfall/ui.json").expandingTildeInPath }

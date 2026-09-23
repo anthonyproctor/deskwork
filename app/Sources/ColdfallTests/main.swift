@@ -1394,6 +1394,58 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - agents that updated
+
+do {
+    eq("version: Claude Code's", AgentVersions.parse("2.1.280 (Claude Code)"), "2.1.280")
+    eq("version: Codex's", AgentVersions.parse("codex-cli 0.155.1"), "0.155.1")
+    eq("version: Copilot's, with a trailing period", AgentVersions.parse("GitHub Copilot CLI 1.0.87.\nRun 'copilot update'"), "1.0.87")
+    eq("version: a v prefix", AgentVersions.parse("ollama version is v0.12.3"), "0.12.3")
+    eq("version: nothing that looks like one", AgentVersions.parse("usage: agy [options]"), nil)
+
+    let changes = AgentVersions.changes(from: ["claude": "2.1.279", "codex": "0.155.1"],
+                                        to: ["claude": "2.1.280", "codex": "0.155.1", "copilot": "1.0.87"])
+    eq("updates: only what changed", changes.map(\.runtime), ["claude"])
+    eq("updates: said plainly", changes.first?.line, "Claude Code updated to 2.1.280")
+    eq("updates: with the old version in the detail", changes.first?.detail, "Claude Code went from 2.1.279 to 2.1.280.")
+    eq("updates: with the vendor's own notes", changes.first?.url, "https://code.claude.com/docs/en/changelog")
+    check("updates: an agent seen for the first time is not news", !changes.contains { $0.runtime == "copilot" })
+}
+
+// MARK: - what's filling the conversations
+
+do {
+    let when = "2026-09-22T10:00:00.000Z"
+    let lines = [
+        #"{"type":"custom-title","customTitle":"cf"}"#,
+        #"{"timestamp":"\#(when)","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash"},{"type":"tool_use","id":"t2","name":"Read"},{"type":"tool_use","id":"t3","name":"Task"},{"type":"tool_use","id":"t4","name":"mcp__chrome-devtools__take_screenshot"}]}}"#,
+        #"{"timestamp":"\#(when)","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"\#(String(repeating: "x", count: 40_000))"},{"type":"tool_result","tool_use_id":"t2","content":[{"type":"text","text":"\#(String(repeating: "y", count: 4000))"}]},{"type":"tool_result","tool_use_id":"t4","content":[{"type":"image","source":{"data":"\#(String(repeating: "z", count: 900_000))"}}]}]}}"#,
+    ]
+    var t = Tokenomics()
+    Tokenomics.read(lines.joined(separator: "\n"), since: Date(timeIntervalSince1970: 0), into: &t)
+    let cf = t.byDesk["cf"]
+    eq("contents: command output, at four characters a token", cf?.toolTokens["command output"], 10_000)
+    eq("contents: file reads", cf?.toolTokens["file reads"], 1_000)
+    eq("contents: a screenshot is an image, not its bytes", cf?.toolTokens["browser automation"], Tokenomics.imageTokens)
+    eq("contents: images counted", cf?.images, 1)
+    eq("contents: subagent jobs counted", cf?.subagents, 1)
+
+    var week = Tokenomics()
+    var s = Tokenomics.DeskStats()
+    s.turns = 100; s.cacheRead = 9_000_000; s.cacheWrite = 100_000; s.output = 10_000
+    s.byModel = ["sonnet": 1]; s.toolTokens = ["command output": 700_000, "file reads": 300_000]
+    s.images = 150; s.subagents = 0
+    week.all = s; week.byDesk = ["cf": s]
+    let notes = week.notes()
+    let c = notes.first { $0.kind == .contents }
+    check("contents: names the desk and what filled it",
+          c?.finding.contains("cf's conversation took in about 1.0M") == true && c?.finding.contains("command output") == true)
+    check("contents: suggests a subagent", c?.advice.contains("subagent") == true)
+    check("contents: and says it didn't use one", c?.advice.contains("didn't use a subagent once") == true)
+    check("contents: an estimate, not a measurement", c?.measured == false)
+    check("contents: many screenshots get their own note", notes.contains { $0.kind == .images && $0.finding.contains("150 images") })
+}
+
 // MARK: - prices
 
 do {
