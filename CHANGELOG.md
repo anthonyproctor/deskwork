@@ -18,6 +18,16 @@ opens this file.
   cache lasts "a few minutes" says an hour.
 
 ### Added
+- **What's filling the conversations**, in Where it went: how much tool
+  output each desk took in this week (command output, file reads, browser
+  automation, images), how many jobs it handed to a subagent, and advice
+  when one stands out. A subagent does the messy reading in its own
+  conversation and hands back only the answer, which is the habit that
+  keeps a big desk small. Screenshots get their own note: each is sent
+  again on every later turn.
+- **When an agent updates, the rail says so**: "Claude Code updated to
+  2.1.280", with What's New opening the vendor's own release notes. Checked
+  once a launch by asking each CLI its version, locally, with no tokens.
 - **Pick up where you left off, or start clean.** A desk still picks up its
   conversation when you open it; that's the default and nothing about it
   changed. When a big one (150K tokens or more) has sat for an hour, opening

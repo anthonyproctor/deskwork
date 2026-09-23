@@ -49,6 +49,9 @@ reading the usage window shows; `--usage` snapshots that window.
 `coldfall-cli reopen [desk]` prints each Claude desk's conversation size, when
 it was last used, and whether opening it would ask about starting fresh.
 
+`coldfall-cli versions` prints each agent's version as the update notice reads it;
+`--agent-news` snapshots the rail with a made-up update.
+
 `coldfall-cli menu [desk]` prints a desk's right-click menu as data. A
 context menu cannot be captured in an offscreen snapshot, so its order,
 wording and tone are checked there and in the core's tests.
