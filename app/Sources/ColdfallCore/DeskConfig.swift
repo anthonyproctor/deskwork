@@ -33,6 +33,9 @@ public struct Desk {
     /// a NEW conversation (e.g. "desk money new"). Without it, Coldfall can't
     /// offer a fresh start for that desk, because only the script knows how.
     public var fresh: String?
+    /// Resume without asking, however big or idle the conversation. Set from
+    /// the reopen dialog's "Don't ask for this desk", or the desk's menu.
+    public var alwaysResume: Bool = false
     /// The Claude conversation this desk reopens, by id. Set when a built-in
     /// desk is renamed: its conversation is titled with the OLD name, so the
     /// lookup by name would stop finding it. Unset, the desk finds its
@@ -363,6 +366,7 @@ public enum DeskConfig {
             case "account": current?.account = val.isEmpty ? nil : val
             case "conversation": current?.conversation = val.isEmpty ? nil : val
             case "fresh":   current?.fresh = val.isEmpty ? nil : val
+            case "always_resume": current?.alwaysResume = val == "true"
             case "hidden":  current?.hidden = val == "true"
             case "session": current?.session = UUID(uuidString: val) != nil ? val.lowercased() : nil
             case "cwd":     current?.cwd = val
@@ -490,6 +494,7 @@ public enum DeskConfig {
             if let a = d.account { out += "account = \"\(TomlText.escape(a))\"\n" }
             if let c = d.conversation { out += "conversation = \"\(TomlText.escape(c))\"\n" }
             if let f = d.fresh { out += "fresh = \"\(TomlText.escape(f))\"\n" }
+            if d.alwaysResume { out += "always_resume = true\n" }
             if let s = d.session { out += "session = \"\(TomlText.escape(s))\"\n" }
             if d.hidden { out += "hidden = true\n" }
             if !d.mcpOff.isEmpty {

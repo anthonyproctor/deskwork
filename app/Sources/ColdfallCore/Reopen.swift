@@ -86,9 +86,21 @@ public enum Reopen {
         return nil
     }
 
-    /// Whether to offer a fresh start at all.
+    /// Whether a big conversation has sat long enough to be worth a word.
     public static func shouldAsk(_ c: ConversationInfo, now: Date = Date()) -> Bool {
         c.tokens >= bigTokens && now.timeIntervalSince(c.lastUsed) >= staleAfter
+    }
+
+    /// Whether to ask at all when this desk opens. A desk wrapped up on its
+    /// way out is always asked, whatever its size: that is what wrapping up
+    /// was for. Otherwise only a big idle one, and never when the person has
+    /// said not to, for this desk or for every desk.
+    public static func shouldAsk(desk: Desk, _ c: ConversationInfo?, wrapped: Bool,
+                                 enabled: Bool, now: Date = Date()) -> Bool {
+        guard enabled, !desk.alwaysResume, desk.freshCommand() != nil else { return false }
+        if wrapped { return true }
+        guard let c else { return false }
+        return shouldAsk(c, now: now)
     }
 
     /// "3 days ago", "5 hours ago".
@@ -105,7 +117,7 @@ public enum Reopen {
         n >= 1_000_000 ? String(format: "%.1fM", Double(n) / 1e6) : "\(n / 1000)K"
     }
 
-    /// How to get the old conversation back, in the vendor's own terms.
+    /// How to get an older conversation back, in the vendor's own terms.
     public static func howToGoBack(_ runtime: String) -> String {
         switch runtime {
         case "codex": return "run codex resume in the desk and pick it"
@@ -113,25 +125,66 @@ public enum Reopen {
         }
     }
 
-    /// The question, with the trade said plainly.
-    public static func question(desk: Desk, _ c: ConversationInfo, now: Date = Date())
-    -> (title: String, body: String) {
-        ("Resume \(desk.name)'s conversation?",
-         "It's about \(short(c.tokens)) tokens and was last used \(ago(c.lastUsed, now: now)). "
-         + "Your first message will send all of it again, at more than the usual price, "
-         + "because it has been out of the cache for a while.\n\n"
-         + "Resume picks up exactly where you left off.\n\n"
-         + "Start Fresh opens an empty conversation. The desk keeps its name, folder, "
-         + "instructions and memory files, and anything it saved to them. What was only said "
-         + "in the chat won't be in its head.\n\n"
-         + "Nothing is deleted. To go back to the old conversation, \(howToGoBack(desk.runtime)).")
+    public struct Question: Equatable {
+        public let title: String
+        public let body: String
+        /// Which button Return presses. Resume, unless the desk was wrapped
+        /// up on its way out: then a clean start is what was asked for.
+        public let freshIsDefault: Bool
     }
 
-    /// One line for the Stop Desk dialog.
-    public static func stopNote(_ c: ConversationInfo) -> String {
-        "Its conversation is about \(short(c.tokens)) tokens. After a break, the first message "
-        + "re-sends all of it once, whether or not the desk was stopped."
+    /// Opening a desk. Leads with what resuming does, so the choice reads as
+    /// an option and not a warning.
+    public static func question(desk: Desk, _ c: ConversationInfo?, wrappedAt: Date?,
+                                now: Date = Date()) -> Question {
+        let back = "Nothing is deleted either way: to reopen an older conversation, \(howToGoBack(desk.runtime))."
+        if let w = wrappedAt {
+            return Question(
+                title: "Start \(desk.name) fresh?",
+                body: "You wrapped \(desk.name) up \(ago(w, now: now)), so what was worth keeping is in its notes.\n\n"
+                    + "Start Fresh opens a clean conversation: same desk, same folder, instructions and memory files. "
+                    + "Pick Up Where I Left Off reloads the whole previous conversation"
+                    + (c.map { " (about \(short($0.tokens)) tokens)" } ?? "") + ".\n\n" + back,
+                freshIsDefault: true)
+        }
+        let size = c.map { "about \(short($0.tokens)) tokens" } ?? "large"
+        let when = c.map { ", last used \(ago($0.lastUsed, now: now))" } ?? ""
+        return Question(
+            title: "Pick up where you left off in \(desk.name)?",
+            body: "\(desk.name) will pick up this conversation right where it was. It's \(size)\(when), "
+                + "so your first message sends all of it once more, at a little over the usual price.\n\n"
+                + "If the topic has moved on, you can start a clean conversation instead. The desk keeps its "
+                + "name, folder, instructions and memory files; what was only said in the chat stays in the "
+                + "old conversation.\n\n" + back,
+            freshIsDefault: false)
     }
+
+    /// Stopping a desk. Says first, plainly, that nothing is lost: stopping
+    /// and opening a desk brings its conversation back, and that is still the
+    /// default. Wrapping up is offered as finishing a topic, not as a rescue.
+    public static func stopBody(desk: Desk, memory: String?, _ c: ConversationInfo?) -> String {
+        var s = "Ends its processes" + (memory.map { " and frees about \($0)" } ?? "") + ". "
+              + "When you open it again, it picks up this conversation right where you left off."
+        if let c, c.tokens >= bigTokens {
+            s += "\n\nDone with this topic? Wrap Up first: \(desk.name) saves what's worth keeping to its "
+               + "notes, so next time you can start clean instead of reloading about \(short(c.tokens)) tokens."
+        }
+        return s
+    }
+
+    /// Whether Stop offers Wrap Up at all: only where it would matter, and
+    /// only where Coldfall can actually start the desk fresh afterwards.
+    public static func offersWrapUp(desk: Desk, _ c: ConversationInfo?) -> Bool {
+        guard desk.runtime == "claude", desk.freshCommand() != nil, let c else { return false }
+        return c.tokens >= bigTokens
+    }
+
+    /// What Wrap Up types into the desk. Worded to use whatever memory the
+    /// desk already keeps, rather than inventing a file of Coldfall's own.
+    public static let wrapUpPrompt =
+        "We're wrapping up this conversation. Save anything from it that's worth keeping to your "
+      + "memory or notes, the way you normally would, so a fresh conversation can pick it up. "
+      + "Then reply with one short line saying what you saved."
 }
 
 extension Desk {

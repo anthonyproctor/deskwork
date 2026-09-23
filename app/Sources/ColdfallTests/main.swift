@@ -1429,14 +1429,45 @@ do {
     let small = ConversationInfo(path: "/x", tokens: 40_000, lastUsed: now.addingTimeInterval(-3 * 86_400))
     check("reopen: nor a small one, however old", !Reopen.shouldAsk(small, now: now))
 
-    let q = Reopen.question(desk: cpa, big, now: now)
+    // opening, not wrapped up: leads with picking up where it was
+    let q = Reopen.question(desk: cpa, big, wrappedAt: nil, now: now)
+    check("reopen: leads with what resuming does", q.body.hasPrefix("cpa will pick up this conversation right where it was"))
     check("reopen: says the size and the age", q.body.contains("600K") && q.body.contains("3 days ago"))
-    check("reopen: says what a fresh start keeps",
+    check("reopen: says what a clean start keeps",
           q.body.contains("keeps its name, folder, instructions and memory files"))
-    check("reopen: says what it drops", q.body.contains("only said in the chat"))
+    check("reopen: and where the rest stays", q.body.contains("stays in the old conversation"))
     check("reopen: and that nothing is deleted", q.body.contains("Nothing is deleted") && q.body.contains("/resume"))
-    check("reopen: the stop dialog says the break is the cost, not the stop",
-          Reopen.stopNote(big).contains("whether or not the desk was stopped"))
+    check("reopen: picking up is the default", !q.freshIsDefault)
+
+    // opening after a wrap-up: a clean start is what was asked for
+    let wrapped = Reopen.question(desk: cpa, big, wrappedAt: now.addingTimeInterval(-7200), now: now)
+    check("reopen: after a wrap-up, starting fresh is the default", wrapped.freshIsDefault)
+    check("reopen: and it says why", wrapped.body.contains("You wrapped cpa up 2 hours ago"))
+
+    // when to ask at all
+    check("reopen: a wrapped-up desk is asked even when small",
+          Reopen.shouldAsk(desk: cpa, small, wrapped: true, enabled: true, now: now))
+    check("reopen: nothing is asked with the switch off",
+          !Reopen.shouldAsk(desk: cpa, big, wrapped: true, enabled: false, now: now))
+    var quiet = cpa; quiet.alwaysResume = true
+    check("reopen: nor for a desk told not to ask",
+          !Reopen.shouldAsk(desk: quiet, big, wrapped: false, enabled: true, now: now))
+    var noFresh = cpa; noFresh.fresh = nil
+    check("reopen: nor where it can't start fresh",
+          !Reopen.shouldAsk(desk: noFresh, big, wrapped: false, enabled: true, now: now))
+
+    // stopping: says first that nothing is lost; wrap up is an option
+    let stop = Reopen.stopBody(desk: cpa, memory: "820 MB", big)
+    check("stop: says first that it picks up where you left off",
+          stop.hasPrefix("Ends its processes and frees about 820 MB. When you open it again, it picks up this conversation right where you left off."))
+    check("stop: wrap up is framed as finishing a topic", stop.contains("Done with this topic? Wrap Up first"))
+    check("stop: and never as saving something from loss",
+          !stop.lowercased().contains("lose") && !stop.lowercased().contains("lost") && !stop.lowercased().contains("forget"))
+    check("stop: a small conversation isn't offered a wrap up", !Reopen.offersWrapUp(desk: cpa, small))
+    check("stop: a big one is", Reopen.offersWrapUp(desk: cpa, big))
+    check("stop: the small one's text has no wrap-up line", !Reopen.stopBody(desk: cpa, memory: nil, small).contains("Wrap Up"))
+    check("wrap up: asks the desk to use its own memory, not a file of ours",
+          Reopen.wrapUpPrompt.contains("your memory or notes, the way you normally would"))
 
     // a built-in Claude desk starts fresh with a new named conversation
     let built = Desk(name: "api", runtime: "claude", cwd: cwd)
@@ -1574,6 +1605,28 @@ do {
                                 canReveal: true, canMakeDefault: true, hasInventory: false, hasMcp: false)
     check("menu: a hidden desk offers to come back", hidden.contains { $0.action == .unhide })
     check("menu: and is not offered hiding twice", !hidden.contains { $0.action == .hide })
+}
+
+do {
+    let on = DeskMenu.items(runtime: "claude", running: true, hidden: false, canReveal: false,
+                            canMakeDefault: false, hasInventory: true, hasMcp: true, askResume: true)
+    let item = on.first { $0.action == .askResume }
+    eq("menu: asking before reopening is a checkmark, on", item?.checked, true)
+    check("menu: and says what off means", item?.subtitle?.contains("always picks up where you left off") == true)
+    let off = DeskMenu.items(runtime: "claude", running: false, hidden: false, canReveal: false,
+                             canMakeDefault: false, hasInventory: true, hasMcp: true, askResume: false)
+    eq("menu: switched off for a desk, it shows off", off.first { $0.action == .askResume }?.checked, false)
+    let none = DeskMenu.items(runtime: "copilot", running: false, hidden: false, canReveal: false,
+                              canMakeDefault: false, hasInventory: true, hasMcp: false)
+    check("menu: not offered where a desk can't start fresh", !none.contains { $0.action == .askResume })
+    check("menu: remove is still kept apart", DeskMenu.destructiveIsIsolated(on))
+
+    // desks.toml remembers "don't ask"
+    var d = Desk(name: "cpa", runtime: "claude", command: "desk money"); d.fresh = "desk money new"; d.alwaysResume = true
+    let tmp = NSTemporaryDirectory() + "coldfall-ask-\(UUID().uuidString).toml"
+    DeskConfig.write([d], to: tmp)
+    eq("menu: don't ask is saved per desk", DeskConfig.load(path: tmp).first?.alwaysResume, true)
+    try? FileManager.default.removeItem(atPath: tmp)
 }
 
 // MARK: - one look answers for every desk

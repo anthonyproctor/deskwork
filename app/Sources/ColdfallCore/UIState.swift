@@ -14,6 +14,12 @@ public struct UIState: Codable {
     public var liveRail: Bool = false
     /// Agents whose "add a desk" offer was waved off with Not now.
     public var dismissedOffers: [String] = []
+    /// Whether reopening a big, idle conversation asks about starting fresh
+    /// at all. Settings has the switch; a desk can also opt out on its own.
+    public var offerFreshStart: Bool = true
+    /// Desks that were wrapped up when last stopped: name -> when. Cleared
+    /// when the desk starts again, whichever way it starts.
+    public var wrappedUp: [String: Double] = [:]
 
     public init() {}
 
@@ -36,6 +42,8 @@ public struct UIState: Codable {
         meterHidden     = try c.decodeIfPresent(Bool.self, forKey: .meterHidden) ?? false
         liveRail        = try c.decodeIfPresent(Bool.self, forKey: .liveRail) ?? false
         dismissedOffers = try c.decodeIfPresent([String].self, forKey: .dismissedOffers) ?? []
+        offerFreshStart = try c.decodeIfPresent(Bool.self, forKey: .offerFreshStart) ?? true
+        wrappedUp = try c.decodeIfPresent([String: Double].self, forKey: .wrappedUp) ?? [:]
     }
 
     public static var path: String { NSString(string: "~/.config/coldfall/ui.json").expandingTildeInPath }

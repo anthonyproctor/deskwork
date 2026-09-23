@@ -42,11 +42,13 @@ case "menu":
     let d = name.flatMap { n in DeskConfig.load().first { $0.name == n } } ?? Desk(name: "example")
     out(DeskMenu.items(runtime: d.runtime, running: true, hidden: d.hidden,
                        canReveal: d.agent != nil, canMakeDefault: !d.isDefault,
-                       hasInventory: d.runtime != "shell", hasMcp: ["claude", "codex"].contains(d.runtime))
+                       hasInventory: d.runtime != "shell", hasMcp: ["claude", "codex"].contains(d.runtime),
+                       askResume: d.runtime == "claude" && d.freshCommand() != nil ? !d.alwaysResume : nil)
         .map { e -> [String: Any] in
             var o: [String: Any] = ["action": e.action.rawValue, "title": e.title]
             if let s = e.subtitle { o["subtitle"] = s }
             if let s = e.symbol { o["symbol"] = s }
+            if let c = e.checked { o["checked"] = c }
             o["tone"] = e.tone == .danger ? "danger" : (e.tone == .caution ? "caution" : "normal")
             return o
         })
@@ -89,7 +91,7 @@ case "reopen":
             var o: [String: Any] = ["desk": d.name, "tokens": c.tokens,
                                     "lastUsed": Reopen.ago(c.lastUsed), "wouldAsk": Reopen.shouldAsk(c),
                                     "canStartFresh": d.freshCommand() != nil]
-            if Reopen.shouldAsk(c) { o["question"] = Reopen.question(desk: d, c).body }
+            if Reopen.shouldAsk(c) { o["question"] = Reopen.question(desk: d, c, wrappedAt: nil).body }
             return o
         })
 

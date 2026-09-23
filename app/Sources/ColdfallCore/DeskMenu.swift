@@ -23,7 +23,7 @@ public enum DeskMenu {
     }
 
     public enum Action: String, Equatable {
-        case reveal, makeDefault, rename, inventory, mcp, stop, hide, unhide, remove, separator
+        case reveal, makeDefault, rename, inventory, mcp, askResume, stop, hide, unhide, remove, separator
     }
 
     public struct Entry: Equatable {
@@ -34,18 +34,22 @@ public enum DeskMenu {
         /// SF Symbol name, or nil for no icon.
         public let symbol: String?
         public let tone: Tone
+        /// A checkmark, for an entry that is a setting.
+        public let checked: Bool?
         public init(_ action: Action, _ title: String, subtitle: String? = nil,
-                    symbol: String? = nil, tone: Tone = .normal) {
+                    symbol: String? = nil, tone: Tone = .normal, checked: Bool? = nil) {
             self.action = action; self.title = title
-            self.subtitle = subtitle; self.symbol = symbol; self.tone = tone
+            self.subtitle = subtitle; self.symbol = symbol; self.tone = tone; self.checked = checked
         }
         public static let separator = Entry(.separator, "")
     }
 
     /// The menu for one desk.
+    /// `askResume`: whether opening this desk asks about starting fresh, or
+    /// nil where that doesn't apply (it can't be started fresh).
     public static func items(runtime: String, running: Bool, hidden: Bool,
                              canReveal: Bool, canMakeDefault: Bool,
-                             hasInventory: Bool, hasMcp: Bool) -> [Entry] {
+                             hasInventory: Bool, hasMcp: Bool, askResume: Bool? = nil) -> [Entry] {
         var out: [Entry] = []
         if canReveal {
             out.append(Entry(.reveal, "Reveal Agent Definition", symbol: "doc.text.magnifyingglass"))
@@ -61,6 +65,12 @@ public enum DeskMenu {
         }
         if hasMcp {
             out.append(Entry(.mcp, "MCP Servers…", symbol: "switch.2"))
+        }
+        if let ask = askResume {
+            out.append(Entry(.askResume, "Ask Before Reopening a Big Conversation",
+                             subtitle: "Offers a clean start when a big conversation has sat for an hour. "
+                                     + "Off means it always picks up where you left off.",
+                             checked: ask))
         }
         if running {
             out.append(.separator)

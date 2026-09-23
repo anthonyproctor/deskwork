@@ -43,6 +43,10 @@ final class DeskRow: NSView {
     var onInventory: (() -> Void)?
     var onHide: (() -> Void)?
     var onUnhide: (() -> Void)?
+    /// Toggle whether opening this desk asks about starting fresh. Nil where
+    /// it can't be started fresh, so the item isn't offered.
+    var onToggleAskResume: (() -> Void)?
+    var asksResume = true
     /// Drag to reorder. Points are in the row's superview (the rail).
     var onDragMoved: ((NSPoint) -> Void)?
     var onDragEnded: ((NSPoint) -> Void)?
@@ -233,7 +237,8 @@ final class DeskRow: NSView {
         let m = NSMenu()
         let entries = DeskMenu.items(runtime: runtime, running: status.running, hidden: onUnhide != nil,
                                      canReveal: onReveal != nil, canMakeDefault: onMakeDefault != nil,
-                                     hasInventory: onInventory != nil, hasMcp: onMcp != nil)
+                                     hasInventory: onInventory != nil, hasMcp: onMcp != nil,
+                                     askResume: onToggleAskResume != nil ? asksResume : nil)
         for e in entries {
             guard e.action != .separator else { m.addItem(NSMenuItem.separator()); continue }
             let sel: Selector
@@ -246,12 +251,14 @@ final class DeskRow: NSView {
             case .stop:        sel = #selector(stop)
             case .hide:        sel = #selector(hide)
             case .unhide:      sel = #selector(unhide)
+            case .askResume:   sel = #selector(toggleAskResume)
             case .remove:      sel = #selector(remove)
             case .separator:   continue
             }
             let it = NSMenuItem(title: e.title, action: sel, keyEquivalent: "")
             it.target = self
             it.toolTip = e.subtitle
+            if let c = e.checked { it.state = c ? .on : .off }
             // The line underneath says what the item does, which is the
             // difference between stopping a desk and removing it.
             if #available(macOS 14.4, *), let sub = e.subtitle { it.subtitle = sub }
@@ -281,6 +288,7 @@ final class DeskRow: NSView {
     @objc private func inventory() { onInventory?() }
     @objc private func hide() { onHide?() }
     @objc private func unhide() { onUnhide?() }
+    @objc private func toggleAskResume() { onToggleAskResume?() }
     @objc private func reveal() { onReveal?() }
     @objc private func makeDefault() { onMakeDefault?() }
 }

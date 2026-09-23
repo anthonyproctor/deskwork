@@ -220,7 +220,18 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
 
         // Four tabs instead of one column. The single column was taller than
         // a laptop screen, and the window could not be made to fit it.
-        let deskSide = NSStackView(views: [form, btns])
+        // Reopening lives with the desks it applies to.
+        let freshSwitch = NSButton(checkboxWithTitle: "Offer a clean start when reopening a big conversation",
+                                   target: self, action: #selector(toggleFreshStart(_:)))
+        freshSwitch.state = UIState.load().offerFreshStart ? .on : .off
+        let reopen = NSStackView(views: [
+            caps("REOPENING DESKS"), freshSwitch,
+            note("When a conversation of 150K tokens or more has sat for an hour, opening its desk asks "
+               + "whether to pick up where you left off or start clean. Off, every desk always picks up "
+               + "where it left off. To switch one desk on its own, right-click it.", width: 350),
+        ])
+        reopen.orientation = .vertical; reopen.alignment = .leading; reopen.spacing = 6
+        let deskSide = NSStackView(views: [form, reopen, btns])
         deskSide.orientation = .vertical; deskSide.alignment = .leading; deskSide.spacing = 10
         let desksTab = NSStackView(views: [tScroll, deskSide])
         desksTab.orientation = .horizontal; desksTab.alignment = .top; desksTab.spacing = 16
@@ -408,6 +419,10 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
         dirty = true
         table.reloadData()
+    }
+
+    @objc private func toggleFreshStart(_ sender: NSButton) {
+        NotificationCenter.default.post(name: .coldfallFreshStartChanged, object: sender.state == .on)
     }
 
     @objc private func toggleUpdateCheck(_ sender: NSButton) {

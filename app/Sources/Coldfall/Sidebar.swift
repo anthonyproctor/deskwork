@@ -17,6 +17,7 @@ final class SidebarView: NSView {
     var onInventoryDesk: ((Int) -> Void)?
     var onHideDesk: ((Int) -> Void)?
     var onUnhideDesk: ((Int) -> Void)?
+    var onToggleAskResume: ((Int) -> Void)?
     /// Hidden desks listed at the bottom of the rail. Not saved: hidden is
     /// the point, so the list folds away again on the next launch.
     var showHidden = false
@@ -237,6 +238,11 @@ final class SidebarView: NSView {
                 // checked (see McpTrim).
                 r.onMcp = ["claude", "codex"].contains(d.runtime) ? { [weak self] in self?.onMcpDesk?(i) } : nil
                 r.onInventory = d.runtime == "shell" ? nil : { [weak self] in self?.onInventoryDesk?(i) }
+                // Only where the desk can be started fresh at all.
+                if d.runtime == "claude", d.freshCommand() != nil {
+                    r.asksResume = !d.alwaysResume
+                    r.onToggleAskResume = { [weak self] in self?.onToggleAskResume?(i) }
+                }
                 r.status = status[d.name] ?? DeskStatus()
                 r.tick = tick
                 addSubview(r)

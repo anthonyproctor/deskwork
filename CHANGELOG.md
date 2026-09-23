@@ -9,14 +9,20 @@ opens this file.
 ## [Unreleased]
 
 ### Added
-- **Resume or start fresh.** When you open a desk whose conversation is big
-  (150K tokens or more) and hasn't been used for an hour, Coldfall asks
-  first, because the first message will re-send all of it at more than the
-  usual price. Resume is the default and does exactly what it always did.
-  Start Fresh opens an empty conversation; the desk keeps its name, folder,
-  instructions and memory files, and the old conversation isn't deleted
-  (`/resume` in the desk brings it back). Stop Desk now says how big the
-  conversation is, and that the break, not the stop, is what costs.
+- **Pick up where you left off, or start clean.** A desk still picks up its
+  conversation when you open it; that's the default and nothing about it
+  changed. When a big one (150K tokens or more) has sat for an hour, opening
+  the desk offers a clean start too, because the first message would
+  re-send all of it at a little over the usual price. A clean start keeps
+  the desk's name, folder, instructions and memory files, and nothing is
+  deleted: `/resume` in the desk reopens the old conversation.
+- **Wrap Up & Stop.** Stopping a desk with a big conversation says first
+  that it will pick up where you left off, then offers Wrap Up for when
+  you're done with a topic: the desk saves what's worth keeping to its own
+  notes, you check it, and next time a clean start is the suggestion.
+- The question can be switched off for every desk (Settings, Desks) or one
+  desk (right-click it, Ask Before Reopening a Big Conversation, or "Don't
+  ask" in the dialog itself).
 - Where it went counts **cache rebuilds**: each time a big conversation
   was picked up after its cache lapsed, and what that cost.
 - Two desk settings for desks that run their own script: `fresh`, the

@@ -145,7 +145,7 @@ cwd     = "~/notes"
 
 **Leaving.** Coldfall launches the vendors' CLIs and never replaces them, so nothing it does is load-bearing for your agents. Everything of its own is in `~/.config/coldfall` and `~/.local/share/coldfall`; the one thing it changes elsewhere is `statusLine` in a Claude account's `settings.json`, if you turned on live limits. **Project Coldfall ▸ Remove Project Coldfall's Files…** lists all of it with sizes, puts the statusline back, and deletes the two folders; then quit and drag the app to the Trash.
 
-**Resume or start fresh.** A desk resumes its conversation by default. When a big one (150K tokens or more) hasn't been used for an hour, opening the desk asks first: resuming re-sends all of it once at cache-rebuild prices, and a fresh start is often what the moment wants. Nothing is deleted either way. A desk that runs its own script can say how to start fresh, and what its conversation is called if that isn't the desk's name:
+**Pick up where you left off, or start clean.** A desk picks up its conversation by default. When a big one (150K tokens or more) has sat for an hour, opening the desk also offers a clean start, since the first message would re-send all of it at cache-rebuild prices. Stopping such a desk offers **Wrap Up & Stop**: the desk saves what's worth keeping to its own notes first, and next time the clean start is the suggestion. Nothing is deleted either way. Settings, Desks turns the question off everywhere; right-click a desk to turn it off for that desk (`always_resume = true`). A desk that runs its own script can say how to start fresh, and what its conversation is called if that isn't the desk's name:
 
 ```toml
 [desk.cpa]

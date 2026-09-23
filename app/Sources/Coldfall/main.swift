@@ -197,6 +197,20 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onMcpDesk = { [weak self] i in self?.editMcp(i) }
         sidebar.onInventoryDesk = { [weak self] i in self?.showInventory(i) }
         sidebar.onHideDesk = { [weak self] i in self?.hideDesk(i) }
+        // The switch lives in Settings; the state lives here, and is what
+        // gets saved, so Settings says what to set rather than writing it.
+        NotificationCenter.default.addObserver(forName: .coldfallFreshStartChanged, object: nil, queue: .main) {
+            [weak self] n in
+            guard let self, let on = n.object as? Bool else { return }
+            self.ui.offerFreshStart = on
+            self.ui.save()
+        }
+        sidebar.onToggleAskResume = { [weak self] i in
+            guard let self, self.desks.indices.contains(i) else { return }
+            self.desks[i].alwaysResume.toggle()
+            self.persist()
+            self.refreshRail()
+        }
         sidebar.onUnhideDesk = { [weak self] i in self?.unhideDesk(i) }
         sidebar.onStopDesk = { [weak self] i in self?.stopDesk(i) }
         sidebar.onMoveDesk = { [weak self] i, d in self?.moveDesk(i, to: d) }
@@ -597,9 +611,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// for everything else: this only ever adds a choice.
     func startOrAsk(_ s: DeskSession, _ d: Desk) {
         guard !s.started, !s.holding else { return }
-        // Only where Coldfall can actually start it fresh, and never in a
-        // snapshot, which must not block on a dialog.
-        guard d.runtime == "claude", d.freshCommand() != nil,
+        let wrappedAt = ui.wrappedUp[d.name].map { Date(timeIntervalSince1970: $0) }
+        // A wrap-up is answered by this start, whichever way it goes.
+        if wrappedAt != nil { ui.wrappedUp[d.name] = nil; ui.save() }
+        // Only where Coldfall can actually start it fresh, only if asking is
+        // on, and never in a snapshot, which must not block on a dialog.
+        guard d.runtime == "claude", d.freshCommand() != nil, ui.offerFreshStart, !d.alwaysResume,
               !CommandLine.arguments.contains("--snapshot") else { s.startIfNeeded(); return }
         s.holding = true
         DispatchQueue.global(qos: .userInitiated).async {
@@ -607,14 +624,30 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 s.holding = false
-                guard let c = convo, Reopen.shouldAsk(c) else { s.startIfNeeded(); return }
-                let q = Reopen.question(desk: d, c)
+                guard Reopen.shouldAsk(desk: d, convo, wrapped: wrappedAt != nil,
+                                       enabled: self.ui.offerFreshStart) else { s.startIfNeeded(); return }
+                let q = Reopen.question(desk: d, convo, wrappedAt: wrappedAt)
                 let a = NSAlert()
                 a.messageText = q.title
                 a.informativeText = q.body
-                a.addButton(withTitle: "Resume")          // the default, and Return
-                a.addButton(withTitle: "Start Fresh")
-                guard a.runModal() == .alertSecondButtonReturn, let cmd = d.freshCommand() else {
+                // Return presses the first button: picking up where you left
+                // off, unless the desk was wrapped up for a clean start.
+                let resumeTitle = "Pick Up Where I Left Off", freshTitle = "Start Fresh"
+                if q.freshIsDefault {
+                    a.addButton(withTitle: freshTitle); a.addButton(withTitle: resumeTitle)
+                } else {
+                    a.addButton(withTitle: resumeTitle); a.addButton(withTitle: freshTitle)
+                }
+                a.showsSuppressionButton = true
+                a.suppressionButton?.title = "Don't ask for \(d.name); always pick up where I left off"
+                let r = a.runModal()
+                if a.suppressionButton?.state == .on,
+                   let i = self.desks.firstIndex(where: { $0.name == d.name }) {
+                    self.desks[i].alwaysResume = true
+                    self.persist()
+                }
+                let fresh = q.freshIsDefault ? r == .alertFirstButtonReturn : r == .alertSecondButtonReturn
+                guard fresh, let cmd = d.freshCommand() else {
                     s.startIfNeeded(); return
                 }
                 // A conversation pinned by id would bring the old one back
@@ -897,16 +930,66 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         guard desks.indices.contains(i), let s = sessions[desks[i].name], s.started else { return }
         let d = desks[i]
         let a = NSAlert()
-        a.messageText = "Stop the \(d.name) desk?"
-        var info = "Ends its processes"
-        if let m = memory[d.name] { info += " and frees about \(m)" }
-        info += ". Click the desk to start it again."
-        if let after = Resume.afterRestart(d) { info += "\n\n" + after }
-        if let c = Reopen.claude(d), c.tokens >= Reopen.bigTokens { info += "\n\n" + Reopen.stopNote(c) }
-        a.informativeText = info
-        a.addButton(withTitle: "Stop"); a.addButton(withTitle: "Cancel")
-        guard a.runModal() == .alertFirstButtonReturn else { return }
-        endDesk(d)
+        a.messageText = "Stop \(d.name)?"
+        // Whether this desk is known to come back where it was: Coldfall
+        // resumes it, or its script says how to start fresh (and so resumes
+        // by default). Only then can the dialog promise that.
+        let resumes = d.resumesItself || d.fresh != nil
+        let convo = resumes ? Reopen.claude(d) : nil
+        if resumes {
+            a.informativeText = Reopen.stopBody(desk: d, memory: memory[d.name], convo)
+        } else {
+            var info = "Ends its processes"
+            if let m = memory[d.name] { info += " and frees about \(m)" }
+            info += ". Click the desk to start it again."
+            if let after = Resume.afterRestart(d) { info += "\n\n" + after }
+            a.informativeText = info
+        }
+        a.addButton(withTitle: "Stop")                       // the default
+        let wrap = resumes && Reopen.offersWrapUp(desk: d, convo)
+        if wrap { a.addButton(withTitle: "Wrap Up & Stop") }
+        a.addButton(withTitle: "Cancel")
+        let r = a.runModal()
+        if r == .alertFirstButtonReturn { endDesk(d); return }
+        if wrap, r == .alertSecondButtonReturn { wrapUp(d, s) }
+    }
+
+    /// Ask the desk to save what's worth keeping, then offer to stop it once
+    /// it has answered. It never stops by itself: an agent that stops talking
+    /// may be waiting for permission to write its notes, and stopping it
+    /// then would save nothing. So the person looks, and decides.
+    func wrapUp(_ d: Desk, _ s: DeskSession) {
+        if let i = desks.firstIndex(where: { $0.name == d.name }) { show(i) }
+        let sent = Date()
+        s.agentTerm.send(txt: Reopen.wrapUpPrompt + "\r")
+        var ticks = 0
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
+            guard let self else { t.invalidate(); return }
+            ticks += 1
+            // Gone: stopped some other way in the meantime.
+            guard self.sessions[d.name] === s else { t.invalidate(); return }
+            let answered = (s.lastOutput ?? .distantPast) > sent.addingTimeInterval(2)
+            let quiet = Date().timeIntervalSince(s.lastOutput ?? .distantPast) >= 6
+            if answered && quiet {
+                t.invalidate()
+                let a = NSAlert()
+                a.messageText = "\(d.name) looks done wrapping up"
+                a.informativeText = "Check the desk: if it's asking for permission to save, answer that first. "
+                    + "Once it's stopped, opening \(d.name) again offers a clean conversation."
+                a.addButton(withTitle: "Stop Now")
+                a.addButton(withTitle: "Keep It Running")
+                guard a.runModal() == .alertFirstButtonReturn else { return }
+                self.ui.wrappedUp[d.name] = Date().timeIntervalSince1970
+                self.ui.save()
+                self.endDesk(d)
+            } else if ticks >= 600 {
+                t.invalidate()
+                let a = NSAlert()
+                a.messageText = "\(d.name) is still wrapping up"
+                a.informativeText = "It's been ten minutes. Stop it from its menu when it's done."
+                a.runModal()
+            }
+        }
     }
 
     /// End a desk's session, already confirmed.
@@ -1908,4 +1991,6 @@ MainActor.assumeIsolated {
 extension Notification.Name {
     /// desks.toml was reloaded; open windows showing desks should refresh.
     static let coldfallDesksReloaded = Notification.Name("coldfallDesksReloaded")
+    /// Settings changed something the controller keeps in ui.json.
+    static let coldfallFreshStartChanged = Notification.Name("coldfallFreshStartChanged")
 }
