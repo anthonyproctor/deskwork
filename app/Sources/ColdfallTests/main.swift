@@ -1410,6 +1410,18 @@ do {
     eq("updates: with the old version in the detail", changes.first?.detail, "Claude Code went from 2.1.279 to 2.1.280.")
     eq("updates: with the vendor's own notes", changes.first?.url, "https://code.claude.com/docs/en/changelog")
     check("updates: an agent seen for the first time is not news", !changes.contains { $0.runtime == "copilot" })
+
+    // A CLI that prints its version, then leaves something running in the
+    // background holding its output open. With a pipe this never returned.
+    let dir = NSTemporaryDirectory() + "coldfall-ver-\(UUID().uuidString)"
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    let cli = dir + "/fakeagent"
+    try? "#!/bin/sh\necho 'fakeagent 3.4.5'\n( sleep 20 ) &\nexit 0\n".write(toFile: cli, atomically: true, encoding: .utf8)
+    try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cli)
+    let started = Date()
+    eq("version: read even when the CLI leaves a process behind", AgentVersions.version(of: cli), "3.4.5")
+    check("version: and without waiting for that process", Date().timeIntervalSince(started) < 5)
+    try? FileManager.default.removeItem(atPath: dir)
 }
 
 // MARK: - what's filling the conversations

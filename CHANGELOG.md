@@ -8,6 +8,12 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- The agent update notice never appeared: reading a CLI's version could
+  wait forever when that CLI left something running in the background, so
+  the check never finished. Output now goes to a file, which a lingering
+  process can't hold open.
+
 ## [0.3.13] - 2026-09-23
 
 Where your tokens go, and what to change; picking up where you left off, or starting clean.

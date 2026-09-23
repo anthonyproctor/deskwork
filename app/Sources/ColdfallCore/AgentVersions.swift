@@ -66,21 +66,34 @@ public enum AgentVersions {
     public static func current(runtimes: [Bridge.Runtime] = Bridge.known) -> [String: String] {
         var out: [String: String] = [:]
         for rt in runtimes {
-            guard let bin = DeskConfig.which(rt.bin) else { continue }
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: bin)
-            p.arguments = ["--version"]
-            let pipe = Pipe()
-            p.standardOutput = pipe
-            p.standardError = pipe
-            p.standardInput = FileHandle.nullDevice
-            guard (try? p.run()) != nil else { continue }
-            let deadline = Date().addingTimeInterval(5)
-            while p.isRunning && Date() < deadline { usleep(50_000) }
-            if p.isRunning { p.terminate(); continue }
-            let text = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            if let v = parse(text) { out[rt.name] = v }
+            guard let bin = DeskConfig.which(rt.bin), let v = version(of: bin) else { continue }
+            out[rt.name] = v
         }
         return out
+    }
+
+    /// One CLI's version. Its output goes to a file, not a pipe: a CLI that
+    /// leaves something running in the background (an updater, a daemon)
+    /// holds a pipe open after it exits, and reading the pipe "to the end"
+    /// then waits forever. That hung the whole check on a real Mac, so no
+    /// version was ever recorded and no update was ever noticed.
+    public static func version(of bin: String, timeout: TimeInterval = 5) -> String? {
+        let tmp = NSTemporaryDirectory() + "coldfall-version-\(UUID().uuidString).txt"
+        FileManager.default.createFile(atPath: tmp, contents: nil)
+        defer { try? FileManager.default.removeItem(atPath: tmp) }
+        guard let fh = FileHandle(forWritingAtPath: tmp) else { return nil }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: bin)
+        p.arguments = ["--version"]
+        p.standardOutput = fh
+        p.standardError = fh
+        p.standardInput = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { try? fh.close(); return nil }
+        let deadline = Date().addingTimeInterval(timeout)
+        while p.isRunning && Date() < deadline { usleep(50_000) }
+        if p.isRunning { p.terminate() }
+        try? fh.close()
+        guard let data = FileManager.default.contents(atPath: tmp) else { return nil }
+        return parse(String(decoding: data, as: UTF8.self))
     }
 }
