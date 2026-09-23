@@ -46,6 +46,12 @@ public struct Tokenomics {
         /// history, so it read as 800K tokens of "overhead" that was really
         /// the conversation itself.
         public var floor: Int = 0
+        /// Turns that rebuilt a big conversation's cache: coming back to it
+        /// after the cache had expired. Most of that turn is written to cache
+        /// at a quarter over the normal price.
+        public var rebuilds = 0
+        /// What those rebuilds cost, at list prices.
+        public var rebuildUsd: Double = 0
         public var input: Int { fresh + cacheRead + cacheWrite }
         public var total: Int { input + output }
         public var perTurn: Double { turns > 0 ? Double(total) / Double(turns) : 0 }
@@ -143,7 +149,12 @@ public struct Tokenomics {
         out.output += s.output; out.usd += s.usd
         for (m, n) in s.byModel { out.byModel[m, default: 0] += n }
         if s.floor > 0, out.floor == 0 || s.floor < out.floor { out.floor = s.floor }
+        out.rebuilds += s.rebuilds; out.rebuildUsd += s.rebuildUsd
     }
+
+    /// A cache write this big is a conversation being rebuilt, not one
+    /// growing by a message.
+    public static let rebuildTokens = 50_000
 
     /// One transcript. Records are deduplicated on message id, as in Usage: a
     /// streamed reply is written more than once and counting each would
@@ -185,6 +196,12 @@ public struct Tokenomics {
                 s.byModel[family(model), default: 0] += fresh + write + read + out
                 let sent = fresh + write + read
                 if sent > 0, s.floor == 0 || sent < s.floor { s.floor = sent }
+                // A rebuild: most of a big turn written to cache rather than
+                // read from it. That is a conversation picked up after a break.
+                if write >= Tokenomics.rebuildTokens, write > read {
+                    s.rebuilds += 1
+                    s.rebuildUsd += 1.25 * Double(write) / 1e6 * pin
+                }
             }
             add(&t.all)
             if let name = desk, !name.isEmpty {
@@ -203,7 +220,7 @@ extension Tokenomics {
 
     public struct Note: Equatable {
         /// What it is about, so the app can order and colour them.
-        public enum Kind: String, Equatable { case cache, start, model, desk }
+        public enum Kind: String, Equatable { case cache, start, model, desk, rebuild }
         public let kind: Kind
         /// The finding, in numbers from this week.
         public let finding: String
@@ -235,6 +252,20 @@ extension Tokenomics {
             out.append(Note(.cache,
                 String(format: "%.0f%% of your input was read from cache, at a tenth of the price.", cacheReadShare * 100),
                 "Nothing to change here. This is the cheap way to work."))
+        }
+
+        // 1b. Coming back to big conversations after a break.
+        if all.rebuilds >= 3, all.rebuildUsd >= 10 {
+            let worst = byDesk.max { $0.value.rebuildUsd < $1.value.rebuildUsd }
+            var finding = String(format: "Coming back to big conversations after a break rebuilt their cache "
+                                 + "%d times this week, about $%.0f.", all.rebuilds, all.rebuildUsd)
+            if let (name, s) = worst, s.rebuildUsd >= all.rebuildUsd * 0.4 {
+                finding += String(format: " %@ was about $%.0f of it.", name, s.rebuildUsd)
+            }
+            out.append(Note(.rebuild, finding,
+                "The break causes this, not stopping the desk: the cache lapses after a few minutes "
+                + "either way. When you reopen a big desk you haven't used in a while, Coldfall offers "
+                + "to start fresh. Take it when the topic has moved on and what matters is saved."))
         }
 
         // 2. What a desk pays before you type anything.

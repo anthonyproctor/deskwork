@@ -366,8 +366,12 @@ final class DeskSession {
     private var resolving = false
     private var ended = false
 
+    /// Waiting on the person: whether to resume or start fresh. Nothing
+    /// starts while this is set, so a second click can't start it twice.
+    var holding = false
+
     func startIfNeeded() {
-        guard !started, !resolving else { return }
+        guard !started, !resolving, !holding else { return }
         let d = desk
         guard d.resumesItself else { startPanes(d.launchCommand()); return }
         resolving = true
@@ -379,6 +383,12 @@ final class DeskSession {
                 if !self.ended { self.startPanes(cmd) }
             }
         }
+    }
+
+    /// Start with a new conversation instead of the one on disk.
+    func startFresh(_ command: String) {
+        guard !started, !resolving, !holding, !ended else { return }
+        startPanes(command)
     }
 
     private func startPanes(_ command: String) {

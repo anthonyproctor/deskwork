@@ -1394,6 +1394,88 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - coming back to a big conversation
+
+do {
+    let fm = FileManager.default
+    let root = NSTemporaryDirectory() + "coldfall-reopen-\(UUID().uuidString)"
+    let cwd = "/srv/demo"
+    let proj = Resume.claudeProjectDir(for: cwd, root: root)
+    try? fm.createDirectory(atPath: proj, withIntermediateDirectories: true)
+    let sid = "22222222-3333-4444-5555-666666666666"
+    // a long transcript: padding first, so the last turn is only found by
+    // reading from the end
+    var lines = [#"{"type":"custom-title","customTitle":"money","sessionId":"x"}"#]
+    lines += Array(repeating: #"{"type":"user","message":{"role":"user","content":"\#(String(repeating: "x", count: 900))"}}"#, count: 800)
+    lines.append(#"{"timestamp":"2026-09-20T10:00:00.000Z","message":{"id":"m1","model":"claude-opus-5","usage":{"input_tokens":3,"cache_creation_input_tokens":2000,"cache_read_input_tokens":600000,"output_tokens":400}}}"#)
+    try? lines.joined(separator: "\n").write(toFile: proj + "/\(sid).jsonl", atomically: true, encoding: .utf8)
+
+    // a script desk called cpa whose conversation is titled "money"
+    var cpa = Desk(name: "cpa", runtime: "claude", cwd: cwd, command: "desk money")
+    check("reopen: a script desk without `fresh` can't start fresh", cpa.freshCommand() == nil)
+    cpa.fresh = "desk money new"
+    eq("reopen: it uses the script's own way", cpa.freshCommand(), "desk money new")
+    eq("reopen: the conversation's title can differ from the desk", Reopen.title(of: cpa), "cpa")
+    check("reopen: and isn't found under the desk's name", Reopen.claude(cpa, root: root) == nil)
+    cpa.conversation = "money"
+    let c = Reopen.claude(cpa, root: root)
+    eq("reopen: found by its conversation title, sized from the last turn", c?.tokens, 602_003)
+
+    let now = Date()
+    let big = ConversationInfo(path: "/x", tokens: 600_000, lastUsed: now.addingTimeInterval(-3 * 86_400))
+    check("reopen: a big conversation left for days is asked about", Reopen.shouldAsk(big, now: now))
+    let warm = ConversationInfo(path: "/x", tokens: 600_000, lastUsed: now.addingTimeInterval(-600))
+    check("reopen: not one used ten minutes ago", !Reopen.shouldAsk(warm, now: now))
+    let small = ConversationInfo(path: "/x", tokens: 40_000, lastUsed: now.addingTimeInterval(-3 * 86_400))
+    check("reopen: nor a small one, however old", !Reopen.shouldAsk(small, now: now))
+
+    let q = Reopen.question(desk: cpa, big, now: now)
+    check("reopen: says the size and the age", q.body.contains("600K") && q.body.contains("3 days ago"))
+    check("reopen: says what a fresh start keeps",
+          q.body.contains("keeps its name, folder, instructions and memory files"))
+    check("reopen: says what it drops", q.body.contains("only said in the chat"))
+    check("reopen: and that nothing is deleted", q.body.contains("Nothing is deleted") && q.body.contains("/resume"))
+    check("reopen: the stop dialog says the break is the cost, not the stop",
+          Reopen.stopNote(big).contains("whether or not the desk was stopped"))
+
+    // a built-in Claude desk starts fresh with a new named conversation
+    let built = Desk(name: "api", runtime: "claude", cwd: cwd)
+    check("reopen: a built-in desk starts fresh without --resume",
+          built.freshCommand().map { !$0.contains("--resume") && $0.contains("-n api") } == true)
+
+    // desks.toml keeps both settings
+    let tmp = NSTemporaryDirectory() + "coldfall-fresh-\(UUID().uuidString).toml"
+    DeskConfig.write([cpa], to: tmp)
+    let back = DeskConfig.load(path: tmp).first
+    eq("reopen: conversation saved", back?.conversation, "money")
+    eq("reopen: fresh saved", back?.fresh, "desk money new")
+    try? fm.removeItem(atPath: tmp)
+    try? fm.removeItem(atPath: root)
+}
+
+// rebuilds: coming back after a break
+do {
+    var t = Tokenomics()
+    let lines = [
+        #"{"type":"custom-title","customTitle":"money"}"#,
+        #"{"timestamp":"2026-09-22T09:00:00.000Z","message":{"id":"r1","model":"claude-opus-5","usage":{"input_tokens":3,"cache_creation_input_tokens":580000,"cache_read_input_tokens":20000,"output_tokens":300}}}"#,
+        #"{"timestamp":"2026-09-22T09:01:00.000Z","message":{"id":"r2","model":"claude-opus-5","usage":{"input_tokens":3,"cache_creation_input_tokens":900,"cache_read_input_tokens":600000,"output_tokens":300}}}"#,
+    ]
+    Tokenomics.read(lines.joined(separator: "\n"), since: Date(timeIntervalSince1970: 0), into: &t)
+    eq("rebuild: the turn after a break is counted", t.byDesk["money"]?.rebuilds, 1)
+    eq("rebuild: a warm turn is not", t.all.rebuilds, 1)
+    check("rebuild: priced as a cache write", abs((t.all.rebuildUsd) - 1.25 * 0.58 * 5) < 0.01)
+
+    var week = Tokenomics()
+    var s = Tokenomics.DeskStats()
+    s.turns = 50; s.cacheRead = 5_000_000; s.cacheWrite = 2_000_000; s.output = 10_000
+    s.rebuilds = 6; s.rebuildUsd = 40; s.byModel = ["sonnet": 1]
+    week.all = s; week.byDesk = ["money": s]
+    let n = week.notes().first { $0.kind == .rebuild }
+    check("rebuild: named in the advice, with its cost", n?.finding.contains("6 times") == true && n?.finding.contains("$40") == true)
+    check("rebuild: and says the break is the cause, not the stop", n?.advice.contains("not stopping the desk") == true)
+}
+
 // MARK: - where the week went
 
 func turn(_ model: String, fresh: Int, write: Int, read: Int, out: Int, id: String, at: String) -> String {

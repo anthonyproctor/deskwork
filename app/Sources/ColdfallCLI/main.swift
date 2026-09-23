@@ -79,6 +79,20 @@ case "tokenomics":
         },
     ])
 
+case "reopen":
+    // What reopening each Claude desk would cost, and whether Coldfall would
+    // ask before resuming it.
+    let only = args.count > 1 ? args[1] : nil
+    out(DeskConfig.load().filter { $0.runtime == "claude" && (only == nil || $0.name == only) }
+        .compactMap { d -> [String: Any]? in
+            guard let c = Reopen.claude(d) else { return nil }
+            var o: [String: Any] = ["desk": d.name, "tokens": c.tokens,
+                                    "lastUsed": Reopen.ago(c.lastUsed), "wouldAsk": Reopen.shouldAsk(c),
+                                    "canStartFresh": d.freshCommand() != nil]
+            if Reopen.shouldAsk(c) { o["question"] = Reopen.question(desk: d, c).body }
+            return o
+        })
+
 case "limits":
     out(Limits.all().map { l -> [String: Any] in
         var o: [String: Any] = ["vendor": l.vendor, "ageSeconds": Int(l.age)]

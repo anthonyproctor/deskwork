@@ -9,6 +9,20 @@ opens this file.
 ## [Unreleased]
 
 ### Added
+- **Resume or start fresh.** When you open a desk whose conversation is big
+  (150K tokens or more) and hasn't been used for an hour, Coldfall asks
+  first, because the first message will re-send all of it at more than the
+  usual price. Resume is the default and does exactly what it always did.
+  Start Fresh opens an empty conversation; the desk keeps its name, folder,
+  instructions and memory files, and the old conversation isn't deleted
+  (`/resume` in the desk brings it back). Stop Desk now says how big the
+  conversation is, and that the break, not the stop, is what costs.
+- Where it went counts **cache rebuilds**: each time a big conversation
+  was picked up after its cache lapsed, and what that cost.
+- Two desk settings for desks that run their own script: `fresh`, the
+  command that starts it with a new conversation (`desk money new`), and
+  `conversation`, the title its conversation carries when it isn't the
+  desk's name.
 - The usage window has three tabs: **Plans** (what's left of each), **This
   week** (where it went, by vendor, desk and day) and **Where it went** (why:
   cache reuse, model mix, the smallest turn each desk sent, and what to

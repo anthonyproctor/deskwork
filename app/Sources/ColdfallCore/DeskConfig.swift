@@ -26,6 +26,13 @@ public struct Desk {
     /// The folder of the Claude account this desk runs on, e.g.
     /// "~/.claude-second". Unset is the default account (see ClaudeAccount).
     public var account: String?
+    /// The title this desk's conversation carries, when it isn't the desk's
+    /// name: a wrapper script can map `cpa` to a conversation called "money".
+    public var conversation: String?
+    /// For a desk that runs its own command: the command that starts it with
+    /// a NEW conversation (e.g. "desk money new"). Without it, Coldfall can't
+    /// offer a fresh start for that desk, because only the script knows how.
+    public var fresh: String?
     /// The Claude conversation this desk reopens, by id. Set when a built-in
     /// desk is renamed: its conversation is titled with the OLD name, so the
     /// lookup by name would stop finding it. Unset, the desk finds its
@@ -354,6 +361,8 @@ public enum DeskConfig {
             case "model":   current?.model = val
             case "mcp_off": current?.mcpOff = TomlText.stringArray(val) ?? []
             case "account": current?.account = val.isEmpty ? nil : val
+            case "conversation": current?.conversation = val.isEmpty ? nil : val
+            case "fresh":   current?.fresh = val.isEmpty ? nil : val
             case "hidden":  current?.hidden = val == "true"
             case "session": current?.session = UUID(uuidString: val) != nil ? val.lowercased() : nil
             case "cwd":     current?.cwd = val
@@ -479,6 +488,8 @@ public enum DeskConfig {
             if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
             if let m = d.model { out += "model = \"\(TomlText.escape(m))\"\n" }
             if let a = d.account { out += "account = \"\(TomlText.escape(a))\"\n" }
+            if let c = d.conversation { out += "conversation = \"\(TomlText.escape(c))\"\n" }
+            if let f = d.fresh { out += "fresh = \"\(TomlText.escape(f))\"\n" }
             if let s = d.session { out += "session = \"\(TomlText.escape(s))\"\n" }
             if d.hidden { out += "hidden = true\n" }
             if !d.mcpOff.isEmpty {

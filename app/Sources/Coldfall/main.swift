@@ -577,7 +577,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             s.container.trailingAnchor.constraint(equalTo: host.trailingAnchor),
         ])
         if !s.started { checkInventory(d) }
-        s.startIfNeeded()
+        startOrAsk(s, d)
         visible?.isVisible = false
         s.isVisible = true
         visible = s
@@ -590,6 +590,43 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         strip.setContext(d.name)
         updateTermHeader()
         window.makeFirstResponder(s.focusedPane.term)
+    }
+
+    /// Start a desk, first asking about a big conversation that has sat long
+    /// enough for its cache to lapse. Resume is the default and the answer
+    /// for everything else: this only ever adds a choice.
+    func startOrAsk(_ s: DeskSession, _ d: Desk) {
+        guard !s.started, !s.holding else { return }
+        // Only where Coldfall can actually start it fresh, and never in a
+        // snapshot, which must not block on a dialog.
+        guard d.runtime == "claude", d.freshCommand() != nil,
+              !CommandLine.arguments.contains("--snapshot") else { s.startIfNeeded(); return }
+        s.holding = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let convo = Reopen.claude(d)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                s.holding = false
+                guard let c = convo, Reopen.shouldAsk(c) else { s.startIfNeeded(); return }
+                let q = Reopen.question(desk: d, c)
+                let a = NSAlert()
+                a.messageText = q.title
+                a.informativeText = q.body
+                a.addButton(withTitle: "Resume")          // the default, and Return
+                a.addButton(withTitle: "Start Fresh")
+                guard a.runModal() == .alertSecondButtonReturn, let cmd = d.freshCommand() else {
+                    s.startIfNeeded(); return
+                }
+                // A conversation pinned by id would bring the old one back
+                // on the next start; a fresh start means the new one.
+                if let i = self.desks.firstIndex(where: { $0.name == d.name }), self.desks[i].session != nil {
+                    self.desks[i].session = nil
+                    self.persist()
+                    s.desk = self.desks[i]
+                }
+                s.startFresh(cmd)
+            }
+        }
     }
 
     /// cmd-1..9 jumps between desks.
@@ -865,6 +902,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if let m = memory[d.name] { info += " and frees about \(m)" }
         info += ". Click the desk to start it again."
         if let after = Resume.afterRestart(d) { info += "\n\n" + after }
+        if let c = Reopen.claude(d), c.tokens >= Reopen.bigTokens { info += "\n\n" + Reopen.stopNote(c) }
         a.informativeText = info
         a.addButton(withTitle: "Stop"); a.addButton(withTitle: "Cancel")
         guard a.runModal() == .alertFirstButtonReturn else { return }

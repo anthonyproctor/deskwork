@@ -328,6 +328,18 @@ final class MeterPanel: NSWindowController {
             }
         }
 
+        // Coming back to a big conversation after its cache lapsed.
+        let rebuilt = t.byDesk.filter { $0.value.rebuilds > 0 }
+            .sorted { $0.value.rebuildUsd > $1.value.rebuildUsd }.prefix(6)
+        if !rebuilt.isEmpty {
+            stack.addArrangedSubview(caps("COMING BACK AFTER A BREAK  (cache rebuilt at 1.25x)"))
+            for (name, s) in rebuilt {
+                stack.addArrangedSubview(mono(
+                    pad(name, 15) + lpad("\(s.rebuilds)", 9) + (s.rebuilds == 1 ? " time " : " times")
+                    + String(format: "   about $%.0f", s.rebuildUsd)))
+            }
+        }
+
         let notes = t.notes(servers: servers)
         guard !notes.isEmpty else { return }
         stack.addArrangedSubview(caps("WHAT TO CHANGE"))
