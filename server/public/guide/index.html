@@ -249,6 +249,8 @@
       <li><a href="#day">A normal day</a></li>
       <li><a href="#mail">Second opinions</a></li>
       <li><a href="#usage">Watch your usage</a></li>
+      <li><a href="#tokens">Spend less</a></li>
+      <li><a href="#stopping">Stopping and coming back</a></li>
       <li><a href="#lean">Keep desks lean</a></li>
       <li><a href="#keys">Shortcuts</a></li>
       <li><a href="#leaving">If you want out</a></li>
@@ -325,7 +327,8 @@ cwd = "~/notes"</code></pre>
       <li><strong>Jump around</strong> with <kbd>⌘1</kbd> to <kbd>⌘9</kbd> for your first nine desks, or <kbd>⌘P</kbd> to find any desk or file by a few letters.</li>
       <li><strong>Need a plain shell?</strong> <kbd>⌘D</kbd> splits one in beside the agent, in the same desk and folder.</li>
       <li><strong>Files your agents write</strong> open in the reader on the right, with Markdown and PDFs shown properly.</li>
-      <li><strong>Done with a desk for now?</strong> Right-click, Stop Desk. That frees its memory. Claude, Codex and Antigravity desks pick their conversation back up when you click them again.</li>
+      <li><strong>Done with a desk for now?</strong> Right-click, Stop Desk. That frees its memory, and the desk picks up its conversation right where it was when you click it again. More in <a href="#stopping">Stopping and coming back</a>.</li>
+      <li><strong>When one of your agents updates,</strong> the top of the desk list says so, like "Claude Code updated to 2.1.280", with a What's New button that opens the vendor's own release notes.</li>
     </ul>
 
     <h2 id="mail">Second opinions</h2>
@@ -343,11 +346,32 @@ cwd = "~/notes"</code></pre>
     </figure>
 
     <h2 id="usage">Watch your usage</h2>
-    <p>The strip along the bottom shows how much of each plan you've used this week, side by side. When one is running hot and another has room, it says so. Click it, or press <kbd>⇧⌘U</kbd>, for the breakdown by vendor, by desk and by day.</p>
+    <p>The strip along the bottom shows how much of each plan you've used this week, side by side. When one is running hot and another has room, it says so. Click it, or press <kbd>⇧⌘U</kbd>, for the full picture, in three tabs:</p>
     <ul>
-      <li>Codex and Copilot usage is read automatically. For Claude's weekly and five-hour limits, turn on the recorder in Settings; it's one click.</li>
-      <li>Each desk's row also shows how much memory it's using, so the heavy one is easy to spot.</li>
+      <li><strong>Plans:</strong> what's left of each plan this week, and when it resets.</li>
+      <li><strong>This week:</strong> where the tokens went, by agent, by desk and by day.</li>
+      <li><strong>Where it went:</strong> why. How much came from the cache, which models did the work, what each desk carries on every turn, and a short list of what to change, written from your own numbers.</li>
     </ul>
+    <p>Codex and Copilot usage is read automatically. For Claude's weekly and five-hour limits, turn on the recorder in Settings; it's one click. Each desk's row also shows how much memory it's using, so the heavy one is easy to spot.</p>
+    <div class="tip"><p><strong>Using Coldfall doesn't spend tokens.</strong> The meter, the usage window and everything else read files already on your Mac. Only three things send a message to an agent, and only when you click them: agent mail, fan out, and Wrap Up.</p></div>
+
+    <h2 id="tokens">Spend less</h2>
+    <p>Every message to an agent re-sends the whole conversation so far. That's what makes a desk remember, and it's also why a long conversation gets expensive. Three habits keep it in check, and <strong>Where it went</strong> shows which ones matter for you:</p>
+    <ul>
+      <li><strong>Keep sittings together.</strong> On Claude, a conversation you came back to within the hour is read from the cache for a small fraction of the price. After a longer break the first message sends all of it again, at about twice the usual price. Where it went counts how often that happened this week.</li>
+      <li><strong>Hand the messy jobs to a subagent.</strong> Big searches, long logs and reading many files pour thousands of lines into a conversation, and they ride along on every later turn. Ask the agent to use a subagent for them: it does the reading in its own conversation and only the answer comes back.</li>
+      <li><strong>Use the smaller model for routine work.</strong> Where it went shows what the week would have cost on a smaller model. Set <code>model</code> on the desks that don't need the big one.</li>
+    </ul>
+    <p>Screenshots are worth a thought too: each one stays in the conversation and is sent again on every turn after it. A page's text usually answers the question for far less.</p>
+
+    <h2 id="stopping">Stopping and coming back</h2>
+    <p>Stopping a desk never loses anything. When you open it again, it picks up its conversation right where it was. That's the default, and it stays that way unless you choose otherwise.</p>
+    <h3>Wrap Up, for a finished topic</h3>
+    <p>When a desk's conversation is big, Stop Desk also offers <strong>Wrap Up &amp; Stop</strong>. The desk saves what's worth keeping to its own notes, the way it normally would, and Coldfall shows you when it's done so you can check before it stops. Next time you open the desk, a clean conversation is the suggestion, since the important parts are already saved.</p>
+    <h3>Coming back to a big conversation</h3>
+    <p>If a big conversation has sat for more than an hour, opening its desk asks whether to pick up where you left off or start clean. Picking up is the default. A clean start keeps the desk's name, folder, instructions and memory files; only what was said in the chat stays behind, in the old conversation.</p>
+    <p>Nothing is ever deleted. To go back to an older conversation, type <code>/resume</code> in the desk and pick it.</p>
+    <p>Don't want to be asked? Tick "Don't ask" in the question itself, right-click a desk and untick <strong>Ask Before Reopening a Big Conversation</strong>, or turn it off for every desk in <strong>Settings ▸ Desks</strong>.</p>
 
     <h2 id="lean">Keep desks lean</h2>
     <p>Plugins, skills and MCP servers pile up, and some run on every session or every tool call. Right-click a desk and choose <strong>What This Desk Has</strong> to see what it loads: servers, skills, plugins and hooks, read from the vendor's own files. Anything new since you last looked is marked, and the desk's row says "2 new" until you've checked.</p>
@@ -361,7 +385,7 @@ cwd = "~/notes"</code></pre>
         <tr><td><kbd>⌘0</kbd></td><td>Go to the desk that's waited longest</td></tr>
         <tr><td><kbd>⌘P</kbd></td><td>Find any desk or file</td></tr>
         <tr><td><kbd>⇧⌘M</kbd></td><td>Agent Mail</td></tr>
-        <tr><td><kbd>⇧⌘U</kbd></td><td>Usage breakdown</td></tr>
+        <tr><td><kbd>⇧⌘U</kbd></td><td>Usage: plans, this week, and where it went</td></tr>
         <tr><td><kbd>⇧⌘A</kbd></td><td>Every agent definition on your Mac</td></tr>
         <tr><td><kbd>⌘D</kbd> / <kbd>⇧⌘D</kbd></td><td>Split a shell in to the right / below</td></tr>
         <tr><td><kbd>⌘]</kbd> / <kbd>⌘[</kbd></td><td>Next / previous pane</td></tr>
