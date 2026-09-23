@@ -257,6 +257,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                                detail: d.runtime == "shell" ? "shell" : d.vendorLabel + (d.isDefault ? " home" : ""),
                                panes: 1)
             }
+            // `--waiting`: the launch screen, the desk shown but not started.
+            if CommandLine.arguments.contains("--waiting"), desks.indices.contains(i) { showWaiting(i) }
             // `--terminal <file>`: that desk's terminal showing the file's
             // text, as captured from a real command. Nothing is started.
             if let k = CommandLine.arguments.firstIndex(of: "--terminal"), k + 1 < CommandLine.arguments.count,
@@ -570,7 +572,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         SelfUpdate.runningDesks = { [weak self] in
             (self?.sessions.filter { $0.value.started }.map(\.key)) ?? []
         }
-        show(DeskConfig.startup(in: desks))
+        // The desk you were on, shown but not started: nothing runs until you
+        // ask, so opening the app costs no memory and asks no questions.
+        showWaiting(DeskConfig.startup(in: desks, last: ui.lastDesk))
         if firstRun { showWelcome() }
         // A snapshot never talks to the network.
         if !CommandLine.arguments.contains("--snapshot") {
@@ -584,6 +588,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         guard desks.indices.contains(i) else { return }
         let d = desks[i]
         lastVisited[d.name] = Date()
+        waitingIndex = nil
+        if ui.lastDesk != d.name { ui.lastDesk = d.name; ui.save() }
         let s = sessions[d.name] ?? {
             let new = DeskSession(desk: d)
             new.processDelegate = self
@@ -756,6 +762,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let waitingItem = NSMenuItem(title: "Go to Desk That Needs You", action: #selector(jumpToWaiting), keyEquivalent: "0")
         waitingItem.target = self
         deskMenu.addItem(waitingItem)
+        let shellItem = NSMenuItem(title: "New Shell Desk", action: #selector(newShellDesk), keyEquivalent: "n")
+        shellItem.target = self
+        deskMenu.addItem(shellItem)
         deskMenu.addItem(.separator())
         let refresh = NSMenuItem(title: "Refresh Files", action: #selector(refreshTree), keyEquivalent: "r")
         refresh.target = self
@@ -1001,6 +1010,65 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 a.runModal()
             }
         }
+    }
+
+    /// The desk shown at launch, not yet started.
+    var waitingIndex: Int?
+
+    /// Put a desk on screen without starting it: the rail, the title, the
+    /// file tree all follow it, and a Start button (Return) starts it. So
+    /// launching the app starts nothing.
+    func showWaiting(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        let d = desks[i]
+        if sessions[d.name]?.started == true { show(i); return }
+        visible?.container.removeFromSuperview()
+        visible?.isVisible = false
+        visible = nil
+        stoppedNote?.removeFromSuperview(); stoppedNote = nil
+
+        let title = NSTextField(labelWithString: "\(d.name)")
+        title.font = .systemFont(ofSize: 20, weight: .semibold)
+        title.textColor = Theme.ui.text
+        let start = NSButton(title: "Start \(d.name)", target: self, action: #selector(startWaiting))
+        start.bezelStyle = .rounded
+        start.keyEquivalent = "\r"
+        let hint = NSTextField(labelWithString: "Press Return, or pick any desk in the list. Nothing runs until you do.")
+        hint.textColor = Theme.ui.dimText
+        let box = NSStackView(views: [title, start, hint])
+        box.orientation = .vertical; box.alignment = .centerX; box.spacing = 12
+        box.translatesAutoresizingMaskIntoConstraints = false
+        host.addSubview(box)
+        NSLayoutConstraint.activate([
+            box.centerXAnchor.constraint(equalTo: host.centerXAnchor),
+            box.centerYAnchor.constraint(equalTo: host.centerYAnchor),
+        ])
+        stoppedNote = box
+        waitingIndex = i
+
+        sidebar.select(i)
+        window.title = "Project Coldfall — \(d.name)"
+        strip.setContext(d.name)
+        meter.currentDesk = d.name
+        watcher.start(root: d.resolvedCwd)
+        tree.setRoot(d.resolvedCwd)
+    }
+
+    @objc func startWaiting() {
+        guard let i = waitingIndex else { return }
+        show(i)
+    }
+
+    /// A new plain shell as its own desk, in the folder of the desk on screen.
+    @objc func newShellDesk() {
+        let cwd = visible?.desk.cwd ?? waitingIndex.flatMap { desks.indices.contains($0) ? desks[$0].cwd : nil }
+        let d = DeskConfig.newShellDesk(in: desks, cwd: cwd)
+        desks.append(d)
+        guard persist() else { return }
+        desks = DeskOrder.grouped(desks)
+        refreshRail()
+        installMenu()
+        if let i = desks.firstIndex(where: { $0.name == d.name }) { show(i) }
     }
 
     /// End a desk's session, already confirmed.

@@ -8,6 +8,16 @@ opens this file.
 
 ## [Unreleased]
 
+### Changed
+- **Opening the app starts nothing.** It opens on the desk you were last
+  on, shown but not started, with a Start button (or Return). Before, it
+  started the default desk every launch, using its memory and, for a big
+  conversation, asking about it before you'd done anything.
+
+### Added
+- **Desks ▸ New Shell Desk** (⌘N): a plain shell as its own desk, named
+  shell-2, shell-3 and so on, in the folder of the desk you're on.
+
 ### Fixed
 - The agent update notice never appeared: reading a CLI's version could
   wait forever when that CLI left something running in the background, so

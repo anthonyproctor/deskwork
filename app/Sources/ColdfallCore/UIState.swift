@@ -24,6 +24,8 @@ public struct UIState: Codable {
     public var agentVersions: [String: String] = [:]
     /// Updates not yet dismissed: runtime -> [from, to].
     public var agentUpdates: [String: [String]] = [:]
+    /// The desk on screen when the app last ran, to open again at launch.
+    public var lastDesk: String?
 
     public init() {}
 
@@ -50,6 +52,7 @@ public struct UIState: Codable {
         wrappedUp = try c.decodeIfPresent([String: Double].self, forKey: .wrappedUp) ?? [:]
         agentVersions = try c.decodeIfPresent([String: String].self, forKey: .agentVersions) ?? [:]
         agentUpdates = try c.decodeIfPresent([String: [String]].self, forKey: .agentUpdates) ?? [:]
+        lastDesk = try c.decodeIfPresent(String.self, forKey: .lastDesk)
     }
 
     public static var path: String { NSString(string: "~/.config/coldfall/ui.json").expandingTildeInPath }

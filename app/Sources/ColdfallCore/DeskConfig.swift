@@ -248,6 +248,25 @@ public enum DeskConfig {
         desks.firstIndex(where: \.isDefault) ?? 0
     }
 
+    /// The desk to open at launch: the one you were on when you quit, if it
+    /// is still there and not hidden; otherwise the default.
+    public static func startup(in desks: [Desk], last: String?) -> Int {
+        if let last, let i = desks.firstIndex(where: { $0.name == last && !$0.hidden }) { return i }
+        return startup(in: desks)
+    }
+
+    /// A new plain-shell desk: "shell", or "shell-2", "shell-3" when taken,
+    /// working in `cwd`. Its own desk, with its own terminal, rather than a
+    /// split inside another desk.
+    public static func newShellDesk(in desks: [Desk], cwd: String?) -> Desk {
+        let names = Set(desks.map { $0.name.lowercased() })
+        var name = "shell", n = 2
+        while names.contains(name) { name = "shell-\(n)"; n += 1 }
+        var d = Desk(name: name, runtime: "shell", cwd: cwd)
+        d.declaredRuntime = true
+        return d
+    }
+
     /// The runtime to assume when a desk names none and runs no command.
     ///
     /// Previously this was hardcoded to claude, which quietly made one vendor

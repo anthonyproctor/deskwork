@@ -1394,6 +1394,31 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - launch, and more shells
+
+do {
+    var hidden = Desk(name: "old", runtime: "claude"); hidden.hidden = true
+    let desks = [Desk(name: "shell", runtime: "shell"), Desk(name: "hub", runtime: "claude", isDefault: true),
+                 Desk(name: "cf", runtime: "claude"), hidden]
+    eq("launch: opens the desk you were on", DeskConfig.startup(in: desks, last: "cf"), 2)
+    eq("launch: or the default, the first time", DeskConfig.startup(in: desks, last: nil), 1)
+    eq("launch: or when that desk is gone", DeskConfig.startup(in: desks, last: "removed"), 1)
+    eq("launch: or hidden", DeskConfig.startup(in: desks, last: "old"), 1)
+
+    let s2 = DeskConfig.newShellDesk(in: desks, cwd: "/srv/demo")
+    eq("shell: the next free name", s2.name, "shell-2")
+    eq("shell: a plain shell", s2.launchCommand(), "exec $SHELL -l")
+    eq("shell: in the folder asked for", s2.cwd, "/srv/demo")
+    let s3 = DeskConfig.newShellDesk(in: desks + [s2], cwd: nil)
+    eq("shell: and the one after", s3.name, "shell-3")
+    eq("shell: the first one is just shell", DeskConfig.newShellDesk(in: [], cwd: nil).name, "shell")
+    // saved and read back as a shell, not guessed as an agent
+    let tmp = NSTemporaryDirectory() + "coldfall-shells-\(UUID().uuidString).toml"
+    DeskConfig.write([s2], to: tmp)
+    eq("shell: stays a shell in desks.toml", DeskConfig.load(path: tmp).first?.runtime, "shell")
+    try? FileManager.default.removeItem(atPath: tmp)
+}
+
 // MARK: - agents that updated
 
 do {
