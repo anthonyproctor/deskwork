@@ -1,9 +1,10 @@
 // Coming back to a big conversation.
 //
 // Every message re-sends the whole conversation. What keeps that cheap is the
-// cache: sent again within a few minutes, it is read back at a tenth of the
-// price. After a break the cache has expired, and the first message rebuilds
-// it at a quarter MORE than normal price, on all of it. For a desk whose
+// cache: sent again within the hour (Claude Code writes the one-hour cache),
+// it is read back for a small fraction of the price. After a longer break the
+// cache has expired, and the first message rebuilds it at TWICE the normal
+// input price, on all of it. For a desk whose
 // conversation is 600K tokens, that first message after lunch is the most
 // expensive thing it does all day. Stopping the desk is not what causes it;
 // the break is.
@@ -33,8 +34,8 @@ public enum Reopen {
     /// Big enough that rebuilding its cache is a real cost.
     public static let bigTokens = 150_000
     /// Long enough that the cache has certainly gone, and the topic may have
-    /// too. The cache goes after minutes; asking every few minutes would be a
-    /// nag, so this waits an hour.
+    /// too. Claude Code's cache lasts an hour after the last message, so this
+    /// is exactly when resuming stops being cheap.
     public static let staleAfter: TimeInterval = 3600
 
     /// The title a desk's conversation carries: `conversation` when set (a
@@ -152,7 +153,7 @@ public enum Reopen {
         return Question(
             title: "Pick up where you left off in \(desk.name)?",
             body: "\(desk.name) will pick up this conversation right where it was. It's \(size)\(when), "
-                + "so your first message sends all of it once more, at a little over the usual price.\n\n"
+                + "so your first message sends all of it once more, at about twice the usual price.\n\n"
                 + "If the topic has moved on, you can start a clean conversation instead. The desk keeps its "
                 + "name, folder, instructions and memory files; what was only said in the chat stays in the "
                 + "old conversation.\n\n" + back,

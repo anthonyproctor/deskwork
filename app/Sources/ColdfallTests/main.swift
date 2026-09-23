@@ -1394,6 +1394,32 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - prices
+
+do {
+    // The official table, checked 2026-09-23.
+    let opus55 = Pricing.model("claude-opus-5-5")
+    eq("price: Opus 5.5 input", opus55.input, 4)
+    eq("price: Opus 5.5 reads cache at a twentieth", opus55.cacheRead, 0.05)
+    eq("price: Fable 5.1 reads cache at a fortieth", Pricing.model("claude-fable-5-1").cacheRead, 0.025)
+    eq("price: Opus 5 at the standard tenth", Pricing.model("claude-opus-5").cacheRead, 0.1)
+    eq("price: Sonnet 5 stays $2 in", Pricing.model("claude-sonnet-5").input, 2)
+    eq("price: a dated id finds its model", Pricing.model("claude-opus-5-5-20260922").input, 4)
+    // a million tokens read from cache on each
+    check("price: a million cached tokens on Opus 5.5 is $0.20",
+          abs(Pricing.cost(model: "claude-opus-5-5", fresh: 0, read: 1_000_000, write: 0, output: 0) - 0.20) < 1e-9)
+    check("price: and $0.25 on Fable 5.1",
+          abs(Pricing.cost(model: "claude-fable-5-1", fresh: 0, read: 1_000_000, write: 0, output: 0) - 0.25) < 1e-9)
+    // a cache write, split and unsplit
+    check("price: an unsplit write is priced as the one-hour cache Claude Code uses",
+          abs(Pricing.writeCost(model: "claude-opus-5", write: 1_000_000) - 10) < 1e-9)
+    check("price: a recorded split is priced by its parts",
+          abs(Pricing.writeCost(model: "claude-opus-5", write: 1_000_000, write5m: 500_000, write1h: 500_000)
+              - (0.5 * 1.25 * 5 + 0.5 * 2 * 5)) < 1e-9)
+    let split = Pricing.writeSplit(["cache_creation": ["ephemeral_5m_input_tokens": 10, "ephemeral_1h_input_tokens": 90]])
+    check("price: the split is read from the record", split.0 == 10 && split.1 == 90)
+}
+
 // MARK: - coming back to a big conversation
 
 do {
@@ -1495,7 +1521,7 @@ do {
     Tokenomics.read(lines.joined(separator: "\n"), since: Date(timeIntervalSince1970: 0), into: &t)
     eq("rebuild: the turn after a break is counted", t.byDesk["money"]?.rebuilds, 1)
     eq("rebuild: a warm turn is not", t.all.rebuilds, 1)
-    check("rebuild: priced as a cache write", abs((t.all.rebuildUsd) - 1.25 * 0.58 * 5) < 0.01)
+    check("rebuild: priced as a one-hour cache write", abs((t.all.rebuildUsd) - 2.0 * 0.58 * 5) < 0.01)
 
     var week = Tokenomics()
     var s = Tokenomics.DeskStats()
@@ -1552,7 +1578,7 @@ do {
     check("advice: prices the same week on a smaller model",
           notes.contains { $0.kind == .model && !$0.measured && $0.advice.contains("Sonnet") })
     check("advice: the smaller model is quoted as the cheaper number",
-          notes.contains { $0.kind == .model && $0.advice.contains("about $2 instead of $120") })
+          notes.contains { $0.kind == .model && $0.advice.contains("about $3 instead of $120") })
     check("advice: a projection is never presented as measured",
           notes.allSatisfy { $0.kind == .model ? !$0.measured : $0.measured })
 

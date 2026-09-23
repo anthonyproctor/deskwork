@@ -9,8 +9,10 @@
 //      desk started, the memory files, and whatever hooks printed. Measured
 //      as the smallest input any turn sent all week: nothing was sent for
 //      less, so that is what the desk pays to say anything.
-//   2. CACHE. A cache READ costs a tenth of fresh input; a cache WRITE costs
-//      a quarter more. Reused context is nearly free, rebuilt context is not,
+//   2. CACHE. A cache READ costs a small fraction of fresh input (a tenth,
+//      or less on the newest models); a cache WRITE costs double, since Claude
+//      Code writes the one-hour cache. Reused context is nearly free, rebuilt
+//      context is not,
 //      so the split between them is the difference between a cheap week and
 //      an expensive one.
 //   3. MODEL. The same work on a smaller model costs a fraction. What the
@@ -48,7 +50,7 @@ public struct Tokenomics {
         public var floor: Int = 0
         /// Turns that rebuilt a big conversation's cache: coming back to it
         /// after the cache had expired. Most of that turn is written to cache
-        /// at a quarter over the normal price.
+        /// at twice the normal price (the one-hour cache Claude Code uses).
         public var rebuilds = 0
         /// What those rebuilds cost, at list prices.
         public var rebuildUsd: Double = 0
@@ -79,16 +81,10 @@ public struct Tokenomics {
 
     // MARK: - reading
 
-    /// Claude prices, $ per million (input, output), as in Usage.
-    static let prices: [String: (Double, Double)] = [
-        "claude-fable-5-1": (10, 50), "claude-fable-5": (10, 50),
-        "claude-opus-5": (5, 25), "claude-opus-4-8": (5, 25),
-        "claude-opus-4-7": (5, 25), "claude-opus-4-6": (5, 25),
-        "claude-sonnet-5": (2, 10), "claude-sonnet-4-6": (3, 15),
-        "claude-haiku-4-5": (1, 5),
-    ]
-
-    public static func price(_ model: String) -> (Double, Double) { prices[model] ?? (5, 25) }
+    /// A model's (input, output) prices: see Pricing.
+    public static func price(_ model: String) -> (Double, Double) {
+        let m = Pricing.model(model); return (m.input, m.output)
+    }
 
     /// A model id as a person says it: "claude-opus-5" is "opus".
     public static func family(_ model: String) -> String {
@@ -185,9 +181,10 @@ public struct Tokenomics {
             let read = u["cache_read_input_tokens"] as? Int ?? 0
             let out = u["output_tokens"] as? Int ?? 0
             let model = msg["model"] as? String ?? ""
-            let (pin, pout) = price(model)
-            let usd = (Double(fresh) + 1.25 * Double(write) + 0.10 * Double(read)) / 1e6 * pin
-                    + Double(out) / 1e6 * pout
+            let (w5, w1) = Pricing.writeSplit(u)
+            let usd = Pricing.cost(model: model, fresh: fresh, read: read, write: write,
+                                   write5m: w5, write1h: w1, output: out)
+            let rebuildCost = Pricing.writeCost(model: model, write: write, write5m: w5, write1h: w1)
 
             func add(_ s: inout DeskStats) {
                 s.turns += 1
@@ -200,7 +197,7 @@ public struct Tokenomics {
                 // read from it. That is a conversation picked up after a break.
                 if write >= Tokenomics.rebuildTokens, write > read {
                     s.rebuilds += 1
-                    s.rebuildUsd += 1.25 * Double(write) / 1e6 * pin
+                    s.rebuildUsd += rebuildCost
                 }
             }
             add(&t.all)
@@ -241,7 +238,7 @@ extension Tokenomics {
         var out: [Note] = []
         guard all.turns >= minTurns else { return out }
 
-        // 1. Reuse. A cache read costs a tenth of fresh input; rebuilding
+        // 1. Reuse. A cache read costs a small fraction of fresh input; rebuilding
         // context instead of reusing it is the quietest way to burn a week.
         if freshShare > 0.30 {
             out.append(Note(.cache,
@@ -250,7 +247,7 @@ extension Tokenomics {
                 + "Fewer, longer sittings at one desk cost less than the same work spread out."))
         } else if cacheReadShare > 0.70 {
             out.append(Note(.cache,
-                String(format: "%.0f%% of your input was read from cache, at a tenth of the price.", cacheReadShare * 100),
+                String(format: "%.0f%% of your input was read from cache, at a small fraction of the price.", cacheReadShare * 100),
                 "Nothing to change here. This is the cheap way to work."))
         }
 
@@ -263,8 +260,8 @@ extension Tokenomics {
                 finding += String(format: " %@ was about $%.0f of it.", name, s.rebuildUsd)
             }
             out.append(Note(.rebuild, finding,
-                "The break causes this, not stopping the desk: the cache lapses after a few minutes "
-                + "either way. When you reopen a big desk you haven't used in a while, Coldfall offers "
+                "The break causes this, not stopping the desk: Claude's cache lasts an hour after "
+                + "the last message either way. When you reopen a big desk you haven't used in a while, Coldfall offers "
                 + "to start fresh. Take it when the topic has moved on and what matters is saved."))
         }
 
@@ -319,9 +316,8 @@ extension Tokenomics {
     /// What this week's tokens would have cost on Sonnet, model for model.
     /// A projection: the same work on a smaller model is not the same work.
     public func savingsOnSonnet() -> Double {
-        let (sin, sout) = Tokenomics.price("claude-sonnet-5")
-        let inputCost = (Double(all.fresh) + 1.25 * Double(all.cacheWrite) + 0.10 * Double(all.cacheRead)) / 1e6 * sin
-        return inputCost + Double(all.output) / 1e6 * sout
+        Pricing.cost(model: "claude-sonnet-5", fresh: all.fresh, read: all.cacheRead,
+                     write: all.cacheWrite, output: all.output)
     }
 
     public static func short(_ n: Int) -> String {

@@ -302,7 +302,7 @@ final class MeterPanel: NSWindowController {
 
         stack.addArrangedSubview(mono(
             pad("turns", 15) + lpad("\(t.all.turns)", 9)
-            + "   " + String(format: "%.0f%% of input read from cache, at a tenth of the price",
+            + "   " + String(format: "%.0f%% of input read from cache, at a small fraction of the price",
                              t.cacheReadShare * 100)))
         if !t.modelMix.isEmpty {
             let mix = t.modelMix.filter { $0.share >= 0.01 }
@@ -332,7 +332,7 @@ final class MeterPanel: NSWindowController {
         let rebuilt = t.byDesk.filter { $0.value.rebuilds > 0 }
             .sorted { $0.value.rebuildUsd > $1.value.rebuildUsd }.prefix(6)
         if !rebuilt.isEmpty {
-            stack.addArrangedSubview(caps("COMING BACK AFTER A BREAK  (cache rebuilt at 1.25x)"))
+            stack.addArrangedSubview(caps("COMING BACK AFTER A BREAK  (the cache lasts an hour; rebuilding it costs 2x)"))
             for (name, s) in rebuilt {
                 stack.addArrangedSubview(mono(
                     pad(name, 15) + lpad("\(s.rebuilds)", 9) + (s.rebuilds == 1 ? " time " : " times")

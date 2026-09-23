@@ -82,7 +82,10 @@ public enum UsageCache {
         guard let a = try? FileManager.default.attributesOfItem(atPath: path),
               let m = a[.modificationDate] as? Date else { return nil }
         let size = (a[.size] as? Int) ?? 0
-        return ("\(Int(m.timeIntervalSince1970)):\(size)", m)
+        // The price table's date is part of the key: cached dollars were
+        // worked out at the prices of their day, and a new table must not be
+        // answered from them.
+        return ("\(Int(m.timeIntervalSince1970)):\(size):\(Pricing.checked)", m)
     }
 
     static func all() -> [String: CachedFile] {

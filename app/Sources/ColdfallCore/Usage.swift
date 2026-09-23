@@ -39,14 +39,7 @@ public enum Usage {
         public var generated = Date()
     }
 
-    // Claude list prices, $ per 1M (input, output). Cache write 1.25x in, read 0.10x in.
-    private static let claudePrices: [String: (Double, Double)] = [
-        "claude-fable-5-1": (10, 50), "claude-fable-5": (10, 50),
-        "claude-opus-5": (5, 25), "claude-opus-4-8": (5, 25),
-        "claude-opus-4-7": (5, 25), "claude-opus-4-6": (5, 25),
-        "claude-sonnet-5": (2, 10), "claude-sonnet-4-6": (3, 15),
-        "claude-haiku-4-5": (1, 5),
-    ]
+    // Prices are in Pricing: one dated table, per-model cache rates.
 
     private static func iso(_ s: String) -> Date? {
         let f = ISO8601DateFormatter()
@@ -160,9 +153,9 @@ public enum Usage {
                     let cr = u["cache_read_input_tokens"] as? Int ?? 0
                     let out = u["output_tokens"] as? Int ?? 0
                     let model = msg["model"] as? String ?? ""
-                    let (pin, pout) = claudePrices[model] ?? (5, 25)
-                    let usd = (Double(i) + 1.25 * Double(cw) + 0.10 * Double(cr)) / 1e6 * pin
-                            + Double(out) / 1e6 * pout
+                    let (w5, w1) = Pricing.writeSplit(u)
+                    let usd = Pricing.cost(model: model, fresh: i, read: cr, write: cw,
+                                           write5m: w5, write1h: w1, output: out)
                     collect(&mine, vendor: vendor, desk: desk,
                             tokens: i + cw + cr + out, usd: usd, when: when)
                 }

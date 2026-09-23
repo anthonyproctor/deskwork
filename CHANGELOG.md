@@ -8,6 +8,15 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Claude prices were out of date.** Opus 5.5 (released 2026-09-22) wasn't
+  priced at all, cache reads were assumed to cost a tenth of input on every
+  model (Opus 5.5 is a twentieth, Fable 5.1 a fortieth), and cache writes
+  were priced as the five-minute cache when Claude Code writes the one-hour
+  one at twice the input price. Dollar figures now come from one dated table
+  and from the cache split Claude Code records, and the text that said the
+  cache lasts "a few minutes" says an hour.
+
 ### Added
 - **Pick up where you left off, or start clean.** A desk still picks up its
   conversation when you open it; that's the default and nothing about it
