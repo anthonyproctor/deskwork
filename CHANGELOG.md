@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-09-23
+
+Deleting takes a deliberate click, and Remove Files moves away from Quit.
+
 ### Changed
 - **Remove Project Coldfall's Files moved to Settings ▸ General.** It sat
   just above Quit in the app menu, one slip away. Its dialog, and Remove
@@ -424,7 +428,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.14...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.15...HEAD
+[0.3.15]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.11...v0.3.12
