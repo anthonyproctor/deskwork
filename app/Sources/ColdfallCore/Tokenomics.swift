@@ -4,12 +4,11 @@
 // because a week that ran out is rarely explained by the total. Four things
 // explain most of it:
 //
-//   1. WHAT EVERY TURN CARRIES. Each request re-sends the system prompt, the
-//      tool definitions of every MCP server the desk started, the memory
-//      files, and whatever hooks printed. That is paid on every turn, before
-//      you type anything. Measured here as the first request of a
-//      conversation: input that was neither read from nor written to cache,
-//      plus what was written to cache that first time.
+//   1. WHAT EVERY TURN CARRIES. Each request re-sends the conversation so
+//      far, the system prompt, the tool definitions of every MCP server the
+//      desk started, the memory files, and whatever hooks printed. Measured
+//      as the smallest input any turn sent all week: nothing was sent for
+//      less, so that is what the desk pays to say anything.
 //   2. CACHE. A cache READ costs a tenth of fresh input; a cache WRITE costs
 //      a quarter more. Reused context is nearly free, rebuilt context is not,
 //      so the split between them is the difference between a cheap week and
@@ -51,7 +50,7 @@ public struct Tokenomics {
         public var total: Int { input + output }
         public var perTurn: Double { turns > 0 ? Double(total) / Double(turns) : 0 }
         public var usdPerTurn: Double { turns > 0 ? usd / Double(turns) : 0 }
- 
+
         public init() {}
     }
 
