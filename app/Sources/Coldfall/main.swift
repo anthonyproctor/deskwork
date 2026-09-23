@@ -518,7 +518,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
                 // <out>-settings.png. Never saved, never shown.
                 if let k = CommandLine.arguments.firstIndex(of: "--settings"), k + 1 < CommandLine.arguments.count {
                     let sw = SettingsWindow(projectDir: NSHomeDirectory())
-                    sw.tabs?.selectTabViewItem(withIdentifier: CommandLine.arguments[k + 1])
+                    // An unknown tab name threw inside AppKit and crashed the
+                    // snapshot; look it up first and stay on the first tab.
+                    let want = CommandLine.arguments[k + 1]
+                    if let item = sw.tabs?.tabViewItems.first(where: { ($0.identifier as? String) == want }) {
+                        sw.tabs?.selectTabViewItem(item)
+                    }
                     guard let sv = sw.window?.contentView else { exit(1) }
                     // Offscreen, nothing draws the window's own background,
                     // and light label text vanishes on the blank white.
