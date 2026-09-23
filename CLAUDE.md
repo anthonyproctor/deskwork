@@ -46,6 +46,9 @@ Where it went), to shot-usage.png.
 `coldfall-cli tokenomics` prints where the week's tokens went, the same
 reading the usage window shows; `--usage` snapshots that window.
 
+`coldfall-cli reopen [desk]` prints each Claude desk's conversation size, when
+it was last used, and whether opening it would ask about starting fresh.
+
 `coldfall-cli menu [desk]` prints a desk's right-click menu as data. A
 context menu cannot be captured in an offscreen snapshot, so its order,
 wording and tone are checked there and in the core's tests.

@@ -145,7 +145,16 @@ cwd     = "~/notes"
 
 **Leaving.** Coldfall launches the vendors' CLIs and never replaces them, so nothing it does is load-bearing for your agents. Everything of its own is in `~/.config/coldfall` and `~/.local/share/coldfall`; the one thing it changes elsewhere is `statusLine` in a Claude account's `settings.json`, if you turned on live limits. **Project Coldfall ▸ Remove Project Coldfall's Files…** lists all of it with sizes, puts the statusline back, and deletes the two folders; then quit and drag the app to the Trash.
 
-**Two Claude accounts. `account` names a folder for Claude Code to keep a second login in (it's passed as `CLAUDE_CONFIG_DIR`). The desk resumes from that account's conversations, the meter counts it separately as `claude-second` (named after the folder), and agent mail and fan out can send a question to it, so one plan can hand work to the other. Its live limits need their own recorder: Settings, Runtimes, **Turn on live limits for claude-second**.
+**Resume or start fresh.** A desk resumes its conversation by default. When a big one (150K tokens or more) hasn't been used for an hour, opening the desk asks first: resuming re-sends all of it once at cache-rebuild prices, and a fresh start is often what the moment wants. Nothing is deleted either way. A desk that runs its own script can say how to start fresh, and what its conversation is called if that isn't the desk's name:
+
+```toml
+[desk.cpa]
+command      = "~/bin/desk money"
+fresh        = "~/bin/desk money new"   # how this script starts a new conversation
+conversation = "money"                 # the title its conversation carries
+```
+
+**Two Claude accounts.** `account` names a folder for Claude Code to keep a second login in (it's passed as `CLAUDE_CONFIG_DIR`). The desk resumes from that account's conversations, the meter counts it separately as `claude-second` (named after the folder), and agent mail and fan out can send a question to it, so one plan can hand work to the other. Its live limits need their own recorder: Settings, Runtimes, **Turn on live limits for claude-second**.
 
 **Trimming MCP servers.** Every Claude desk starts every MCP server in its folder's `.mcp.json`, and every Codex desk every server in `~/.codex/config.toml`, each a separate process with its own memory. Right-click a desk and choose **MCP Servers…** to switch off the ones it doesn't need; it's saved as `mcp_off`. For Claude, claude.ai connectors and plugins aren't affected. A desk with its own command gets the choice in `COLDFALL_CLAUDE_SETTINGS`, and passes it on with one line in its script:
 
