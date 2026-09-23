@@ -165,7 +165,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         termHeader.onSplitDown = { [weak self] in self?.splitDown() }
         termHeader.onClosePane = { [weak self] in self?.closePane() }
         reader.onPopToggle = { [weak self] in self?.popOutOrDock() }
-        palette.onPickDesk = { [weak self] i in self?.show(i) }
+        palette.onPickDesk = { [weak self] i in self?.open(i) }
         palette.onPickFile = { [weak self] u in self?.openReader(u) }
         meter.onClick = { [weak self] in self?.openMeter() }
 
@@ -192,13 +192,19 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.onRemoveDesk = { [weak self] i in self?.removeDesk(i) }
         sidebar.onMakeDefault = { [weak self] i in self?.makeDefault(i) }
         sidebar.onRevealAgent = { [weak self] i in self?.revealAgent(i) }
-        sidebar.onSelect = { [weak self] i in self?.show(i) }
+        sidebar.onSelect = { [weak self] i in self?.open(i) }
         sidebar.onRenameDesk = { [weak self] i in self?.renameDesk(i) }
         sidebar.onMcpDesk = { [weak self] i in self?.editMcp(i) }
         sidebar.onInventoryDesk = { [weak self] i in self?.showInventory(i) }
         sidebar.onHideDesk = { [weak self] i in self?.hideDesk(i) }
         NotificationCenter.default.addObserver(forName: .coldfallOpenUninstall, object: nil, queue: .main) {
             [weak self] _ in self?.openUninstall()
+        }
+        NotificationCenter.default.addObserver(forName: .coldfallConfirmStartChanged, object: nil, queue: .main) {
+            [weak self] n in
+            guard let self, let on = n.object as? Bool else { return }
+            self.ui.confirmStart = on
+            self.ui.save()
         }
         sidebar.onOpenNews = { [weak self] c in
             if let u = c.url, let url = URL(string: u) { NSWorkspace.shared.open(url) }
@@ -826,7 +832,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         NSApp.mainMenu = main
     }
 
-    @objc func jump(_ sender: NSMenuItem) { show(sender.tag) }
+    @objc func jump(_ sender: NSMenuItem) { open(sender.tag) }
 
     /// cmd-0: the desk that has waited longest for you.
     @objc func jumpToWaiting() {
@@ -834,7 +840,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         showDesk(named: name)
     }
     func showDesk(named name: String) {
-        if let i = desks.firstIndex(where: { $0.name == name }) { show(i) }
+        if let i = desks.firstIndex(where: { $0.name == name }) { open(i) }
     }
     /// Removing a desk removes the shortcut. It does NOT delete the agent
     /// definition and it does NOT stop a running session — both said out loud,
@@ -909,7 +915,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         noteRemovedRuntimes(before: before, after: desks)
         sidebar.build(desks: desks)
         installMenu()
-        if visible?.desk.name == d.name, !desks.isEmpty { show(0) }
+        if visible?.desk.name == d.name, !desks.isEmpty { open(0) }
         else if let v = visible, let j = desks.firstIndex(where: { $0.name == v.desk.name }) {
             sidebar.select(j)
         }
@@ -1025,6 +1031,15 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// The desk shown at launch, not yet started.
     var waitingIndex: Int?
 
+    /// Picking a desk. One that's running comes up at once; one that isn't
+    /// shows its Start button first, so a stray click starts nothing. Places
+    /// that need the desk running (Wrap Up, running a command in it, a new
+    /// shell someone just asked for) call show() and start it directly.
+    func open(_ i: Int) {
+        guard desks.indices.contains(i) else { return }
+        if ui.confirmStart, sessions[desks[i].name]?.started != true { showWaiting(i) } else { show(i) }
+    }
+
     /// Put a desk on screen without starting it: the rail, the title, the
     /// file tree all follow it, and a Start button (Return) starts it. So
     /// launching the app starts nothing.
@@ -1043,7 +1058,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         let start = NSButton(title: "Start \(d.name)", target: self, action: #selector(startWaiting))
         start.bezelStyle = .rounded
         start.keyEquivalent = "\r"
-        let hint = NSTextField(labelWithString: "Press Return, or pick any desk in the list. Nothing runs until you do.")
+        let hint = NSTextField(labelWithString: "Nothing runs until you press Start, or Return.")
         hint.textColor = Theme.ui.dimText
         let box = NSStackView(views: [title, start, hint])
         box.orientation = .vertical; box.alignment = .centerX; box.spacing = 12
@@ -1091,15 +1106,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         if visible === s {
             s.container.removeFromSuperview()
             visible = nil
-            let note = NSTextField(labelWithString: "\(d.name) is stopped. Click it in the rail to start it again.")
-            note.textColor = Theme.ui.dimText
-            note.translatesAutoresizingMaskIntoConstraints = false
-            host.addSubview(note)
-            NSLayoutConstraint.activate([
-                note.centerXAnchor.constraint(equalTo: host.centerXAnchor),
-                note.centerYAnchor.constraint(equalTo: host.centerYAnchor),
-            ])
-            stoppedNote = note
+            // Stopped, it waits on its Start button like any desk not running.
+            if let i = desks.firstIndex(where: { $0.name == d.name }) { showWaiting(i) }
         }
     }
     var stoppedNote: NSView?
@@ -2118,4 +2126,5 @@ extension Notification.Name {
     static let coldfallFreshStartChanged = Notification.Name("coldfallFreshStartChanged")
     /// Settings asked for the Remove Files dialog, which the controller owns.
     static let coldfallOpenUninstall = Notification.Name("coldfallOpenUninstall")
+    static let coldfallConfirmStartChanged = Notification.Name("coldfallConfirmStartChanged")
 }

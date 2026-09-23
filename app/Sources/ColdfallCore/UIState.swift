@@ -26,6 +26,9 @@ public struct UIState: Codable {
     public var agentUpdates: [String: [String]] = [:]
     /// The desk on screen when the app last ran, to open again at launch.
     public var lastDesk: String?
+    /// Picking a desk that isn't running shows its Start button first,
+    /// rather than starting it on the click. Settings, Desks turns it off.
+    public var confirmStart: Bool = true
 
     public init() {}
 
@@ -53,6 +56,7 @@ public struct UIState: Codable {
         agentVersions = try c.decodeIfPresent([String: String].self, forKey: .agentVersions) ?? [:]
         agentUpdates = try c.decodeIfPresent([String: [String]].self, forKey: .agentUpdates) ?? [:]
         lastDesk = try c.decodeIfPresent(String.self, forKey: .lastDesk)
+        confirmStart = try c.decodeIfPresent(Bool.self, forKey: .confirmStart) ?? true
     }
 
     public static var path: String { NSString(string: "~/.config/coldfall/ui.json").expandingTildeInPath }

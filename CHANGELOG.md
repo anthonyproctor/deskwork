@@ -8,6 +8,13 @@ opens this file.
 
 ## [Unreleased]
 
+### Changed
+- **Picking a desk that isn't running shows its Start button first**, the
+  same screen as at launch, so a stray click starts nothing. Return starts
+  it. Running desks still switch at once, and a desk you stop goes straight
+  back to its Start screen. Settings ▸ Desks turns it off for one-click
+  starts.
+
 ## [0.3.15] - 2026-09-23
 
 Deleting takes a deliberate click, and Remove Files moves away from Quit.

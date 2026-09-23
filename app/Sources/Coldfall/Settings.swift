@@ -233,7 +233,13 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         let freshSwitch = NSButton(checkboxWithTitle: "Offer a clean start when reopening a big conversation",
                                    target: self, action: #selector(toggleFreshStart(_:)))
         freshSwitch.state = UIState.load().offerFreshStart ? .on : .off
+        let startSwitch = NSButton(checkboxWithTitle: "Show a Start button before starting a desk",
+                                   target: self, action: #selector(toggleConfirmStart(_:)))
+        startSwitch.state = UIState.load().confirmStart ? .on : .off
         let reopen = NSStackView(views: [
+            caps("STARTING DESKS"), startSwitch,
+            note("Picking a desk that isn't running shows it with a Start button, so a stray click "
+               + "starts nothing. Off, a click starts it straight away.", width: 350),
             caps("REOPENING DESKS"), freshSwitch,
             note("When a conversation of 150K tokens or more has sat for an hour, opening its desk asks "
                + "whether to pick up where you left off or start clean. Off, every desk always picks up "
@@ -428,6 +434,10 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
         dirty = true
         table.reloadData()
+    }
+
+    @objc private func toggleConfirmStart(_ sender: NSButton) {
+        NotificationCenter.default.post(name: .coldfallConfirmStartChanged, object: sender.state == .on)
     }
 
     @objc private func openUninstall() {
