@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.16] - 2026-09-23
+
+A Start button for any desk that isn't running.
+
 ### Changed
 - **Picking a desk that isn't running shows its Start button first**, the
   same screen as at launch, so a stray click starts nothing. Return starts
@@ -435,7 +439,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.15...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.16...HEAD
+[0.3.16]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.12...v0.3.13
