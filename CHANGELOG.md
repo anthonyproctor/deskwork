@@ -8,6 +8,10 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-09-24
+
+A weekly budget per desk.
+
 ### Added
 - **A weekly budget per desk.** `budget = 50` in desks.toml, or the budget
   field in Settings, gives a Claude desk a dollar budget for the week. Its
@@ -448,7 +452,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.16...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.17...HEAD
+[0.3.17]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.16...v0.3.17
 [0.3.16]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.13...v0.3.14
