@@ -67,6 +67,8 @@ final class DeskRow: NSView {
     /// every tick, and a full restyle each time was the rail repainting all
     /// of its rows about three times a second while nothing moved.
     var status = DeskStatus() { didSet { if status != oldValue { restyle() } } }
+    /// This desk's week against its budget, if it has one.
+    var budget: DeskBudget.Status = .unset { didSet { if budget != oldValue { restyle() } } }
     /// Spinner frame, advanced by the rail's timer. Turns the glyph only.
     var tick = 0 {
         didSet {
@@ -184,13 +186,20 @@ final class DeskRow: NSView {
         var parts: [String] = []
         parts.append(runtime == "shell" ? "shell" : label + (isDefault ? " home" : ""))
         if runtime != "shell" || status.running { parts.append(state) }
+        // Before memory, so a narrow rail cuts memory first, not the budget.
+        if let b = DeskBudget.short(budget) { parts.append(b) }
         if let m = status.memory { parts.append(m) }
         // Something was added to this desk since it was last looked at, a
         // plugin's new hooks for example. Say so until someone looks.
         if status.news > 0 { parts.append("\(status.news) new") }
         sub.stringValue = parts.joined(separator: " \u{00B7} ")                  // ·
         sub.font = .systemFont(ofSize: 11)
-        sub.textColor = status.news > 0 ? .systemOrange : ui.dimText
+        switch budget {
+        case .over:  sub.textColor = .systemRed
+        case .near:  sub.textColor = .systemOrange
+        default:     sub.textColor = status.news > 0 ? .systemOrange : ui.dimText
+        }
+        toolTip = DeskBudget.label(budget).map { "\(deskName): \($0)" }
 
         needsDisplay = true
     }

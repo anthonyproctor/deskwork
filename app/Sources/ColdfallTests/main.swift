@@ -1394,6 +1394,35 @@ do {
     try? fm.removeItem(atPath: root)
 }
 
+// MARK: - desk budgets
+
+do {
+    eq("budget: none set, nothing to say", DeskBudget.status(spent: 90, budget: nil), .unset)
+    eq("budget: well under", DeskBudget.status(spent: 20, budget: 50), .ok(spent: 20, budget: 50))
+    eq("budget: close at 80%", DeskBudget.status(spent: 40, budget: 50), .near(spent: 40, budget: 50))
+    eq("budget: over", DeskBudget.status(spent: 62, budget: 50), .over(spent: 62, budget: 50))
+    eq("budget: nothing spent yet is fine", DeskBudget.status(spent: nil, budget: 50), .ok(spent: 0, budget: 50))
+    eq("budget: said in full", DeskBudget.label(.near(spent: 46.2, budget: 50)), "$46 of $50 this week")
+    eq("budget: short for the rail", DeskBudget.short(.over(spent: 62, budget: 50)), "$62/$50")
+    eq("budget: quiet in the rail while well under", DeskBudget.short(.ok(spent: 10, budget: 50)), nil)
+
+    // spend is found under the conversation's title
+    var r = Usage.Report()
+    var b = Usage.Bucket(); b.usd = 47; r.byDesk["money"] = b
+    var cpa = Desk(name: "cpa", runtime: "claude", command: "desk money"); cpa.conversation = "money"; cpa.budget = 50
+    eq("budget: a desk's spend, under its conversation's title", DeskBudget.spent(by: cpa, in: r), 47)
+
+    // desks.toml keeps it, and takes "$50" too
+    let tmp = NSTemporaryDirectory() + "coldfall-budget-\(UUID().uuidString).toml"
+    DeskConfig.write([cpa], to: tmp)
+    eq("budget: saved and read back", DeskConfig.load(path: tmp).first?.budget, 50)
+    try? "[desk.x]\nruntime = \"claude\"\nbudget = \"$75\"\n".write(toFile: tmp, atomically: true, encoding: .utf8)
+    eq("budget: a dollar sign is fine", DeskConfig.load(path: tmp).first?.budget, 75)
+    try? "[desk.x]\nruntime = \"claude\"\nbudget = 0\n".write(toFile: tmp, atomically: true, encoding: .utf8)
+    eq("budget: zero means none", DeskConfig.load(path: tmp).first?.budget, nil)
+    try? FileManager.default.removeItem(atPath: tmp)
+}
+
 // MARK: - launch, and more shells
 
 do {

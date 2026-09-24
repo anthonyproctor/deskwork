@@ -8,6 +8,8 @@ final class MeterPanel: NSWindowController {
     /// would stop at the window's height and miss everything below the fold.
     private(set) var content: NSView?
     private var report = Usage.Report()
+    /// Desks with a weekly budget, read when the window opens.
+    private var budgetDesks: [Desk] = DeskConfig.load().filter { $0.budget != nil }
 
     /// One window, three questions: what is left, where it went this week,
     /// and why. They were one column, and the answer you wanted was always
@@ -260,7 +262,14 @@ final class MeterPanel: NSWindowController {
                       + bar(share, width: 18) + lpad(String(format: "%.1f%%", share), 7)
                       + lpad("\(b.calls)", 7) + " calls"
                 if let usd = b.usd { s += String(format: "  $%.0f", usd) }
-                stack.addArrangedSubview(mono(s))
+                // Against its weekly budget, for a desk that has one.
+                let desk = budgetDesks.first { ($0.conversation ?? $0.name) == d }
+                let st = DeskBudget.status(spent: b.usd, budget: desk?.budget)
+                if let cap = desk?.budget { s += String(format: " of $%.0f", cap) }
+                let line = mono(s)
+                if case .over = st { line.textColor = .systemRed }
+                if case .near = st { line.textColor = .systemOrange }
+                stack.addArrangedSubview(line)
             }
         }
 

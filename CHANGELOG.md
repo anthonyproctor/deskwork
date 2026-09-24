@@ -8,6 +8,15 @@ opens this file.
 
 ## [Unreleased]
 
+### Added
+- **A weekly budget per desk.** `budget = 50` in desks.toml, or the budget
+  field in Settings, gives a Claude desk a dollar budget for the week. Its
+  row turns orange at 80% and red when it's over ("$62/$50"), the usage
+  window's This week tab shows each desk against its budget, and the Start
+  screen says so before an over-budget desk starts. Nothing is stopped or
+  paused: it's there so you notice. Claude only, since Coldfall prices only
+  Claude.
+
 ## [0.3.16] - 2026-09-23
 
 A Start button for any desk that isn't running.

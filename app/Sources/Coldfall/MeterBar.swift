@@ -81,7 +81,11 @@ final class MeterBar: NSView {
         hint.textColor = .labelColor
     }
 
+    /// Each fresh report, for whoever else reads the week (desk budgets).
+    var onReport: ((Usage.Report) -> Void)?
+
     private func render(_ r: Usage.Report, since: Date) {
+        onReport?(r)
         if demo != nil { return }
         var segs: [String] = []
         let limits = Limits.all()

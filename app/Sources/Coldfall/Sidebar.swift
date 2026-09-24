@@ -18,6 +18,10 @@ final class SidebarView: NSView {
     var onHideDesk: ((Int) -> Void)?
     var onUnhideDesk: ((Int) -> Void)?
     var onToggleAskResume: ((Int) -> Void)?
+    /// Each desk's week against its budget, for desks that have one.
+    var budgets: [String: DeskBudget.Status] = [:] {
+        didSet { for r in rows.values { r.budget = budgets[r.deskName] ?? .unset } }
+    }
     /// Hidden desks listed at the bottom of the rail. Not saved: hidden is
     /// the point, so the list folds away again on the next launch.
     var showHidden = false
@@ -261,6 +265,7 @@ final class SidebarView: NSView {
                     r.onToggleAskResume = { [weak self] in self?.onToggleAskResume?(i) }
                 }
                 r.status = status[d.name] ?? DeskStatus()
+                r.budget = budgets[d.name] ?? .unset
                 r.tick = tick
                 addSubview(r)
                 rows[i] = r

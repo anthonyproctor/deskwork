@@ -363,6 +363,7 @@ cwd = "~/notes"</code></pre>
       <li><strong>Hand the messy jobs to a subagent.</strong> Big searches, long logs and reading many files pour thousands of lines into a conversation, and they ride along on every later turn. Ask the agent to use a subagent for them: it does the reading in its own conversation and only the answer comes back.</li>
       <li><strong>Use the smaller model for routine work.</strong> Where it went shows what the week would have cost on a smaller model. Set <code>model</code> on the desks that don't need the big one.</li>
     </ul>
+    <p><strong>Give a busy desk a budget.</strong> In Settings ▸ Desks, or <code>budget = 50</code> in desks.toml, a Claude desk gets a weekly dollar budget. Its row turns orange when it's close and red when it's over, so you notice which desk is eating the week. Nothing is stopped; it's a warning, not a lock.</p>
     <p>Screenshots are worth a thought too: each one stays in the conversation and is sent again on every turn after it. A page's text usually answers the question for far less.</p>
 
     <h2 id="stopping">Stopping and coming back</h2>

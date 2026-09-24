@@ -14,6 +14,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
     private let name = NSTextField(), group = NSTextField()
     private let cwd = NSTextField(), command = NSTextField()
     private let account = NSTextField()
+    private let budget = NSTextField()
     private let runtime = NSPopUpButton()
     private let themePalette = NSPopUpButton()
     private let themeMode = NSPopUpButton()
@@ -90,6 +91,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
             caps("RUNTIME"), runtime,
             field(cwd, "working directory, e.g. ~/src/api"),
             field(account, "account, e.g. ~/.claude-second"),
+            field(budget, "weekly budget in dollars (optional), e.g. 50"),
             note("Optional, Claude only: the folder of a second Claude login. The first start asks you to sign in; "
                + "after that it stays on that account.", width: 350),
             caps("OR RUN THIS VERBATIM"),
@@ -350,6 +352,7 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         cwd.stringValue = d.cwd ?? ""
         command.stringValue = d.command ?? ""
         account.stringValue = d.account ?? ""
+        budget.stringValue = d.budget.map { $0 == $0.rounded() ? String(Int($0)) : String($0) } ?? ""
         runtime.selectItem(withTitle: d.runtime)
     }
 
@@ -431,6 +434,9 @@ final class SettingsWindow: NSWindowController, NSTableViewDataSource, NSTableVi
         d.runtime = runtime.titleOfSelectedItem ?? "claude"
         let acct = account.stringValue.trimmingCharacters(in: .whitespaces)
         d.account = acct.isEmpty || d.runtime != "claude" ? nil : acct
+        let cap = Double(budget.stringValue.replacingOccurrences(of: "$", with: "")
+            .trimmingCharacters(in: .whitespaces))
+        d.budget = cap.flatMap { $0 > 0 ? $0 : nil }
         if let i = desks.firstIndex(where: { $0.name == n }) { desks[i] = d } else { desks.append(d) }
         dirty = true
         table.reloadData()

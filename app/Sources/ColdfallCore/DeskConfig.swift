@@ -36,6 +36,9 @@ public struct Desk {
     /// Resume without asking, however big or idle the conversation. Set from
     /// the reopen dialog's "Don't ask for this desk", or the desk's menu.
     public var alwaysResume: Bool = false
+    /// Dollars a week this desk is meant to spend (Claude desks). The rail
+    /// says when it's close or over; nothing is stopped. See DeskBudget.
+    public var budget: Double?
     /// The Claude conversation this desk reopens, by id. Set when a built-in
     /// desk is renamed: its conversation is titled with the OLD name, so the
     /// lookup by name would stop finding it. Unset, the desk finds its
@@ -386,6 +389,7 @@ public enum DeskConfig {
             case "conversation": current?.conversation = val.isEmpty ? nil : val
             case "fresh":   current?.fresh = val.isEmpty ? nil : val
             case "always_resume": current?.alwaysResume = val == "true"
+            case "budget":  current?.budget = Double(val.replacingOccurrences(of: "$", with: "")).flatMap { $0 > 0 ? $0 : nil }
             case "hidden":  current?.hidden = val == "true"
             case "session": current?.session = UUID(uuidString: val) != nil ? val.lowercased() : nil
             case "cwd":     current?.cwd = val
@@ -514,6 +518,7 @@ public enum DeskConfig {
             if let c = d.conversation { out += "conversation = \"\(TomlText.escape(c))\"\n" }
             if let f = d.fresh { out += "fresh = \"\(TomlText.escape(f))\"\n" }
             if d.alwaysResume { out += "always_resume = true\n" }
+            if let b = d.budget { out += "budget = \(b == b.rounded() ? String(Int(b)) : String(b))\n" }
             if let s = d.session { out += "session = \"\(TomlText.escape(s))\"\n" }
             if d.hidden { out += "hidden = true\n" }
             if !d.mcpOff.isEmpty {

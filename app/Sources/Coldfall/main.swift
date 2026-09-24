@@ -168,6 +168,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         palette.onPickDesk = { [weak self] i in self?.open(i) }
         palette.onPickFile = { [weak self] u in self?.openReader(u) }
         meter.onClick = { [weak self] in self?.openMeter() }
+        meter.onReport = { [weak self] r in self?.applyBudgets(r) }
 
         // The VS Code behaviour: files the agent touches open themselves.
         watcher.onChanged = { [weak self] urls in
@@ -324,6 +325,14 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             }
             sidebar.status = sample
             // `--offer <runtime>`: the rail offering a desk for that agent.
+            // `--budget-demo`: the first desks near and over a made-up budget.
+            if CommandLine.arguments.contains("--budget-demo") {
+                let names = desks.filter { $0.runtime != "shell" }.map(\.name)
+                var b: [String: DeskBudget.Status] = [:]
+                if names.count > 0 { b[names[0]] = .over(spent: 62, budget: 50) }
+                if names.count > 1 { b[names[1]] = .near(spent: 43, budget: 50) }
+                sidebar.budgets = b
+            }
             // `--agent-news`: the rail saying an agent updated, with made-up versions.
             if CommandLine.arguments.contains("--agent-news") {
                 sidebar.agentNews = [AgentVersions.Change(runtime: "claude", from: "2.1.279", to: "2.1.280")]
@@ -1028,6 +1037,19 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
     }
 
+    /// The last week's report, for budgets on desks and the Start screen.
+    var lastReport: Usage.Report?
+    func applyBudgets(_ r: Usage.Report) {
+        lastReport = r
+        // A snapshot showing made-up budgets keeps them over the real scan.
+        if CommandLine.arguments.contains("--budget-demo") { return }
+        var out: [String: DeskBudget.Status] = [:]
+        for d in desks where d.budget != nil {
+            out[d.name] = DeskBudget.status(spent: DeskBudget.spent(by: d, in: r), budget: d.budget)
+        }
+        sidebar.budgets = out
+    }
+
     /// The desk shown at launch, not yet started.
     var waitingIndex: Int?
 
@@ -1060,7 +1082,16 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         start.keyEquivalent = "\r"
         let hint = NSTextField(labelWithString: "Nothing runs until you press Start, or Return.")
         hint.textColor = Theme.ui.dimText
-        let box = NSStackView(views: [title, start, hint])
+        var views: [NSView] = [title, start, hint]
+        // Over its budget: say so before it starts spending more.
+        if let r = lastReport,
+           case .over = DeskBudget.status(spent: DeskBudget.spent(by: d, in: r), budget: d.budget),
+           let line = DeskBudget.label(DeskBudget.status(spent: DeskBudget.spent(by: d, in: r), budget: d.budget)) {
+            let over = NSTextField(labelWithString: "Over budget: " + line + ".")
+            over.textColor = .systemRed
+            views.insert(over, at: 1)
+        }
+        let box = NSStackView(views: views)
         box.orientation = .vertical; box.alignment = .centerX; box.spacing = 12
         box.translatesAutoresizingMaskIntoConstraints = false
         host.addSubview(box)
@@ -1579,6 +1610,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         desks = fresh
         knownConfig = DeskSync.snapshot()
         refreshRail()
+        // A budget set or changed in the file shows at once.
+        if let r = lastReport { applyBudgets(r) }
         if let v = visible {
             window.title = "Project Coldfall — \(v.desk.name)"
             strip.setContext(v.desk.name)
