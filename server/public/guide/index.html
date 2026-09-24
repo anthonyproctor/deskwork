@@ -283,7 +283,7 @@
     <h2 id="desks">Set up your desks</h2>
     <p>The desks Welcome makes are a start. The app gets useful when you make one for each job you keep coming back to.</p>
     <h3>Make a desk</h3>
-    <p>Open <strong>Settings</strong> (<kbd>⌘,</kbd>) and go to <strong>Desks</strong>. Give it a name, pick the agent, choose the folder it works in, then click <strong>Add / Update</strong> and <strong>Save</strong>. Agents you've already defined, like Claude Code subagents, are listed there too, one click each.</p>
+    <p>Open <strong>Settings</strong> (<kbd>⌘,</kbd>) and go to <strong>Desks</strong>. Give it a name, pick the agent, choose the folder it works in, then click <strong>Add / Update</strong> and <strong>Save</strong>. Two optional fields there: a second Claude account, and a weekly budget in dollars. Agents you've already defined, like Claude Code subagents, are listed there too, one click each.</p>
     <h3>Or edit the file</h3>
     <p>Every desk lives in one plain text file, <code>~/.config/coldfall/desks.toml</code>. Edit it in any editor, or let an agent edit it, and the app picks up the change within a second.</p>
 <pre><code><span class="c"># one desk per ongoing job</span>
@@ -300,7 +300,8 @@ group = "work"
 [desk.research]
 runtime = "claude"
 agent = "researcher"        <span class="c"># a Claude Code subagent you've defined</span>
-cwd = "~/notes"</code></pre>
+cwd = "~/notes"
+budget = 50                 <span class="c"># dollars a week; the row turns red when it's over</span></code></pre>
     <h3>Good habits</h3>
     <ul>
       <li><strong>A desk per job, not per task.</strong> "The API", "the newsletter", "my budget". Start a new conversation inside a desk when you want a clean slate; keep the desk.</li>
