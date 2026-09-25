@@ -60,7 +60,7 @@ jobs:
         run: |
           cd app
           allowed='Sources/ColdfallCore/Bridge.swift Sources/ColdfallCore/Fanout.swift'
-          found=$(grep -rln 'rt.argv(' Sources/ | sort)
+          found=$(grep -rlnE '\.argv[[:space:]]*\(|"-p",' Sources/ | grep -v 'Sources/ColdfallTests/' | sort)
           for f in $found; do
             case " $allowed " in
               *" $f "*) ;;

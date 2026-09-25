@@ -8,6 +8,16 @@ opens this file.
 
 ## [Unreleased]
 
+### Changed (update server)
+- The update-check server turns away more than 20 requests a minute from
+  one address (a real install checks once a day), keeps its daily estimates
+  for 45 days instead of forever, accepts only version strings shaped like a
+  release tag, and caps the stats page's per-version breakdown so a flood
+  of made-up versions can't run up the bill or lock the page. The stats key
+  may be sent in a header instead of the address.
+- The CI guard that keeps the app from spending tokens on its own now
+  catches any call of a runtime's argv or a `-p` literal, not one spelling.
+
 ### Fixed (stability)
 - The file watcher that opens what an agent just wrote touched one set of
   paths from two threads at once, the same shape as the earlier usage-scan

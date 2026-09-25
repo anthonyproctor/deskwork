@@ -9,7 +9,10 @@
 // them back. There is no list of installs to leak, sell or be asked for.
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const VERSION = /^(v\d{1,4}(\.\d{1,4}){0,3}(-dev)?|unknown)$/;
+// One to three numbers after the first, each up to three digits: what a
+// release tag looks like, and few enough shapes that a flood of made-up
+// versions cannot mint keys without limit.
+const VERSION = /^(v\d{1,2}(\.\d{1,3}){1,3}(-dev)?|unknown)$/;
 const OS = /^(\d{1,3})\.\d{1,3}\.\d{1,3}$/;
 
 /** The three fields, checked, or null. */

@@ -1,6 +1,10 @@
 // POST /api/check  { id, v, os }  ->  { latest, url }
 import { parse, day, keys, release } from "../lib/check.js";
 import { redis } from "../lib/redis.js";
+import { clientKey, allow } from "../lib/limit.js";
+
+/** Estimates are kept this long. Keys used to live forever. */
+const KEEP_SECONDS = 45 * 86400;
 
 const REPO = "anthonyproctor/project-coldfall";
 const FALLBACK = { latest: "v0.0.0", url: `https://github.com/${REPO}/releases/latest` };
@@ -21,6 +25,10 @@ async function latest() {
 }
 
 export async function POST(request) {
+  // Before reading anything: a flood should cost as little as possible.
+  if (!(await allow(redis, clientKey(request)))) {
+    return new Response("too many requests", { status: 429, headers: { "retry-after": "60" } });
+  }
   let body;
   try { body = await request.json(); } catch { return new Response("bad request", { status: 400 }); }
   const c = parse(body);
@@ -30,7 +38,7 @@ export async function POST(request) {
   if (redis) {
     try {
       const p = redis.pipeline();
-      for (const k of keys(c, day())) p.pfadd(k, c.id);
+      for (const k of keys(c, day())) { p.pfadd(k, c.id); p.expire(k, KEEP_SECONDS); }
       await p.exec();
     } catch {}
   }

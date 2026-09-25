@@ -13,21 +13,33 @@ function allowed(given) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/** At most this many keys per breakdown, so the page cannot be made to time out. */
+const MAX_KEYS = 200;
+
 async function breakdown(prefix, today) {
-  const out = [];
+  const names = [];
   let cursor = "0";
   do {
     const [next, found] = await redis.scan(cursor, { match: `${prefix}:${today}:*`, count: 100 });
     cursor = String(next);
-    for (const k of found) out.push([k.slice(`${prefix}:${today}:`.length), await redis.pfcount(k)]);
-  } while (cursor !== "0");
-  return out.sort((a, b) => b[1] - a[1]);
+    for (const k of found) { if (names.length < MAX_KEYS) names.push(k); }
+  } while (cursor !== "0" && names.length < MAX_KEYS);
+  if (names.length === 0) return [];
+  // One round trip for all the counts, not one per key.
+  const p = redis.pipeline();
+  for (const k of names) p.pfcount(k);
+  const counts = await p.exec();
+  return names.map((k, i) => [k.slice(`${prefix}:${today}:`.length), Number(counts[i]) || 0])
+    .sort((a, b) => b[1] - a[1]);
 }
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 export async function GET(request) {
-  if (!allowed(new URL(request.url).searchParams.get("key"))) return new Response("not found", { status: 404 });
+  // The key may come in a header, which keeps it out of request logs; the
+  // query form still works for a bookmark.
+  const given = request.headers.get("x-stats-key") ?? new URL(request.url).searchParams.get("key");
+  if (!allowed(given)) return new Response("not found", { status: 404 });
   if (!redis) return new Response("no database connected", { status: 503 });
 
   const days = lastDays(30);

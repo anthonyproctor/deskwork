@@ -18,6 +18,9 @@ test("refuses anything else rather than storing it", () => {
   assert.equal(parse({ id, v: "v0.3.0", os: "15.6.1; rm -rf" }), null);
   assert.equal(parse({ id, v: "v0.3.0<script>", os: "15.6.1" }), null);
   assert.equal(parse({ id, v: 3, os: "15.6.1" }), null);
+  assert.equal(parse({ id, v: "v1234.1.1", os: "15.6.1" }), null, "not a release tag anyone has");
+  assert.equal(parse({ id, v: "v1", os: "15.6.1" }), null, "a bare major is not one either");
+  assert.equal(parse({ id, v: "v1.2", os: "15.6.1" })?.v, "v1.2", "two numbers are");
 });
 
 test("one check adds to three estimates and keeps nothing else", () => {
