@@ -41,7 +41,7 @@ enum SelfUpdate {
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            p.arguments = ["-lc", argv.joined(separator: " ")]
+            p.arguments = ["-lc", argv.map(Shell.quote).joined(separator: " ")]
             p.currentDirectoryURL = URL(fileURLWithPath: cwd)
             var env = ProcessInfo.processInfo.environment
             // A build launched from inside an agent session inherits its
@@ -101,7 +101,7 @@ enum SelfUpdate {
         let path = FileManager.default.fileExists(atPath: rebuiltBundle)
             ? rebuiltBundle : Bundle.main.bundlePath
         let pid = ProcessInfo.processInfo.processIdentifier
-        let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; open \"\(path)\""
+        let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; open \(Shell.quote(path))"
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
         p.arguments = ["-lc", script]

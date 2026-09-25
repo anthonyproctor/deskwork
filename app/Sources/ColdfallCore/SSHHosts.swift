@@ -21,7 +21,7 @@ public struct SSHHost {
 
     /// Always connect by ALIAS. ssh then applies identity files, jump hosts and
     /// anything else in the config that this parser deliberately ignores.
-    public var command: String { "ssh -t \(alias)" }
+    public var command: String { "ssh -t \(Shell.quote(alias))" }
 
     public var blurb: String {
         var s = hostName ?? alias

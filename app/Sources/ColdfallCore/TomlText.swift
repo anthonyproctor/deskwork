@@ -75,9 +75,51 @@ public enum TomlText {
             case "r": out.append("\r")
             case "\\": out.append("\\")
             case "\"": out.append("\"")
+            // \uXXXX and \UXXXXXXXX are valid TOML; "caf\u00e9" used to
+            // read back as "cafu00e9" and be written that way on the next save.
+            case let e? where e == "u" || e == "U":
+                let want = (e == "u") ? 4 : 8
+                var hex = ""
+                while hex.count < want, let h = it.next() { hex.append(h) }
+                if hex.count == want, let n = UInt32(hex, radix: 16), let sc = Unicode.Scalar(n) {
+                    out.unicodeScalars.append(sc)
+                } else {
+                    out.append("\\"); out.append(hex)
+                }
             case let other?: out.append(other)
             case nil: out.append("\\")
             }
+        }
+        return out
+    }
+
+    /// The file as logical lines: comments stripped, whitespace and any CR
+    /// trimmed, and an array that a person split across lines joined back
+    /// into one. Before this, `mcp_off = [` on its own line read as an empty
+    /// array and the next save wrote the setting away.
+    public static func logicalLines(_ text: String) -> [String] {
+        let raw = text.components(separatedBy: .newlines)
+        var out: [String] = []
+        var i = 0
+        while i < raw.count {
+            var line = stripComment(raw[i]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let eq = line.firstIndex(of: "=") {
+                let value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+                if value.hasPrefix("["), !value.contains("]") {
+                    var j = i + 1
+                    while j < raw.count {
+                        let more = stripComment(raw[j]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        line += " " + more
+                        j += 1
+                        if more.contains("]") { break }
+                    }
+                    i = j
+                    out.append(line)
+                    continue
+                }
+            }
+            out.append(line)
+            i += 1
         }
         return out
     }

@@ -63,8 +63,11 @@ public struct VendorLimits: Codable {
 
 public enum Limits {
     public static var dir: String { NSString(string: "~/.local/share/coldfall/limits").expandingTildeInPath }
+    /// Where the recorder scripts live. Overridable so tests never write to
+    /// the real config directory.
+    public static var configDir: String = NSString(string: "~/.config/coldfall").expandingTildeInPath
     public static var recorderPath: String {
-        NSString(string: "~/.config/coldfall/statusline-recorder.sh").expandingTildeInPath
+        (configDir as NSString).appendingPathComponent("statusline-recorder.sh")
     }
 
     /// Every vendor we can currently see, freshest wins, stale dropped.
@@ -192,7 +195,7 @@ public enum Limits {
     /// One script per account: each chains to that account's own statusline,
     /// and writes its limits under that account's name.
     static func recorderPath(_ account: ClaudeAccount?) -> String {
-        account.map { NSString(string: "~/.config/coldfall/statusline-recorder-\($0.label).sh").expandingTildeInPath }
+        account.map { (configDir as NSString).appendingPathComponent("statusline-recorder-\($0.label).sh") }
             ?? recorderPath
     }
 
@@ -225,9 +228,15 @@ public enum Limits {
             return "Could not read ~/.claude/settings.json"
         }
         var wrapped = ""
-        if let sl = json["statusLine"] as? [String: Any],
-           let cmd = sl["command"] as? String, !cmd.contains("statusline-recorder") {
-            wrapped = cmd
+        if let sl = json["statusLine"] as? [String: Any], let cmd = sl["command"] as? String {
+            if cmd.contains("statusline-recorder") {
+                // Already ours: keep wrapping what the first install wrapped.
+                // Rewriting with nothing here silently dropped the person's
+                // own statusline the second time the button was pressed.
+                wrapped = Uninstall.wrappedStatusline(recorder: cmd) ?? ""
+            } else {
+                wrapped = cmd
+            }
         }
         let script = """
         #!/bin/bash
@@ -251,6 +260,12 @@ public enum Limits {
         # desk name Claude Code reports. Each desk writes its own file and they
         # stop overwriting one another.
         name=$(printf '%s' "$input" | jq -r '.session_name // .agent.name // empty' 2>/dev/null)
+        # The name comes from Claude's JSON and becomes a file name: keep it
+        # to plain characters, and never a path. "../../.claude/settings"
+        # would otherwise have been written over.
+        # (a name starting with "._" would be an invisible file on macOS)
+        name=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._ -' '_' | tr -s '_' | sed -e 's/\\.\\.*/./g' -e 's/^[._ ]*//')
+        case "$name" in .|"") name="";; esac
         if [ -n "$name" ]; then
           sdir="$HOME/.local/share/coldfall/sessions"
           mkdir -p "$sdir"
@@ -264,7 +279,7 @@ public enum Limits {
           }' > "$sdir/$name.json.tmp" 2>/dev/null && mv "$sdir/$name.json.tmp" "$sdir/$name.json" 2>/dev/null
         fi
 
-        WRAPPED=\(wrapped.isEmpty ? "\"\"" : "\"\(wrapped)\"")
+        WRAPPED=\(Uninstall.quoteForRecorder(wrapped))
         if [ -n "$WRAPPED" ]; then
           printf '%s' "$input" | eval "$WRAPPED"
         fi
@@ -302,6 +317,7 @@ public struct DeskState: Codable {
     public static var dir: String { NSString(string: "~/.local/share/coldfall/sessions").expandingTildeInPath }
 
     public static func load(_ desk: String) -> DeskState? {
+        guard !desk.contains("/"), !desk.contains(".."), !desk.isEmpty else { return nil }
         let p = (dir as NSString).appendingPathComponent("\(desk).json")
         guard let d = FileManager.default.contents(atPath: p),
               let s = try? JSONDecoder().decode(DeskState.self, from: d) else { return nil }

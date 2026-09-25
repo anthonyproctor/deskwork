@@ -120,12 +120,16 @@ public enum UpdateCheck {
         // Only a release page on GitHub: the link is opened in the browser,
         // so a reply from anywhere else, or a URL that only starts with
         // https://, is dropped.
-        let url = (o["url"] as? String).flatMap { s -> String? in
-            guard let c = URLComponents(string: s), c.scheme == "https", c.host == "github.com",
-                  c.path.hasPrefix("/anthonyproctor/project-coldfall/") else { return nil }
-            return s
-        }
-        return Reply(latest: latest, url: url)
+        return Reply(latest: latest, url: (o["url"] as? String).flatMap(releaseURL))
+    }
+
+    /// The URL if it is a page of this project's on GitHub, else nil. Applied
+    /// to the server's reply, and again to the copy saved on disk before it
+    /// is opened, so an edited update.json can't send the browser elsewhere.
+    public static func releaseURL(_ s: String) -> String? {
+        guard let c = URLComponents(string: s), c.scheme == "https", c.host == "github.com",
+              c.path.hasPrefix("/anthonyproctor/project-coldfall/") else { return nil }
+        return s
     }
 
     /// Whether `latest` is a newer release than `current`. A build from

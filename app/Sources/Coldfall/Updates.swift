@@ -13,7 +13,7 @@ final class Updates {
     var available: (version: String, url: String?)? {
         let s = UpdateState.load()
         guard let l = s.latest, UpdateCheck.isNewer(l, than: SelfUpdate.version) else { return nil }
-        return (l, s.latestURL)
+        return (l, s.latestURL.flatMap(UpdateCheck.releaseURL))
     }
 
     /// A first run shows the check on the Welcome screen, with its switch,

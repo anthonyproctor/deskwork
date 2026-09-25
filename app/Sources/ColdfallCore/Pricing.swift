@@ -61,6 +61,10 @@ public enum Pricing {
         if let hit = models.keys.sorted(by: { $0.count > $1.count }).first(where: { id.hasPrefix($0) }) {
             return models[hit]!
         }
+        // By family, so a Haiku the table hasn't met is not billed as Opus.
+        if id.contains("haiku") { return models["claude-haiku-4-5"]! }
+        if id.contains("sonnet") { return models["claude-sonnet-5"]! }
+        if id.contains("fable") || id.contains("mythos") { return models["claude-fable-5-1"]! }
         return models["claude-opus-5"]!
     }
 

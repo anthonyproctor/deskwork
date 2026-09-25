@@ -1,1 +1,4 @@
 .build/
+
+# SwiftPM "package edit" working copies
+Packages/

@@ -1592,11 +1592,18 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
 
     /// Config changed under us: rebuild the rail, keep running desks alive.
     func reloadDesks() {
-        let fresh = DeskOrder.grouped(DeskConfig.load())
+        var fresh = DeskOrder.grouped(DeskConfig.load())
         guard !fresh.isEmpty else { return }
         // A desk renamed on disk keeps its running terminal: its session,
         // and what the rail knows about it, move to the new name.
+        var pinned = false
         for (from, to) in DeskSync.renames(from: desks, to: fresh) {
+            // A rename in the file, like one made in the app, keeps the
+            // desk's conversation: the transcript is titled with the old name.
+            if let i = fresh.firstIndex(where: { $0.name == to }) {
+                let r = fresh[i].renamed(from: from, to: to)
+                if r.conversation != fresh[i].conversation { fresh[i] = r; pinned = true }
+            }
             if let s = sessions.removeValue(forKey: from) { sessions[to] = s }
             if let v = inventoryNews.removeValue(forKey: from) { inventoryNews[to] = v }
             if let v = lastVisited.removeValue(forKey: from) { lastVisited[to] = v }
@@ -1609,6 +1616,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         noteRemovedRuntimes(before: desks, after: fresh)
         desks = fresh
         knownConfig = DeskSync.snapshot()
+        if pinned { persist() }
         refreshRail()
         // A budget set or changed in the file shows at once.
         if let r = lastReport { applyBudgets(r) }

@@ -8,6 +8,45 @@ opens this file.
 
 ## [Unreleased]
 
+### Security
+- The Claude limits recorder wrote a per-desk file named after whatever
+  Claude reported as the session name, unsanitised, so a name containing
+  `../` could overwrite a file outside its folder. Names are now reduced to
+  plain characters and can never be a path.
+- The recorder embedded your own statusline command in double quotes with
+  no escaping, so a command containing `"$@"`, `$` or backticks broke the
+  whole script. It is now single-quoted, and read back the same way.
+- A saved release link is checked again before it is opened, so an edited
+  update.json can't send the browser anywhere but this project's GitHub.
+- A Codex profile name and an SSH host alias offered as desks were put into
+  the desk's command unquoted; both are quoted now, as everything else is.
+- `Shell.quote` now quotes a word starting with `=`, which zsh expands.
+
+### Fixed
+- A budget that was an absurd or non-finite number (`1e300`, `inf`) crashed
+  the app on every save. Budgets are now checked on the way in and written
+  safely, and Settings refuses the same values.
+- Turning on live limits a second time silently dropped your own statusline;
+  now it keeps wrapping the one the first install wrapped.
+- Resume matched a desk's title anywhere in a transcript's text, so a
+  session that merely quoted such a record could be resumed as that desk.
+  It now matches the record itself.
+- The reopen question could silently never appear for a big transcript
+  whose tail happened to be cut inside a multi-byte character, and for one
+  whose last turn sat behind a huge tool result. Both are read correctly.
+- A desk renamed by editing desks.toml now keeps its conversation, as a
+  rename made in the app already did, and a desk whose conversation goes by
+  another title (`conversation`) resumes, starts and is measured by it.
+- desks.toml: an array split across lines was read as empty and then
+  written away; `\u00e9` escapes read as letters; a CRLF file mangled every
+  name; a desk's `agent` was dropped on save when it also had a command; a
+  `[desk."a.b"]` table this version can't read was deleted on save. All
+  fixed, all round-tripped in tests.
+- A model id the price table hasn't met is priced by its family (a new
+  Haiku as Haiku), not as Opus.
+- The login-shell PATH lookup is locked; a background read during the one
+  write at launch was a data race.
+
 ### Fixed
 - **Programs run in a desk can use the microphone and camera.** The app
   didn't declare either, so macOS killed any program in a desk the moment

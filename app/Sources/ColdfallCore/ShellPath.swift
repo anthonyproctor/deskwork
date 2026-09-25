@@ -48,7 +48,8 @@ public enum ShellPath {
 /// reopened. A newline inside single quotes is just a character.
 public enum Shell {
     public static func quote(_ word: String) -> String {
-        let safe = !word.isEmpty && word.unicodeScalars.allSatisfy {
+        // A word starting with "=" is expanded by zsh (`=ls` -> /bin/ls).
+        let safe = !word.isEmpty && !word.hasPrefix("=") && word.unicodeScalars.allSatisfy {
             ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0)
                 || "@%+=:,./_-".unicodeScalars.contains($0)
         }

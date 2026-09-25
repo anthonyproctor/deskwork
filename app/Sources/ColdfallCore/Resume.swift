@@ -44,6 +44,16 @@ public enum Resume {
         return (root as NSString).appendingPathComponent(key)
     }
 
+    /// Whether `needle` occurs at the start of a line.
+    static func hasRecord(_ data: Data, _ needle: Data) -> Bool {
+        var from = data.startIndex
+        while let r = data.range(of: needle, in: from..<data.endIndex) {
+            if r.lowerBound == data.startIndex || data[r.lowerBound - 1] == 0x0A { return true }
+            from = r.upperBound
+        }
+        return false
+    }
+
     public static var claudeProjectsRoot: String {
         NSString(string: "~/.claude/projects").expandingTildeInPath
     }
@@ -54,7 +64,10 @@ public enum Resume {
         let dir = claudeProjectDir(for: cwd, root: root)
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
-        let needle = Data("\"customTitle\":\"\(TomlText.escape(name))\"".utf8)
+        // The record itself, at the start of a line, not the same text
+        // anywhere in a transcript: a session that merely read or was shown a
+        // transcript would otherwise be resumed as that desk.
+        let needle = Data("{\"type\":\"custom-title\",\"customTitle\":\"\(TomlText.escape(name))\"".utf8)
         // Newest first, stopping at the first match: a desk's own session is
         // usually the newest file, so most starts read one transcript.
         let dated = files.filter { $0.hasSuffix(".jsonl") }.map { f -> (String, Date) in
@@ -63,7 +76,8 @@ public enum Resume {
         }.sorted { $0.1 > $1.1 }
         for (f, _) in dated {
             let path = (dir as NSString).appendingPathComponent(f)
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .alwaysMapped), data.range(of: needle) != nil {
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .alwaysMapped),
+               hasRecord(data, needle) {
                 return String(f.dropLast(".jsonl".count))
             }
         }

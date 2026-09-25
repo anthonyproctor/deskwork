@@ -70,8 +70,13 @@ public struct Desk {
     public func renamed(from old: String, to new: String, claudeRoot: String = Resume.claudeProjectsRoot) -> Desk {
         var d = self
         d.name = new
-        if resumesItself, runtime == "claude", d.session == nil {
-            d.session = Resume.claudeSession(named: old, cwd: resolvedCwd, root: claudeAccount()?.projectsRoot() ?? claudeRoot)
+        if resumesItself, runtime == "claude", d.session == nil, d.conversation == nil,
+           let s = Resume.claudeSession(named: old, cwd: resolvedCwd, root: claudeAccount()?.projectsRoot() ?? claudeRoot) {
+            d.session = s
+            // The transcript keeps the OLD title, so everything that finds a
+            // desk's conversation by title (resume, spend, the reopen question)
+            // needs to know it: that is what `conversation` is for.
+            d.conversation = old
         }
         return d
     }
@@ -91,7 +96,7 @@ public struct Desk {
             if let s = session, Resume.claudeTranscriptExists(s, cwd: resolvedCwd, root: claudeRoot) {
                 return launchCommand(claudeSession: s)
             }
-            return launchCommand(claudeSession: Resume.claudeSession(named: name, cwd: resolvedCwd, root: claudeRoot))
+            return launchCommand(claudeSession: Resume.claudeSession(named: conversation ?? name, cwd: resolvedCwd, root: claudeRoot))
         }
         if runtime == "antigravity" {
             return launchCommand(resumeLast: Resume.antigravityHasProject(cwd: resolvedCwd, file: agyProjects))
@@ -116,7 +121,9 @@ public struct Desk {
             if let a = claudeAccount() { parts = ["CLAUDE_CONFIG_DIR=" + Shell.quote(a.path()), "claude"] }
             // Every value from desks.toml is quoted: see Shell.quote.
             if let a = agent, !a.isEmpty { parts += ["--agent", Shell.quote(a)] }
-            if let s = claudeSession, !s.isEmpty { parts += ["--resume", Shell.quote(s)] } else { parts += ["-n", Shell.quote(name)] }
+            // A new conversation carries the title the desk's conversation
+            // goes by, so the next start finds it.
+            if let s = claudeSession, !s.isEmpty { parts += ["--resume", Shell.quote(s)] } else { parts += ["-n", Shell.quote(conversation ?? name)] }
             // Names are checked to letters, digits, - _ . so the JSON has no
             // single quote to break out of.
             if let s = McpTrim.settingsJSON(off: mcpOff) { parts += ["--settings", "'\(s)'"] }
@@ -214,7 +221,15 @@ public enum DeskConfig {
     /// npm under nvm, or anywhere a shell profile adds, was invisible to it.
     /// Asked once, off the main thread, via `warmLoginShellPath`; empty until
     /// then, so `which` never waits on a shell.
-    public private(set) static var loginShellPath: [String] = []
+    /// Written once, on main, when the login shell answers; read from any
+    /// queue that resolves a CLI. Locked, because a read during that one
+    /// write is a data race.
+    public static var loginShellPath: [String] {
+        get { pathLock.lock(); defer { pathLock.unlock() }; return _loginShellPath }
+        set { pathLock.lock(); defer { pathLock.unlock() }; _loginShellPath = newValue }
+    }
+    private static var _loginShellPath: [String] = []
+    private static let pathLock = NSLock()
 
     public static func warmLoginShellPath(completion: (() -> Void)? = nil) {
         DispatchQueue.global(qos: .utility).async {
@@ -351,17 +366,12 @@ public enum DeskConfig {
             explicitRuntime = false
         }
 
-        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            var line = String(rawLine)
-            line = TomlText.stripComment(line)
-            line = line.trimmingCharacters(in: .whitespaces)
+        for line in TomlText.logicalLines(text) {
             if line.isEmpty { continue }
 
             if line.hasPrefix("[") {
                 finish()
-                let header = line.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-                let parts = header.split(separator: ".").map(String.init)
-                if parts.count == 2, parts[0] == "desk" { current = Desk(name: parts[1]) }
+                if let name = deskName(header: line) { current = Desk(name: name) }
                 continue
             }
 
@@ -389,7 +399,7 @@ public enum DeskConfig {
             case "conversation": current?.conversation = val.isEmpty ? nil : val
             case "fresh":   current?.fresh = val.isEmpty ? nil : val
             case "always_resume": current?.alwaysResume = val == "true"
-            case "budget":  current?.budget = Double(val.replacingOccurrences(of: "$", with: "")).flatMap { $0 > 0 ? $0 : nil }
+            case "budget":  current?.budget = DeskBudget.parse(val)
             case "hidden":  current?.hidden = val == "true"
             case "session": current?.session = UUID(uuidString: val) != nil ? val.lowercased() : nil
             case "cwd":     current?.cwd = val
@@ -436,7 +446,9 @@ public enum DeskConfig {
                 // remade here rather than carried. Slicing the file at the
                 // first "[theme]" instead would have thrown away every table
                 // that came after it.
-                skipping = t.hasPrefix("[desk.") || dropping.contains(t)
+                // Only the desk tables this loader reads are rewritten; a
+                // [desk."a.b"] it can't read stays as the person wrote it.
+                skipping = deskName(header: t) != nil || dropping.contains(t)
                 if skipping { continue }
             }
             if !skipping { kept.append(line) }
@@ -482,6 +494,19 @@ public enum DeskConfig {
         write(desks, theme: theme, to: path)
     }
 
+    /// "[desk.api]" -> "api". Nil for any header this loader does not read
+    /// (another table, a dotted or quoted key), so the writer can keep those
+    /// tables rather than drop them.
+    public static func deskName(header line: String) -> String? {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        guard t.hasPrefix("["), t.hasSuffix("]") else { return nil }
+        let inner = String(t.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
+        let parts = inner.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2, parts[0] == "desk", !parts[1].isEmpty,
+              !parts[1].contains("\""), !parts[1].contains("'") else { return nil }
+        return parts[1]
+    }
+
     static let header = "# Project Coldfall desks. Written by Project Coldfall; safe to edit by hand."
 
     /// A header line this writer, or an older one, put at the top of the file.
@@ -510,15 +535,17 @@ public enum DeskConfig {
                 if d.runtime != "shell" { out += "runtime = \"\(TomlText.escape(d.runtime))\"\n" }
             } else {
                 out += "runtime = \"\(TomlText.escape(d.runtime))\"\n"
-                if let a = d.agent { out += "agent = \"\(TomlText.escape(a))\"\n" }
             }
+            // Written whether or not there is a command: a desk's agent was
+            // dropped on the first save when it also had one.
+            if let a = d.agent { out += "agent = \"\(TomlText.escape(a))\"\n" }
             if let w = d.cwd { out += "cwd = \"\(TomlText.escape(w))\"\n" }
             if let m = d.model { out += "model = \"\(TomlText.escape(m))\"\n" }
             if let a = d.account { out += "account = \"\(TomlText.escape(a))\"\n" }
             if let c = d.conversation { out += "conversation = \"\(TomlText.escape(c))\"\n" }
             if let f = d.fresh { out += "fresh = \"\(TomlText.escape(f))\"\n" }
             if d.alwaysResume { out += "always_resume = true\n" }
-            if let b = d.budget { out += "budget = \(b == b.rounded() ? String(Int(b)) : String(b))\n" }
+            if let b = d.budget { out += "budget = \(DeskBudget.text(b))\n" }
             if let s = d.session { out += "session = \"\(TomlText.escape(s))\"\n" }
             if d.hidden { out += "hidden = true\n" }
             if !d.mcpOff.isEmpty {

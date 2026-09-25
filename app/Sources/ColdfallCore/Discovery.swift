@@ -113,7 +113,7 @@ public enum Discovery {
         // the agent field without producing a command that does not work.
         if a.runtime == "codex" {
             return Desk(name: a.name, runtime: "codex", cwd: cwd,
-                        command: "codex -p \(a.name)", group: "discovered")
+                        command: "codex -p \(Shell.quote(a.name))", group: "discovered")
         }
         return Desk(name: a.name, agent: a.name, runtime: a.runtime,
                     cwd: cwd, group: "discovered")

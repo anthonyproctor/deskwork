@@ -1080,8 +1080,12 @@ do {
 
     var gone = after
     gone.session = "00000000-0000-4000-8000-000000000000"
-    eq("a remembered conversation that no longer exists falls back to the name",
-       gone.resumingLaunchCommand(claudeRoot: root), "claude -n journal")
+    eq("a remembered conversation that no longer exists falls back to the conversation's title",
+       gone.resumingLaunchCommand(claudeRoot: root), "claude --resume \(id)")
+    eq("renaming records the title the transcript carries", after.conversation, "notes")
+    try? FileManager.default.removeItem(atPath: dir + "/\(id).jsonl")
+    eq("with no such transcript either, a new conversation carries that title",
+       gone.resumingLaunchCommand(claudeRoot: root), "claude -n notes")
 
     let f = root + "/desks.toml"
     DeskConfig.write([after], to: f)
@@ -1392,6 +1396,162 @@ do {
        Desk(name: "g", runtime: "antigravity", cwd: root).resumingLaunchCommand(agyProjects: root + "/projects.json"), "agy")
     eq("antigravity: short name", AgentOffer.shortName("antigravity"), "Antigravity")
     try? fm.removeItem(atPath: root)
+}
+
+// MARK: - review fixes: desks.toml round trips
+
+do {
+    let fm = FileManager.default
+    let tmp = NSTemporaryDirectory() + "coldfall-rt-\(UUID().uuidString).toml"
+    defer { try? fm.removeItem(atPath: tmp) }
+
+    // a budget that would have trapped Int() on save
+    for bad in ["1e300", "inf", "$1e999", "-5", "0", "nan", "abc"] {
+        eq("budget: \(bad) is not a budget", DeskBudget.parse(bad), nil)
+    }
+    eq("budget: with a comma", DeskBudget.parse("1,250.50"), 1250.5)
+    eq("budget: written as a whole number", DeskBudget.text(50), "50")
+    eq("budget: or with its decimals", DeskBudget.text(12.5), "12.5")
+    try? "[desk.x]\nruntime = \"claude\"\nbudget = 1e300\n".write(toFile: tmp, atomically: true, encoding: .utf8)
+    let absurd = DeskConfig.load(path: tmp)
+    eq("budget: an absurd value in the file is dropped, not crashed on", absurd.first?.budget, nil)
+    DeskConfig.write(absurd, to: tmp)          // used to trap here
+    check("budget: and the save goes through", fm.fileExists(atPath: tmp))
+
+    // CRLF, a multi-line array, \u escapes, agent kept beside a command
+    let crlf = "[desk.win]\r\nruntime = \"claude\"\r\ngroup = \"caf\\u00e9\"\r\nmcp_off = [\r\n  \"gmail\",\r\n  \"drive\"\r\n]\r\nagent = \"backend\"\r\ncommand = \"/srv/demo/wrap\"\r\n"
+    try? crlf.write(toFile: tmp, atomically: true, encoding: .utf8)
+    let win = DeskConfig.load(path: tmp).first
+    eq("toml: CRLF leaves the name clean", win?.name, "win")
+    eq("toml: and the runtime", win?.runtime, "claude")
+    eq("toml: \\u escapes read as the character", win?.group, "café")
+    eq("toml: an array across lines is read whole", win?.mcpOff ?? [], ["gmail", "drive"])
+    DeskConfig.write(DeskConfig.load(path: tmp), to: tmp)
+    let again = DeskConfig.load(path: tmp).first
+    eq("toml: the array survives a save", again?.mcpOff ?? [], ["gmail", "drive"])
+    eq("toml: the group survives a save", again?.group, "café")
+    eq("toml: agent is kept beside a command", again?.agent, "backend")
+
+    // a desk table the loader can't read is kept, not deleted
+    try? "[desk.ok]\nruntime = \"claude\"\n\n[desk.\"my.desk\"]\nruntime = \"codex\"\n".write(toFile: tmp, atomically: true, encoding: .utf8)
+    eq("toml: a quoted key isn't a desk this version reads", DeskConfig.load(path: tmp).count, 1)
+    DeskConfig.write(DeskConfig.load(path: tmp), to: tmp)
+    check("toml: but it is still in the file after a save",
+          (try? String(contentsOfFile: tmp, encoding: .utf8))?.contains("[desk.\"my.desk\"]") == true)
+    eq("toml: a header this loader reads", DeskConfig.deskName(header: "[desk.api]"), "api")
+    eq("toml: one it doesn't", DeskConfig.deskName(header: "[desk.a.b]"), nil)
+}
+
+// MARK: - review fixes: resume matches the record, not the text
+
+do {
+    let fm = FileManager.default
+    let root = NSTemporaryDirectory() + "coldfall-needle-\(UUID().uuidString)"
+    let dir = Resume.claudeProjectDir(for: "/srv/demo", root: root)
+    try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    let real = "11111111-1111-4111-8111-111111111111", fake = "22222222-2222-4222-8222-222222222222"
+    try? #"{"type":"custom-title","customTitle":"money","sessionId":"x"}"#.write(toFile: dir + "/\(real).jsonl", atomically: true, encoding: .utf8)
+    // a NEWER session that merely contains the text of such a record
+    try? #"{"type":"user","message":{"content":"paste: {\"type\":\"custom-title\",\"customTitle\":\"money\"} end"}}"#
+        .write(toFile: dir + "/\(fake).jsonl", atomically: true, encoding: .utf8)
+    try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: dir + "/\(fake).jsonl")
+    eq("resume: a transcript that only mentions the title is not it", Resume.claudeSession(named: "money", cwd: "/srv/demo", root: root), real)
+    try? fm.removeItem(atPath: root)
+}
+
+// MARK: - review fixes: the tail of a big transcript
+
+do {
+    let fm = FileManager.default
+    let path = NSTemporaryDirectory() + "coldfall-tail-\(UUID().uuidString).jsonl"
+    // 600K of lines full of multi-byte characters, then the usage record
+    var lines: [String] = []
+    while lines.reduce(0, { $0 + $1.utf8.count }) < 700_000 {
+        lines.append(#"{"type":"user","message":{"content":"— ’ café — ’ café — ’ café — ’ café — ’ café —"}}"#)
+    }
+    lines.append(#"{"timestamp":"2026-09-22T10:00:00.000Z","message":{"id":"m1","model":"claude-opus-5","usage":{"input_tokens":3,"cache_creation_input_tokens":2000,"cache_read_input_tokens":600000,"output_tokens":400}}}"#)
+    try? lines.joined(separator: "\n").write(toFile: path, atomically: true, encoding: .utf8)
+    var ok = 0
+    // whatever byte the 512K window lands on, the last turn is found
+    for tail in [512 * 1024, 512 * 1024 + 1, 512 * 1024 + 2, 512 * 1024 + 3, 100_000] {
+        if Reopen.lastContext(path, tail: tail) == 602_003 { ok += 1 }
+    }
+    eq("tail: found from any cut point", ok, 5)
+    // the record is further back than the tail: read further, once
+    lines.append(contentsOf: Array(repeating: #"{"type":"user","message":{"content":"\#(String(repeating: "z", count: 2000))"}}"#, count: 400))
+    try? lines.joined(separator: "\n").write(toFile: path, atomically: true, encoding: .utf8)
+    eq("tail: a huge trailing tool result doesn't hide the last turn", Reopen.lastContext(path, tail: 64 * 1024), 602_003)
+    try? fm.removeItem(atPath: path)
+}
+
+// MARK: - review fixes: quoting, pricing, the release URL
+
+do {
+    eq("quote: a leading = is quoted, zsh would expand it", Shell.quote("=ls"), "'=ls'")
+    eq("quote: a plain path is left alone", Shell.quote("/srv/demo/x"), "/srv/demo/x")
+    check("quote: a discovered Codex profile is quoted",
+          Discovery.desk(from: DiscoveredAgent(name: "x; rm -rf ~", runtime: "codex", description: nil, model: nil, path: "/srv/demo/p", isProjectLevel: false), cwd: "/srv/demo").command == "codex -p 'x; rm -rf ~'")
+    check("quote: an ssh alias is quoted", SSHHost(alias: "box;id", hostName: nil, user: nil, port: nil).command == "ssh -t 'box;id'")
+    eq("price: an unknown haiku is priced as haiku", Pricing.model("claude-haiku-5").input, 1)
+    eq("price: an unknown sonnet as sonnet", Pricing.model("claude-sonnet-6").input, 2)
+    eq("price: anything else as opus", Pricing.model("claude-something").input, 5)
+    eq("url: a release page passes", UpdateCheck.releaseURL("https://github.com/anthonyproctor/project-coldfall/releases/tag/v1"), "https://github.com/anthonyproctor/project-coldfall/releases/tag/v1")
+    eq("url: a file: URL saved in update.json does not", UpdateCheck.releaseURL("file:///etc/passwd"), nil)
+    eq("url: nor another host", UpdateCheck.releaseURL("https://github.com.evil/anthonyproctor/project-coldfall/"), nil)
+}
+
+// MARK: - review fixes: the limits recorder
+
+do {
+    let fm = FileManager.default
+    let root = NSTemporaryDirectory() + "coldfall-rec-\(UUID().uuidString)"
+    let home = root + "/home"
+    try? fm.createDirectory(atPath: home + "/.claude-work", withIntermediateDirectories: true)
+    let wasCfg = Limits.configDir
+    Limits.configDir = root + "/config"
+    defer { Limits.configDir = wasCfg; try? fm.removeItem(atPath: root) }
+    let acct = ClaudeAccount(folder: home + "/.claude-work", home: home)!
+    let settings = home + "/.claude-work/settings.json"
+    // their own statusline, with the characters that used to break the script
+    try? #"{"statusLine":{"type":"command","command":"~/bin/mine \"$@\" 'q' `date`"},"model":"opus"}"#
+        .write(toFile: settings, atomically: true, encoding: .utf8)
+    _ = Limits.installRecorder(for: acct)
+    let script = root + "/config/statusline-recorder-work.sh"
+    let text = (try? String(contentsOfFile: script, encoding: .utf8)) ?? ""
+    check("recorder: the wrapped command is single-quoted", text.contains("WRAPPED='~/bin/mine \"$@\" '\\''q'\\'' `date`'"))
+    eq("recorder: and read back exactly", Uninstall.wrappedStatusline(recorder: script), "~/bin/mine \"$@\" 'q' `date`")
+    // pressing the button again keeps it
+    _ = Limits.installRecorder(for: acct)
+    eq("recorder: a second install still wraps it", Uninstall.wrappedStatusline(recorder: script), "~/bin/mine \"$@\" 'q' `date`")
+    eq("recorder: the old double-quoted form still reads", Uninstall.unquoteFromRecorder("\"~/bin/old\""), "~/bin/old")
+    check("recorder: the desk file name is sanitised in the script", text.contains("tr -c 'A-Za-z0-9._ -' '_'") && text.contains("sed -e 's/"))
+    check("recorder: reading a desk's state refuses a path", DeskState.load("../x") == nil && DeskState.load("a/b") == nil)
+
+    // run the script for real: a hostile session name stays inside the folder
+    if fm.isExecutableFile(atPath: "/usr/bin/jq") || fm.isExecutableFile(atPath: "/opt/homebrew/bin/jq") || fm.isExecutableFile(atPath: "/usr/local/bin/jq") {
+        let fakeHome = root + "/fakehome"
+        try? fm.createDirectory(atPath: fakeHome + "/.claude", withIntermediateDirectories: true)
+        try? "{\"keep\":true}".write(toFile: fakeHome + "/.claude/settings.json", atomically: true, encoding: .utf8)
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = [script]
+        var env = ProcessInfo.processInfo.environment
+        env["HOME"] = fakeHome
+        env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin"
+        p.environment = env
+        let stdin = Pipe(); p.standardInput = stdin
+        p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+        try? p.run()
+        stdin.fileHandleForWriting.write(#"{"session_name":"../../.claude/settings","context_window":{"used_percentage":40}}"#.data(using: .utf8)!)
+        try? stdin.fileHandleForWriting.close()
+        p.waitUntilExit()
+        eq("recorder: a path in the session name cannot leave the sessions folder",
+           (try? String(contentsOfFile: fakeHome + "/.claude/settings.json", encoding: .utf8)), "{\"keep\":true}")
+        let written = (try? fm.contentsOfDirectory(atPath: fakeHome + "/.local/share/coldfall/sessions")) ?? []
+        let limitsDir = (try? fm.contentsOfDirectory(atPath: fakeHome + "/.local/share/coldfall/limits")) ?? []
+        check("recorder: it wrote a plainly named file instead", written == ["claude_settings.json"],
+              "got \(written), exit \(p.terminationStatus), limits: \(limitsDir)")
+    }
 }
 
 // MARK: - desk budgets

@@ -75,11 +75,27 @@ public enum Uninstall {
     public static func wrappedStatusline(recorder path: String) -> String? {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
         for line in text.split(separator: "\n") where line.hasPrefix("WRAPPED=") {
-            var v = String(line.dropFirst("WRAPPED=".count))
-            if v.hasPrefix("\""), v.hasSuffix("\""), v.count >= 2 { v = String(v.dropFirst().dropLast()) }
-            return v
+            return unquoteFromRecorder(String(line.dropFirst("WRAPPED=".count)))
         }
         return nil
+    }
+
+    /// The wrapped command as the recorder script carries it: single-quoted,
+    /// any single quote inside closed, escaped and reopened, so a command
+    /// with quotes, `$` or backticks is stored as written and never run as
+    /// part of the script itself. The old form was double quotes with no
+    /// escaping, and a command containing `"$@"` broke the whole recorder.
+    public static func quoteForRecorder(_ cmd: String) -> String {
+        "'" + cmd.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// Undo `quoteForRecorder`; also reads the old double-quoted form.
+    public static func unquoteFromRecorder(_ v: String) -> String {
+        if v.hasPrefix("'"), v.hasSuffix("'"), v.count >= 2 {
+            return String(v.dropFirst().dropLast()).replacingOccurrences(of: "'\\''", with: "'")
+        }
+        if v.hasPrefix("\""), v.hasSuffix("\""), v.count >= 2 { return String(v.dropFirst().dropLast()) }
+        return v
     }
 
     /// Put `statusLine` back the way it was in one settings file. Returns what

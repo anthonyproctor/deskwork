@@ -73,7 +73,13 @@ public enum Reopen {
         let size = (try? h.seekToEnd()) ?? 0
         let start = size > UInt64(tail) ? size - UInt64(tail) : 0
         try? h.seek(toOffset: start)
-        guard let data = try? h.readToEnd(), let text = String(data: data, encoding: .utf8) else { return nil }
+        guard var data = try? h.readToEnd() else { return nil }
+        // A tail cut mid-character is not valid UTF-8 and used to make the
+        // whole read fail, silently, for exactly the big transcripts this is
+        // for. Drop the partial first line instead.
+        if start > 0, let nl = data.firstIndex(of: 0x0A) { data = data[data.index(after: nl)...] }
+        let text = String(decoding: data, as: UTF8.self)
+        var found: Int? = nil
         for line in text.split(separator: "\n").reversed() {
             guard line.contains("\"usage\""), let d = line.data(using: .utf8),
                   let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
@@ -82,9 +88,12 @@ public enum Reopen {
             let n = (u["input_tokens"] as? Int ?? 0)
                   + (u["cache_read_input_tokens"] as? Int ?? 0)
                   + (u["cache_creation_input_tokens"] as? Int ?? 0)
-            if n > 0 { return n }
+            if n > 0 { found = n; break }
         }
-        return nil
+        // Nothing in this tail (a huge tool result at the end): read further
+        // back, once, before giving up.
+        if found == nil, start > 0, tail < 64 * 1024 * 1024 { return lastContext(path, tail: tail * 16) }
+        return found
     }
 
     /// Whether a big conversation has sat long enough to be worth a word.
