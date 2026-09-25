@@ -8,6 +8,13 @@ opens this file.
 
 ## [Unreleased]
 
+## [0.3.18] - 2026-09-25
+
+A review of the whole app by Fable 5.1, and what it found. Subagents are
+counted in the week's usage, the reopen question quotes dollars, several
+crash shapes are gone, the update server turns away floods, and the app
+builds from source on the macOS 27 Command Line Tools.
+
 ### Changed (building from source)
 - The terminal library, SwiftTerm, now comes from a fork pinned to one
   commit: version 1.20.0 plus one line that stops its Metal shader being
@@ -573,7 +580,8 @@ First build.
 - Tests, CI, and guards that keep the core free of UI code and keep private
   paths out of the repo.
 
-[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.17...HEAD
+[Unreleased]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.18...HEAD
+[0.3.18]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.17...v0.3.18
 [0.3.17]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.16...v0.3.17
 [0.3.16]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.15...v0.3.16
 [0.3.15]: https://github.com/anthonyproctor/project-coldfall/compare/v0.3.14...v0.3.15
