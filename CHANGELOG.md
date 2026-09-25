@@ -8,6 +8,29 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed (stability)
+- The file watcher that opens what an agent just wrote touched one set of
+  paths from two threads at once, the same shape as the earlier usage-scan
+  crash. It now does all of that on one queue.
+- Remove, Rename, Hide and MCP Servers acted on a desk's position in the
+  list as it was before their dialog opened; if desks.toml was reloaded
+  while the dialog was up, they could act on the wrong desk or crash. They
+  find the desk again by name afterwards.
+- Editing desks.toml in an editor that autosaves could kill a running agent
+  the moment a half-typed `[desk.]` header was saved. A desk missing from
+  the file now gets five seconds to come back before its session is ended.
+- The Start screen tracked its desk by position, so after a reorder Return
+  could start a different desk than the one named. It tracks by name.
+- Stop Desk read the whole conversation history on the main thread before
+  its dialog appeared, a visible freeze on a long-lived folder. Off-main now.
+- A desk removed while its "pick up or start clean" question was being
+  prepared could start an orphan process nobody tracked. It no longer starts.
+- If the agent pane exited and a shell pane remained, Wrap Up and "run this
+  in the desk" would type into the shell. Both now say the agent has exited.
+- Switching desks re-read every transcript to redraw one line of the meter
+  strip; it redraws from the last reading instead.
+- Hiding the desk on screen leaves you on a desk that is still in the list.
+
 ### Fixed (usage numbers and advice)
 - **"Coming back after a break" over-counted.** It flagged any big cache
   write, so a new conversation's first turn, a compaction and a big file

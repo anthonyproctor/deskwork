@@ -11,7 +11,15 @@ final class MeterBar: NSView {
     private var timer: Timer?
     var onClick: (() -> Void)?
     /// Which desk is on screen. Context belongs to it, not to the vendor.
-    var currentDesk: String? { didSet { if currentDesk != oldValue { lastScan = .distantPast; refresh() } } }
+    var currentDesk: String? {
+        didSet {
+            guard currentDesk != oldValue else { return }
+            // Only the desk line changes: redraw from the last report rather
+            // than re-reading every transcript on every cmd-1..9.
+            if let (r, since) = lastRender { render(r, since: since) } else { refresh() }
+        }
+    }
+    private var lastRender: (Usage.Report, Date)?
 
     override func mouseDown(with e: NSEvent) { onClick?() }
 
@@ -85,6 +93,7 @@ final class MeterBar: NSView {
     var onReport: ((Usage.Report) -> Void)?
 
     private func render(_ r: Usage.Report, since: Date) {
+        lastRender = (r, since)
         onReport?(r)
         if demo != nil { return }
         var segs: [String] = []

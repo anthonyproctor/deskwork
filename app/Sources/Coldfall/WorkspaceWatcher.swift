@@ -15,6 +15,12 @@ final class WorkspaceWatcher {
     var onChanged: (([URL]) -> Void)?
 
     private var stream: FSEventStreamRef?
+    /// Everything below is touched only on `q`: FSEvents delivers there, the
+    /// debounce fires there, and start/stop hop onto it. Before this, the
+    /// callback inserted into `pending` on a utility queue while flush() and
+    /// stop() cleared it on main, the same shape as the Set crash the usage
+    /// scan once had.
+    private let q = DispatchQueue(label: "coldfall.workspace-watcher")
     private var root: String = ""
     private var startedAt = Date()
     private var pending = Set<String>()
@@ -36,8 +42,7 @@ final class WorkspaceWatcher {
 
     func start(root path: String) {
         stop()
-        root = path
-        startedAt = Date()
+        q.sync { root = path; startedAt = Date() }
 
         var ctx = FSEventStreamContext(
             version: 0,
@@ -64,15 +69,14 @@ final class WorkspaceWatcher {
                    | kFSEventStreamCreateFlagNoDefer
                    | kFSEventStreamCreateFlagUseCFTypes))
         guard let stream else { return }
-        FSEventStreamSetDispatchQueue(stream, DispatchQueue.global(qos: .utility))
+        FSEventStreamSetDispatchQueue(stream, q)
         FSEventStreamStart(stream)
     }
 
     func stop() {
         if let s = stream { FSEventStreamStop(s); FSEventStreamInvalidate(s); FSEventStreamRelease(s) }
         stream = nil
-        flushWork?.cancel()
-        pending.removeAll()
+        q.sync { flushWork?.cancel(); flushWork = nil; pending.removeAll() }
     }
 
     private func ingest(_ paths: [String]) {
@@ -83,14 +87,15 @@ final class WorkspaceWatcher {
         flushWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.flush() }
         flushWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+        q.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
+    /// On `q`. Takes the batch, then hands it to main.
     private func flush() {
         let urls = pending.sorted().map { URL(fileURLWithPath: $0) }
         pending.removeAll()
         guard !urls.isEmpty else { return }
-        onChanged?(urls)
+        DispatchQueue.main.async { [weak self] in self?.onChanged?(urls) }
     }
 
     private func interesting(_ path: String) -> Bool {

@@ -611,7 +611,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         guard desks.indices.contains(i) else { return }
         let d = desks[i]
         lastVisited[d.name] = Date()
-        waitingIndex = nil
+        waitingName = nil
         if ui.lastDesk != d.name { ui.lastDesk = d.name; ui.save() }
         let s = sessions[d.name] ?? {
             let new = DeskSession(desk: d)
@@ -664,6 +664,8 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 s.holding = false
+                // Ended or replaced while we were looking: nothing to start.
+                guard self.sessions[d.name] === s else { return }
                 guard Reopen.shouldAsk(desk: d, convo, wrapped: wrappedAt != nil,
                                        enabled: self.ui.offerFreshStart) else { s.startIfNeeded(); return }
                 let q = Reopen.question(desk: d, convo, wrappedAt: wrappedAt)
@@ -918,6 +920,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             }
         }
 
+        guard let i = deskIndex(d.name) else { return }
         let before = desks
         desks.remove(at: i)
         persist()
@@ -951,6 +954,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             let no = NSAlert(); no.messageText = "Not renamed"; no.informativeText = why; no.runModal()
             return
         }
+        guard let i = deskIndex(old) else { return }
         desks[i] = desks[i].renamed(from: old, to: new)
         if let s = sessions.removeValue(forKey: old) { s.desk.name = new; sessions[new] = s }
         persist()
@@ -974,13 +978,25 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     func stopDesk(_ i: Int) {
         guard desks.indices.contains(i), let s = sessions[desks[i].name], s.started else { return }
         let d = desks[i]
-        let a = NSAlert()
-        a.messageText = "Stop \(d.name)?"
         // Whether this desk is known to come back where it was: Coldfall
         // resumes it, or its script says how to start fresh (and so resumes
         // by default). Only then can the dialog promise that.
         let resumes = d.resumesItself || d.fresh != nil
-        let convo = resumes ? Reopen.claude(d) : nil
+        guard resumes, d.runtime == "claude" else { presentStop(d, s, resumes: resumes, convo: nil); return }
+        // Finding the conversation reads transcripts, which on a long-lived
+        // folder is seconds of work: not on the main thread.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let convo = Reopen.claude(d)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.sessions[d.name] === s, s.started else { return }
+                self.presentStop(d, s, resumes: resumes, convo: convo)
+            }
+        }
+    }
+
+    func presentStop(_ d: Desk, _ s: DeskSession, resumes: Bool, convo: ConversationInfo?) {
+        let a = NSAlert()
+        a.messageText = "Stop \(d.name)?"
         if resumes {
             a.informativeText = Reopen.stopBody(desk: d, memory: memory[d.name], convo)
         } else {
@@ -1004,6 +1020,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     /// may be waiting for permission to write its notes, and stopping it
     /// then would save nothing. So the person looks, and decides.
     func wrapUp(_ d: Desk, _ s: DeskSession) {
+        guard !s.agentGone else {
+            let a = NSAlert()
+            a.messageText = "\(d.name)'s agent has already exited"
+            a.informativeText = "Only a shell pane is left, so there is nothing to wrap up. Stop the desk and start it again."
+            a.runModal(); return
+        }
         if let i = desks.firstIndex(where: { $0.name == d.name }) { show(i) }
         let sent = Date()
         s.agentTerm.send(txt: Reopen.wrapUpPrompt + "\r")
@@ -1050,8 +1072,15 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         sidebar.budgets = out
     }
 
-    /// The desk shown at launch, not yet started.
-    var waitingIndex: Int?
+    /// A desk's index looked up again by name, for after a dialog: the list
+    /// can be regrouped, reordered or shortened under a modal by a reload of
+    /// desks.toml, and an index captured before it would then point at the
+    /// wrong desk, or off the end.
+    func deskIndex(_ name: String) -> Int? { desks.firstIndex { $0.name == name } }
+
+    /// The desk shown at launch, or stopped, and not yet started. By name,
+    /// not index: the list moves under it.
+    var waitingName: String?
 
     /// Picking a desk. One that's running comes up at once; one that isn't
     /// shows its Start button first, so a stray click starts nothing. Places
@@ -1100,7 +1129,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             box.centerYAnchor.constraint(equalTo: host.centerYAnchor),
         ])
         stoppedNote = box
-        waitingIndex = i
+        waitingName = d.name
 
         sidebar.select(i)
         window.title = "Project Coldfall — \(d.name)"
@@ -1111,13 +1140,13 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
     }
 
     @objc func startWaiting() {
-        guard let i = waitingIndex else { return }
+        guard let n = waitingName, let i = deskIndex(n) else { return }
         show(i)
     }
 
     /// A new plain shell as its own desk, in the folder of the desk on screen.
     @objc func newShellDesk() {
-        let cwd = visible?.desk.cwd ?? waitingIndex.flatMap { desks.indices.contains($0) ? desks[$0].cwd : nil }
+        let cwd = visible?.desk.cwd ?? waitingName.flatMap { n in desks.first { $0.name == n }?.cwd }
         let d = DeskConfig.newShellDesk(in: desks, cwd: cwd)
         desks.append(d)
         guard persist() else { return }
@@ -1290,10 +1319,14 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             default: return
             }
         }
+        guard let i = deskIndex(d.name) else { return }
         desks[i].hidden = true
         persist()
         if stop { endDesk(d) }
         refreshRail()
+        // Hidden while on screen: show something that is still in the rail.
+        if visible?.desk.name == d.name || waitingName == d.name,
+           let j = desks.firstIndex(where: { !$0.hidden && $0.name != d.name }) { open(j) }
     }
 
     func unhideDesk(_ i: Int) {
@@ -1381,6 +1414,7 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         // Keep entries for servers not in .mcp.json right now, so a server
         // that comes back later is still off for this desk.
         let listed = Set(servers)
+        guard let i = deskIndex(d.name) else { return }
         desks[i].mcpOff = d.mcpOff.filter { !listed.contains($0) }
             + zip(servers, boxes).filter { $0.1.state == .off }.map(\.0)
         persist()
@@ -1611,8 +1645,20 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }
         for (name, s) in sessions { if let d = fresh.first(where: { $0.name == name }) { s.desk = d } }
         // A desk gone from the file is gone: its processes end, and nothing
-        // it left behind (a "needs you", a memory figure) outlives it.
-        for (name, s) in sessions where !fresh.contains(where: { $0.name == name }) { endDesk(s.desk) }
+        // it left behind (a "needs you", a memory figure) outlives it. Not on
+        // the instant, though: an editor that autosaves writes half-typed
+        // files, and a `[desk.]` mid-rename read as "gone" used to kill a
+        // running agent. The file gets five seconds to settle first; a desk
+        // still missing then is ended.
+        let gone = sessions.keys.filter { n in !fresh.contains { $0.name == n } }
+        if !gone.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+                guard let self else { return }
+                for n in gone where self.deskIndex(n) == nil {
+                    if let s = self.sessions[n] { self.endDesk(s.desk) }
+                }
+            }
+        }
         noteRemovedRuntimes(before: desks, after: fresh)
         desks = fresh
         knownConfig = DeskSync.snapshot()
@@ -1684,6 +1730,12 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
             let a = NSAlert()
             a.messageText = "No \(runtime) desk to run that in"
             a.informativeText = "Add one in Settings, then try again."
+            a.runModal(); return
+        }
+        if sessions[desks[i].name]?.agentGone == true {
+            let a = NSAlert()
+            a.messageText = "\(desks[i].name)'s agent has exited"
+            a.informativeText = "Only a shell pane is left, so that can't be run there. Stop the desk and start it again."
             a.runModal(); return
         }
         show(i)
@@ -2119,6 +2171,9 @@ final class Controller: NSObject, NSApplicationDelegate, LocalProcessTerminalVie
         }) else { return }
 
         if entry.value.panes.count > 1 {
+            // The agent pane going leaves a shell that must not be mistaken
+            // for the agent by Wrap Up or "run this in the desk".
+            if entry.value.panes.first?.term === source { entry.value.agentGone = true }
             entry.value.drop(term: source)
             if entry.value === visible {
                 updateTermHeader()

@@ -369,6 +369,9 @@ final class DeskSession {
     /// Waiting on the person: whether to resume or start fresh. Nothing
     /// starts while this is set, so a second click can't start it twice.
     var holding = false
+    /// The agent pane exited while a shell pane stayed. What's left is a
+    /// shell, not the agent, whatever agentTerm now points at.
+    var agentGone = false
 
     func startIfNeeded() {
         guard !started, !resolving, !holding else { return }
