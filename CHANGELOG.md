@@ -42,6 +42,10 @@ opens this file.
 - Hiding the desk on screen leaves you on a desk that is still in the list.
 
 ### Fixed (usage numbers and advice)
+- **Subagents were not counted.** Claude Code keeps a subagent's transcript
+  under its session's folder, and the scans stopped at the top level, so
+  every token a subagent spent was missing from the week (241 such files on
+  one Mac). They are counted now, under the desk that ran them.
 - **"Coming back after a break" over-counted.** It flagged any big cache
   write, so a new conversation's first turn, a compaction and a big file
   read mid-flow all counted as rebuilds after a break. A rebuild is now a

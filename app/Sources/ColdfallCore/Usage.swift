@@ -74,10 +74,12 @@ public enum Usage {
 
     /// `accounts`: Claude accounts besides the default one, each counted
     /// under its own name ("claude-second") so two plans can be compared.
-    public static func scan(since: Date, accounts: [ClaudeAccount] = []) -> Report {
+    /// `claudeRoot` is overridable for tests.
+    public static func scan(since: Date, accounts: [ClaudeAccount] = [],
+                            claudeRoot: String = NSString(string: "~/.claude/projects").expandingTildeInPath) -> Report {
         var r = Report()
         var live = Set<String>()
-        scanClaude(since: since, into: &r, live: &live)
+        scanClaude(since: since, into: &r, live: &live, root: claudeRoot)
         for a in accounts {
             scanClaude(since: since, into: &r, live: &live, root: a.projectsRoot(), vendor: a.vendor)
         }
@@ -108,12 +110,14 @@ public enum Usage {
                                    root: String = NSString(string: "~/.claude/projects").expandingTildeInPath,
                                    vendor: String = "claude") {
         guard let projects = try? FileManager.default.contentsOfDirectory(atPath: root) else { return }
+        var titles: [String: String?] = [:]
         for proj in projects {
             let dir = (root as NSString).appendingPathComponent(proj)
-            guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
-            for file in files where file.hasSuffix(".jsonl") {
-                let path = (dir as NSString).appendingPathComponent(file)
+            for (path, parent) in transcripts(in: dir) {
                 live.insert(path)
+                // A subagent's transcript has no title of its own; its spend
+                // belongs to the desk that ran it.
+                let hint = parent.flatMap { title(ofTranscript: $0, cache: &titles) }
 
                 // A file untouched since before the window opened cannot
                 // contribute to it. This gate was missing entirely, and on a
@@ -131,7 +135,7 @@ public enum Usage {
                 guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
                 var mine: [String: UsageSlice] = [:]
 
-                var desk: String? = nil
+                var desk: String? = hint
                 var seen = Set<String>()        // per-file dedupe: that is where dupes come from
                 for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
                     guard let d = line.data(using: .utf8),
@@ -164,6 +168,50 @@ public enum Usage {
                 for sl in slices { addSlice(&r, sl) }
             }
         }
+    }
+
+    /// Every transcript in a project folder: the sessions at the top, and
+    /// each session's subagents under <session>/subagents/. Claude bills a
+    /// subagent's turns like any other, so a scan that stopped at the top
+    /// level missed them: 241 files on one Mac. Each subagent file comes
+    /// with its parent session's transcript, for the desk it belongs to.
+    public static func transcripts(in dir: String) -> [(path: String, parent: String?)] {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
+        var out: [(String, String?)] = []
+        for e in entries.sorted() {
+            let p = (dir as NSString).appendingPathComponent(e)
+            if e.hasSuffix(".jsonl") { out.append((p, nil)); continue }
+            let sub = (p as NSString).appendingPathComponent("subagents")
+            guard let agents = try? fm.contentsOfDirectory(atPath: sub) else { continue }
+            let parent = p + ".jsonl"
+            for a in agents.sorted() where a.hasSuffix(".jsonl") {
+                out.append(((sub as NSString).appendingPathComponent(a), parent))
+            }
+        }
+        return out
+    }
+
+    /// The title a session's transcript carries, read without parsing the
+    /// whole file (one mapped search for the record), cached per scan.
+    public static func title(ofTranscript path: String, cache: inout [String: String?]) -> String? {
+        if let hit = cache[path] { return hit }
+        var found: String? = nil
+        let needle = Data("{\"type\":\"custom-title\",\"customTitle\":\"".utf8)
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .alwaysMapped) {
+            var from = data.startIndex
+            while let r = data.range(of: needle, in: from..<data.endIndex) {
+                if r.lowerBound == data.startIndex || data[r.lowerBound - 1] == 0x0A {
+                    var end = r.upperBound
+                    while end < data.endIndex, data[end] != 0x22, data[end] != 0x0A { end += 1 }
+                    found = String(decoding: data[r.upperBound..<end], as: UTF8.self)
+                    break
+                }
+                from = r.upperBound
+            }
+        }
+        cache[path] = found
+        return found
     }
 
     /// Accumulate one message into a per-file bundle, keyed so a whole

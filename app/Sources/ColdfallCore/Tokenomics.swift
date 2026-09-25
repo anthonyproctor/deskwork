@@ -121,11 +121,12 @@ public struct Tokenomics {
     static func scan(root: String, since: Date, into t: inout Tokenomics) {
         let fm = FileManager.default
         guard let projects = try? fm.contentsOfDirectory(atPath: root) else { return }
+        var titles: [String: String?] = [:]
         for proj in projects {
             let dir = (root as NSString).appendingPathComponent(proj)
-            guard let files = try? fm.contentsOfDirectory(atPath: dir) else { continue }
-            for file in files where file.hasSuffix(".jsonl") {
-                let path = (dir as NSString).appendingPathComponent(file)
+            // Sessions and their subagents' transcripts, see Usage.transcripts.
+            for (path, parent) in Usage.transcripts(in: dir) {
+                let hint = parent.flatMap { Usage.title(ofTranscript: $0, cache: &titles) }
                 guard let fp = UsageCache.fingerprint(path), fp.modified >= since else { continue }
                 // A transcript that has not changed gives the same answer as
                 // last time. Without this the panel re-parsed 800MB on every
@@ -136,7 +137,7 @@ public struct Tokenomics {
                 }
                 guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
                 var one = Tokenomics()
-                read(text, since: since, into: &one)
+                read(text, since: since, into: &one, desk: hint)
                 TokenomicsCache.store(one, for: path, key: fp.key, since: since)
                 t.merge(one)
             }
@@ -215,8 +216,10 @@ public struct Tokenomics {
     /// One transcript. Records are deduplicated on message id, as in Usage: a
     /// streamed reply is written more than once and counting each would
     /// roughly double everything here too.
-    public static func read(_ text: String, since: Date, into t: inout Tokenomics) {
-        var desk: String? = nil
+    /// `desk` is the desk to attribute to when the transcript names none
+    /// (a subagent's), from its parent session.
+    public static func read(_ text: String, since: Date, into t: inout Tokenomics, desk hint: String? = nil) {
+        var desk: String? = hint
         var seen = Set<String>()
         var first = true
         // When the previous turn in THIS transcript happened: a rebuild is a

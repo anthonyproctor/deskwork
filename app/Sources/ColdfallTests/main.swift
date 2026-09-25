@@ -1484,6 +1484,39 @@ do {
     try? fm.removeItem(atPath: path)
 }
 
+// MARK: - review fixes: subagents count too
+
+do {
+    let fm = FileManager.default
+    let root = NSTemporaryDirectory() + "coldfall-sub-\(UUID().uuidString)"
+    let proj = root + "/-srv-demo"
+    let sid = "33333333-3333-4333-8333-333333333333"
+    try? fm.createDirectory(atPath: proj + "/\(sid)/subagents", withIntermediateDirectories: true)
+    let when = "2026-09-22T10:00:00.000Z"
+    func turn(_ id: String, _ read: Int) -> String {
+        #"{"timestamp":"\#(when)","message":{"id":"\#(id)","model":"claude-opus-5","usage":{"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":\#(read),"output_tokens":100}}}"#
+    }
+    try? ([#"{"type":"custom-title","customTitle":"cf","sessionId":"x"}"#, turn("p1", 1000)].joined(separator: "\n"))
+        .write(toFile: proj + "/\(sid).jsonl", atomically: true, encoding: .utf8)
+    try? ([turn("s1", 5000), turn("s2", 5000)].joined(separator: "\n"))
+        .write(toFile: proj + "/\(sid)/subagents/agent-a1.jsonl", atomically: true, encoding: .utf8)
+    let list = Usage.transcripts(in: proj)
+    eq("subagents: the session and its subagent are both found", list.count, 2)
+    eq("subagents: the subagent knows its parent", list.first { $0.parent != nil }?.parent, proj + "/\(sid).jsonl")
+    var cache: [String: String?] = [:]
+    eq("subagents: the parent's title is read without parsing it", Usage.title(ofTranscript: proj + "/\(sid).jsonl", cache: &cache), "cf")
+    let wasCache = TokenomicsCache.root; TokenomicsCache.root = root + "/cache"
+    let t = Tokenomics.scan(since: Date(timeIntervalSince1970: 0), root: root)
+    TokenomicsCache.clear(); TokenomicsCache.root = wasCache
+    eq("subagents: their turns are counted under the desk that ran them", t.byDesk["cf"]?.turns, 3)
+    eq("subagents: and in the total", t.all.turns, 3)
+    let wasU = UsageCache.root; UsageCache.root = root + "/ucache"
+    let r = Usage.scan(since: Date(timeIntervalSince1970: 0), claudeRoot: root)
+    UsageCache.clear(); UsageCache.root = wasU
+    eq("subagents: the usage report agrees", r.byDesk["cf"]?.calls, 3)
+    try? fm.removeItem(atPath: root)
+}
+
 // MARK: - review fixes: what picking up really costs
 
 do {
