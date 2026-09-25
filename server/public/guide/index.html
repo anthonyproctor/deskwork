@@ -360,7 +360,7 @@ budget = 50                 <span class="c"># dollars a week; the row turns red 
     <h2 id="tokens">Spend less</h2>
     <p>Every message to an agent re-sends the whole conversation so far. That's what makes a desk remember, and it's also why a long conversation gets expensive. Three habits keep it in check, and <strong>Where it went</strong> shows which ones matter for you:</p>
     <ul>
-      <li><strong>Keep sittings together.</strong> On Claude, a conversation you came back to within the hour is read from the cache for a small fraction of the price. After a longer break the first message sends all of it again, at about twice the usual price. Where it went counts how often that happened this week.</li>
+      <li><strong>Keep sittings together.</strong> On Claude, a conversation you came back to within the hour is read from the cache for a small fraction of the price. After a longer break the first message sends all of it again, and rebuilding the cache costs 20 to 40 times what a warm turn does; Coldfall shows the dollar figure for that conversation before you pick it up. Where it went counts how often that happened this week.</li>
       <li><strong>Hand the messy jobs to a subagent.</strong> Big searches, long logs and reading many files pour thousands of lines into a conversation, and they ride along on every later turn. Ask the agent to use a subagent for them: it does the reading in its own conversation and only the answer comes back.</li>
       <li><strong>Use the smaller model for routine work.</strong> Where it went shows what the week would have cost on a smaller model. Set <code>model</code> on the desks that don't need the big one.</li>
     </ul>

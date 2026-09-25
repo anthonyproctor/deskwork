@@ -1484,6 +1484,30 @@ do {
     try? fm.removeItem(atPath: path)
 }
 
+// MARK: - review fixes: what picking up really costs
+
+do {
+    let c = ConversationInfo(path: "/x", tokens: 600_000, lastUsed: Date().addingTimeInterval(-3 * 86_400), model: "claude-opus-5-5")
+    check("reopen: the rebuild is priced as a one-hour cache write", abs(c.rebuildUsd - 4.80) < 0.001)
+    check("reopen: a warm turn as a cache read at that model's rate", abs(c.warmUsd - 0.12) < 0.001)
+    let q = Reopen.question(desk: Desk(name: "cf", runtime: "claude"), c, wrappedAt: nil)
+    check("reopen: the question says both numbers", q.body.contains("costs about $4.80") && q.body.contains("costs about $0.12"))
+    check("reopen: and no longer says twice", !q.body.contains("twice"))
+    let fable = ConversationInfo(path: "/x", tokens: 600_000, lastUsed: Date(), model: "claude-fable-5-1")
+    check("reopen: on Fable the gap is 80x", abs(fable.rebuildUsd / fable.warmUsd - 80) < 0.01)
+    eq("reopen: small amounts keep their cents", Reopen.usd(0.12), "$0.12")
+    eq("reopen: big ones don't", Reopen.usd(12.4), "$12")
+
+    // a cheap week that is really write-heavy no longer gets "nothing to change"
+    var w = Tokenomics(); var s = Tokenomics.DeskStats()
+    s.turns = 100; s.fresh = 0; s.cacheWrite = 290_000; s.cacheRead = 710_000; s.output = 1000; s.byModel = ["sonnet": 1]
+    w.all = s; w.byDesk = ["x": s]
+    check("advice: a write-heavy week is not called cheap", !w.notes().contains { $0.advice.contains("Nothing to change") })
+
+    // budget: spent rounds down, so $49.60 never reads as $50 of $50
+    eq("budget: label rounds spent down", DeskBudget.label(.near(spent: 49.6, budget: 50)), "$49 of $50 this week")
+}
+
 // MARK: - review fixes: quoting, pricing, the release URL
 
 do {
@@ -1793,12 +1817,22 @@ do {
     var t = Tokenomics()
     let lines = [
         #"{"type":"custom-title","customTitle":"money"}"#,
+        #"{"timestamp":"2026-09-22T07:30:00.000Z","message":{"id":"r0","model":"claude-opus-5","usage":{"input_tokens":3,"cache_creation_input_tokens":900,"cache_read_input_tokens":600000,"output_tokens":300}}}"#,
         #"{"timestamp":"2026-09-22T09:00:00.000Z","message":{"id":"r1","model":"claude-opus-5","usage":{"input_tokens":3,"cache_creation_input_tokens":580000,"cache_read_input_tokens":20000,"output_tokens":300}}}"#,
         #"{"timestamp":"2026-09-22T09:01:00.000Z","message":{"id":"r2","model":"claude-opus-5","usage":{"input_tokens":3,"cache_creation_input_tokens":900,"cache_read_input_tokens":600000,"output_tokens":300}}}"#,
     ]
     Tokenomics.read(lines.joined(separator: "\n"), since: Date(timeIntervalSince1970: 0), into: &t)
-    eq("rebuild: the turn after a break is counted", t.byDesk["money"]?.rebuilds, 1)
+    eq("rebuild: the big write 90 minutes after the last turn is counted", t.byDesk["money"]?.rebuilds, 1)
     eq("rebuild: a warm turn is not", t.all.rebuilds, 1)
+    // the same big write with no previous turn (a new conversation) is not a rebuild
+    var fresh = Tokenomics()
+    Tokenomics.read([lines[0], lines[2]].joined(separator: "\n"), since: Date(timeIntervalSince1970: 0), into: &fresh)
+    eq("rebuild: a new conversation's first turn is not one", fresh.all.rebuilds, 0)
+    // nor a big write two minutes after the last turn (a compaction, a big file)
+    var soon = Tokenomics()
+    let compact = lines[2].replacingOccurrences(of: "09:00:00", with: "07:32:00")
+    Tokenomics.read([lines[0], lines[1], compact].joined(separator: "\n"), since: Date(timeIntervalSince1970: 0), into: &soon)
+    eq("rebuild: a big write two minutes later is not one either", soon.all.rebuilds, 0)
     check("rebuild: priced as a one-hour cache write", abs((t.all.rebuildUsd) - 2.0 * 0.58 * 5) < 0.01)
 
     var week = Tokenomics()
@@ -1848,7 +1882,7 @@ do {
     waste.all = w
     waste.byDesk = ["api": w]
     let notes = waste.notes(servers: ["api": 4])
-    check("advice: names the fresh-context share", notes.contains { $0.kind == .cache && $0.finding.contains("73%") })
+    check("advice: names the uncached share, writes included", notes.contains { $0.kind == .cache && $0.finding.contains("82%") })
     check("advice: says what the desk pays before you type",
           notes.contains { $0.kind == .start && $0.finding.contains("62K") })
     check("advice: and points at that desk's MCP servers",
@@ -2184,7 +2218,9 @@ do {
     eq("copilot: a cheaper model counts by its multiplier", rows[2].premium, 0.33)
     let mid = ISO8601DateFormatter().date(from: "2026-09-19T12:00:00Z")!
     let ms = Usage.monthStart(mid)
-    check("copilot: month starts on the 1st", Calendar.current.component(.day, from: ms) == 1 && ms <= mid)
+    var utc = Calendar(identifier: .gregorian); utc.timeZone = TimeZone(identifier: "UTC")!
+    check("copilot: the month starts at midnight UTC on the 1st, as GitHub's does",
+          utc.component(.day, from: ms) == 1 && utc.component(.hour, from: ms) == 0 && ms <= mid)
 }
 
 // MARK: - offering a desk for a newly installed agent

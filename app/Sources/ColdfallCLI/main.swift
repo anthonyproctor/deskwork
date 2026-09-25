@@ -63,7 +63,7 @@ case "tokenomics":
     var counts: [String: Int] = [:]
     for d in DeskConfig.load() where d.runtime != "shell" {
         let n = Inventory.of(d).mcp.filter { !$0.off }.count
-        if n > 0 { counts[d.name] = n }
+        if n > 0 { counts[Reopen.title(of: d)] = n }
     }
     out([
         "since": ISO8601DateFormatter().string(from: tsince),
@@ -71,8 +71,8 @@ case "tokenomics":
         "freshPct": Int((t.freshShare * 100).rounded()),
         "cacheReadPct": Int((t.cacheReadShare * 100).rounded()),
         "usd": t.all.usd,
-        "usdOnSonnet": t.savingsOnSonnet(),
-        "modelMix": t.modelMix.map { ["model": $0.model, "pct": Int($0.share * 100)] },
+        "usdOnSonnetEstimate": t.savingsOnSonnet(),
+        "modelMix": t.modelMix.map { ["model": $0.model, "pct": Int(($0.share * 100).rounded())] },
         "byDesk": t.byDesk.mapValues {
             ["turns": $0.turns, "perTurn": Int($0.perTurn), "usd": $0.usd, "floor": $0.floor,
              "toolTokens": $0.toolTotal, "subagents": $0.subagents]
@@ -118,8 +118,11 @@ case "usage":
     let r = Usage.scan(since: since, accounts: ClaudeAccount.known())
     out([
         "since": ISO8601DateFormatter().string(from: since),
-        "byVendor": r.byVendor.mapValues { ["tokens": $0.tokens, "calls": $0.calls, "usd": $0.usd ?? 0] },
-        "byDesk": r.byDesk.mapValues { ["tokens": $0.tokens, "calls": $0.calls, "usd": $0.usd ?? 0] },
+        // No dollar figure for a vendor Coldfall doesn't price, rather than 0.
+        "byVendor": r.byVendor.mapValues { b -> [String: Any] in
+            var o: [String: Any] = ["tokens": b.tokens, "calls": b.calls]; if let u = b.usd { o["usd"] = u }; return o },
+        "byDesk": r.byDesk.mapValues { b -> [String: Any] in
+            var o: [String: Any] = ["tokens": b.tokens, "calls": b.calls]; if let u = b.usd { o["usd"] = u }; return o },
         "routerHint": Usage.routerHint(r) ?? "",
     ])
 

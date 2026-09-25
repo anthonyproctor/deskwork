@@ -55,7 +55,8 @@ public enum DeskBudget {
         switch s {
         case .unset: return nil
         case .ok(let spent, let b), .near(let spent, let b), .over(let spent, let b):
-            return String(format: "$%.0f of $%.0f this week", spent, b)
+            // Spent rounds DOWN, so "$50 of $50" only ever appears when it is over.
+            return String(format: "$%.0f of $%.0f this week", spent.rounded(.down), b)
         }
     }
 
@@ -63,7 +64,7 @@ public enum DeskBudget {
     public static func short(_ s: Status) -> String? {
         switch s {
         case .near(let spent, let b), .over(let spent, let b):
-            return String(format: "$%.0f/$%.0f", spent, b)
+            return String(format: "$%.0f/$%.0f", spent.rounded(.down), b)
         default: return nil
         }
     }

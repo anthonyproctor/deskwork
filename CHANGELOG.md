@@ -8,6 +8,35 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed (usage numbers and advice)
+- **"Coming back after a break" over-counted.** It flagged any big cache
+  write, so a new conversation's first turn, a compaction and a big file
+  read mid-flow all counted as rebuilds after a break. A rebuild is now a
+  big write an hour or more after the previous turn of the same
+  conversation, which is when Claude Code's cache has actually lapsed.
+- **"Twice the usual price" was wrong by a factor of ten or more.** A
+  rebuild is twice the *fresh* price, but a warm turn is a cache read at a
+  twentieth of it, so picking up a big conversation after a break costs 20
+  to 40 times a warm turn. The reopen question now says the dollars for
+  that conversation ("about $4.80; once warm, about $0.12"), and the usage
+  window's heading says the same.
+- The cache note counted context written to cache as cached, and could
+  call a write-heavy week "the cheap way to work". Writes count as
+  uncached now, which they are.
+- "LAST 14 DAYS" only ever held this week; it says "EACH DAY THIS WEEK".
+- The usage window rescans when the week has rolled over or its numbers
+  are older than two minutes, instead of showing last week under a new
+  date. Budgets shown there are re-read each time.
+- MCP server counts in the advice are matched by the title a desk's
+  conversation carries, so a desk whose conversation is named differently
+  is no longer missed.
+- The Sonnet comparison is labelled an estimate wherever it appears.
+- Copilot's premium-request month starts at midnight UTC, as GitHub's does.
+- A budget's spent figure rounds down, so "$50 of $50" only appears when
+  it really is over. Percentages round the same way everywhere, and the
+  CLI omits a dollar figure for vendors Coldfall doesn't price rather than
+  printing 0.
+
 ### Security
 - The Claude limits recorder wrote a per-desk file named after whatever
   Claude reported as the session name, unsanitised, so a name containing

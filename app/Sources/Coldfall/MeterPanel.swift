@@ -9,7 +9,11 @@ final class MeterPanel: NSWindowController {
     private(set) var content: NSView?
     private var report = Usage.Report()
     /// Desks with a weekly budget, read when the window opens.
-    private var budgetDesks: [Desk] = DeskConfig.load().filter { $0.budget != nil }
+    private var budgetDesks: [Desk] = []
+    /// When the numbers were read, and for which week, so reopening the
+    /// window later rescans instead of showing last week under a new date.
+    private var scannedAt = Date.distantPast
+    private var scannedSince = Date.distantPast
 
     /// One window, three questions: what is left, where it went this week,
     /// and why. They were one column, and the answer you wanted was always
@@ -140,6 +144,8 @@ final class MeterPanel: NSWindowController {
 
     func reload() {
         since = Usage.weekStart()
+        // Rescan when the week rolled over or the last scan is a while old.
+        if scanned, since != scannedSince || Date().timeIntervalSince(scannedAt) > 120 { scanned = false }
         draw()
         guard !scanned else { return }
         stack.addArrangedSubview(caps("SCANNING…"))
@@ -150,16 +156,23 @@ final class MeterPanel: NSWindowController {
             let t = Tokenomics.scan(since: since, accounts: accounts)
             // How many MCP servers each desk starts, so the advice can point
             // at the ones a desk doesn't need.
+            // Keyed by the title the desk's conversation carries, which is
+            // what the usage records are keyed by.
+            let desks = DeskConfig.load()
             var servers: [String: Int] = [:]
-            for d in DeskConfig.load() where d.runtime == "claude" || d.runtime == "codex" {
+            for d in desks where d.runtime == "claude" || d.runtime == "codex" {
                 let n = Inventory.of(d).mcp.filter { !$0.off }.count
-                if n > 0 { servers[d.name] = n }
+                if n > 0 { servers[Reopen.title(of: d)] = n }
             }
+            let budgeted = desks.filter { $0.budget != nil }
             DispatchQueue.main.async {
                 self.report = r
                 self.tokens = t
                 self.servers = servers
+                self.budgetDesks = budgeted
                 self.scanned = true
+                self.scannedAt = Date()
+                self.scannedSince = since
                 self.draw()
             }
         }
@@ -274,7 +287,7 @@ final class MeterPanel: NSWindowController {
         }
 
         // ---- last 14 days
-        stack.addArrangedSubview(caps("LAST 14 DAYS"))
+        stack.addArrangedSubview(caps("EACH DAY THIS WEEK"))
         let days = report.byDay.keys.sorted().suffix(14)
         let peak = report.byDay.values.map { $0.values.reduce(0, +) }.max() ?? 1
         let fin = DateFormatter(); fin.dateFormat = "yyyy-MM-dd"
@@ -322,7 +335,7 @@ final class MeterPanel: NSWindowController {
         if t.all.usd > 0 {
             stack.addArrangedSubview(mono(
                 pad("this week", 15) + String(format: "$%.0f", t.all.usd)
-                + String(format: "   ·   the same tokens on Sonnet: about $%.0f", t.savingsOnSonnet())))
+                + String(format: "   ·   estimate: the same tokens on Sonnet, about $%.0f", t.savingsOnSonnet())))
         }
 
         // What each desk pays before it says anything.
@@ -356,7 +369,7 @@ final class MeterPanel: NSWindowController {
         let rebuilt = t.byDesk.filter { $0.value.rebuilds > 0 }
             .sorted { $0.value.rebuildUsd > $1.value.rebuildUsd }.prefix(6)
         if !rebuilt.isEmpty {
-            stack.addArrangedSubview(caps("COMING BACK AFTER A BREAK  (the cache lasts an hour; rebuilding it costs 2x)"))
+            stack.addArrangedSubview(caps("COMING BACK AFTER A BREAK  (the cache lasts an hour; rebuilding it costs 20 to 40 times a warm turn)"))
             for (name, s) in rebuilt {
                 stack.addArrangedSubview(mono(
                     pad(name, 15) + lpad("\(s.rebuilds)", 9) + (s.rebuilds == 1 ? " time " : " times")

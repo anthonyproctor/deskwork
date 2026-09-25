@@ -24,9 +24,16 @@ public struct ConversationInfo: Equatable {
     /// What the last turn sent: the size the next message will re-send.
     public let tokens: Int
     public let lastUsed: Date
-    public init(path: String, tokens: Int, lastUsed: Date) {
-        self.path = path; self.tokens = tokens; self.lastUsed = lastUsed
+    /// The model of the last turn, for pricing what picking it up costs.
+    public let model: String
+    public init(path: String, tokens: Int, lastUsed: Date, model: String = "") {
+        self.path = path; self.tokens = tokens; self.lastUsed = lastUsed; self.model = model
     }
+    /// What the first message after a break costs: the whole conversation
+    /// written to cache again.
+    public var rebuildUsd: Double { Pricing.writeCost(model: model, write: tokens) }
+    /// What a turn costs while it's warm: the same tokens read from cache.
+    public var warmUsd: Double { Pricing.cost(model: model, fresh: 0, read: tokens, write: 0, output: 0) }
 }
 
 public enum Reopen {
@@ -57,10 +64,10 @@ public enum Reopen {
         guard let id else { return nil }
         let path = (Resume.claudeProjectDir(for: desk.resolvedCwd, root: root) as NSString)
             .appendingPathComponent(id + ".jsonl")
-        guard let tokens = lastContext(path),
+        guard let last = lastTurn(path),
               let m = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
         else { return nil }
-        return ConversationInfo(path: path, tokens: tokens, lastUsed: m)
+        return ConversationInfo(path: path, tokens: last.tokens, lastUsed: m, model: last.model)
     }
 
     /// The size of the last turn in a transcript: fresh input plus what was
@@ -68,6 +75,11 @@ public enum Reopen {
     /// long conversation's transcript runs to tens of megabytes and only its
     /// last turn matters here.
     public static func lastContext(_ path: String, tail: Int = 512 * 1024) -> Int? {
+        lastTurn(path, tail: tail)?.tokens
+    }
+
+    /// The last turn's size and model.
+    public static func lastTurn(_ path: String, tail: Int = 512 * 1024) -> (tokens: Int, model: String)? {
         guard let h = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? h.close() }
         let size = (try? h.seekToEnd()) ?? 0
@@ -79,7 +91,7 @@ public enum Reopen {
         // for. Drop the partial first line instead.
         if start > 0, let nl = data.firstIndex(of: 0x0A) { data = data[data.index(after: nl)...] }
         let text = String(decoding: data, as: UTF8.self)
-        var found: Int? = nil
+        var found: (tokens: Int, model: String)? = nil
         for line in text.split(separator: "\n").reversed() {
             guard line.contains("\"usage\""), let d = line.data(using: .utf8),
                   let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
@@ -88,13 +100,16 @@ public enum Reopen {
             let n = (u["input_tokens"] as? Int ?? 0)
                   + (u["cache_read_input_tokens"] as? Int ?? 0)
                   + (u["cache_creation_input_tokens"] as? Int ?? 0)
-            if n > 0 { found = n; break }
+            if n > 0 { found = (n, msg["model"] as? String ?? ""); break }
         }
         // Nothing in this tail (a huge tool result at the end): read further
         // back, once, before giving up.
-        if found == nil, start > 0, tail < 64 * 1024 * 1024 { return lastContext(path, tail: tail * 16) }
+        if found == nil, start > 0, tail < 64 * 1024 * 1024 { return lastTurn(path, tail: tail * 16) }
         return found
     }
+
+    /// "$4.80", "$0.12".
+    public static func usd(_ v: Double) -> String { String(format: v >= 10 ? "$%.0f" : "$%.2f", v) }
 
     /// Whether a big conversation has sat long enough to be worth a word.
     public static func shouldAsk(_ c: ConversationInfo, now: Date = Date()) -> Bool {
@@ -159,10 +174,15 @@ public enum Reopen {
         }
         let size = c.map { "about \(short($0.tokens)) tokens" } ?? "large"
         let when = c.map { ", last used \(ago($0.lastUsed, now: now))" } ?? ""
+        // The cache has lapsed, so the first message writes the whole
+        // conversation back at double the fresh price, where a warm turn
+        // reads it for a twentieth or less. Say it in dollars, not multiples.
+        let cost = c.map { " That first message costs about \(usd($0.rebuildUsd)); once it's warm again, "
+                         + "a turn on it costs about \(usd($0.warmUsd))." } ?? ""
         return Question(
             title: "Pick up where you left off in \(desk.name)?",
             body: "\(desk.name) will pick up this conversation right where it was. It's \(size)\(when), "
-                + "so your first message sends all of it once more, at about twice the usual price.\n\n"
+                + "so your first message sends all of it once more, and the cache has lapsed.\(cost)\n\n"
                 + "If the topic has moved on, you can start a clean conversation instead. The desk keeps its "
                 + "name, folder, instructions and memory files; what was only said in the chat stays in the "
                 + "old conversation.\n\n" + back,

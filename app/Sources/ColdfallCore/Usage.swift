@@ -225,7 +225,10 @@ public enum Usage {
 
     /// The first moment of this calendar month. Copilot plans reset monthly.
     public static func monthStart(_ now: Date = Date()) -> Date {
-        Calendar.current.dateInterval(of: .month, for: now)?.start ?? now
+        // GitHub's cycle turns over at midnight UTC, not local midnight.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        return cal.dateInterval(of: .month, for: now)?.start ?? now
     }
 
     private static func scanCopilot(since: Date, into r: inout Report) {
@@ -287,6 +290,6 @@ public enum Usage {
         guard total > 0 else { return nil }
         let hotShare = Double(hot.value.tokens) / Double(total)
         guard hotShare > 0.70 else { return nil }
-        return "\(Int(hotShare * 100))% of this week is on \(hot.key). \(cold.key) is barely touched."
+        return "\(Int((hotShare * 100).rounded()))% of this week is on \(hot.key). \(cold.key) is barely touched."
     }
 }

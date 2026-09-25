@@ -11,8 +11,9 @@
 //      less, so that is what the desk pays to say anything.
 //   2. CACHE. A cache READ costs a small fraction of fresh input (a tenth,
 //      or less on the newest models); a cache WRITE costs double, since Claude
-//      Code writes the one-hour cache. Reused context is nearly free, rebuilt
-//      context is not,
+//      Code writes the one-hour cache. A warm turn is a cache read, so
+//      rebuilding the same conversation after a break costs 20 to 40 TIMES
+//      that turn. Reused context is nearly free, rebuilt context is not,
 //      so the split between them is the difference between a cheap week and
 //      an expensive one.
 //   3. MODEL. The same work on a smaller model costs a fraction. What the
@@ -80,6 +81,9 @@ public struct Tokenomics {
 
     public var freshShare: Double { all.input > 0 ? Double(all.fresh) / Double(all.input) : 0 }
     public var cacheReadShare: Double { all.input > 0 ? Double(all.cacheRead) / Double(all.input) : 0 }
+    /// Input that was NOT a cache read: fresh, or written to cache (which
+    /// costs double, the most expensive kind).
+    public var uncachedShare: Double { all.input > 0 ? Double(all.fresh + all.cacheWrite) / Double(all.input) : 0 }
 
     /// Share of tokens per model, biggest first.
     public var modelMix: [(model: String, share: Double)] {
@@ -204,6 +208,9 @@ public struct Tokenomics {
     /// A cache write this big is a conversation being rebuilt, not one
     /// growing by a message.
     public static let rebuildTokens = 50_000
+    /// How long Claude Code's cache lives after the last message (it writes
+    /// the one-hour cache).
+    public static let cacheLifetime: TimeInterval = 3600
 
     /// One transcript. Records are deduplicated on message id, as in Usage: a
     /// streamed reply is written more than once and counting each would
@@ -212,6 +219,9 @@ public struct Tokenomics {
         var desk: String? = nil
         var seen = Set<String>()
         var first = true
+        // When the previous turn in THIS transcript happened: a rebuild is a
+        // big write after the cache had time to lapse, not any big write.
+        var lastTurn: Date? = nil
         // Which tool each call was, so its result can be sized by kind.
         var tools: [String: String] = [:]
         let iso = ISO8601DateFormatter()
@@ -277,8 +287,12 @@ public struct Tokenomics {
                 let sent = fresh + write + read
                 if sent > 0, s.floor == 0 || sent < s.floor { s.floor = sent }
                 // A rebuild: most of a big turn written to cache rather than
-                // read from it. That is a conversation picked up after a break.
-                if write >= Tokenomics.rebuildTokens, write > read {
+                // read from it, an hour or more after the previous turn of
+                // the same conversation. A new conversation's first turn, a
+                // compaction and a big file read mid-flow all write a lot too,
+                // and used to be counted; none of them is a break.
+                if write >= Tokenomics.rebuildTokens, write > read,
+                   let prev = lastTurn, when.timeIntervalSince(prev) >= Tokenomics.cacheLifetime {
                     s.rebuilds += 1
                     s.rebuildUsd += rebuildCost
                 }
@@ -290,6 +304,7 @@ public struct Tokenomics {
                 t.byDesk[name] = s
             }
             first = false
+            lastTurn = when
         }
     }
 }
@@ -323,12 +338,12 @@ extension Tokenomics {
 
         // 1. Reuse. A cache read costs a small fraction of fresh input; rebuilding
         // context instead of reusing it is the quietest way to burn a week.
-        if freshShare > 0.30 {
+        if uncachedShare > 0.30 {
             out.append(Note(.cache,
-                String(format: "%.0f%% of what you sent was fresh context, not reused from cache.", freshShare * 100),
+                String(format: "%.0f%% of what you sent was not read from cache: fresh context, or context being written to cache at double price.", uncachedShare * 100),
                 "Cache is reused while a conversation keeps going and expires in the gaps. "
                 + "Fewer, longer sittings at one desk cost less than the same work spread out."))
-        } else if cacheReadShare > 0.70 {
+        } else if cacheReadShare > 0.70, uncachedShare < 0.15 {
             out.append(Note(.cache,
                 String(format: "%.0f%% of your input was read from cache, at a small fraction of the price.", cacheReadShare * 100),
                 "Nothing to change here. This is the cheap way to work."))
@@ -476,9 +491,12 @@ public enum TokenomicsCache {
         return l
     }
 
+    /// Bumped when what a slice records changes, so old slices are re-read.
+    public static let rules = "2"
+
     public static func stats(for path: String, key: String, since: Date) -> Tokenomics? {
         lock.lock(); defer { lock.unlock() }
-        guard let hit = all()[path], hit.key == key,
+        guard let hit = all()[path], hit.key == key + ":" + rules,
               abs(hit.since - since.timeIntervalSince1970) < 1 else { return nil }
         var t = Tokenomics()
         t.all = hit.all
@@ -489,7 +507,7 @@ public enum TokenomicsCache {
     public static func store(_ t: Tokenomics, for path: String, key: String, since: Date) {
         lock.lock(); defer { lock.unlock() }
         var l = all()
-        l[path] = Entry(key: key, since: since.timeIntervalSince1970, all: t.all, byDesk: t.byDesk)
+        l[path] = Entry(key: key + ":" + rules, since: since.timeIntervalSince1970, all: t.all, byDesk: t.byDesk)
         loaded = l
         dirty = true
         flushLocked()
