@@ -8,6 +8,13 @@ opens this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Programs run in a desk can use the microphone and camera.** The app
+  didn't declare either, so macOS killed any program in a desk the moment
+  it opened the mic (exit 134), before asking permission: a meeting
+  recorder worked in Terminal and died in a desk. The first time now,
+  macOS asks, once, for Project Coldfall.
+
 ## [0.3.17] - 2026-09-24
 
 A weekly budget per desk.

@@ -41,6 +41,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key>      <true/>
   <!-- Terminals live here; the app is not a document editor. -->
   <key>LSApplicationCategoryType</key>    <string>public.app-category.developer-tools</string>
+  <!-- Programs run in a desk are Coldfall's children, so macOS asks about the
+       microphone and camera on Coldfall's behalf. Without these keys it
+       doesn't ask at all: it kills the program (SIGABRT, exit 134) the moment
+       it opens the mic. A meeting recorder run from a desk died that way. -->
+  <key>NSMicrophoneUsageDescription</key> <string>Programs you run in a desk, such as recorders or voice tools, can use the microphone.</string>
+  <key>NSCameraUsageDescription</key>     <string>Programs you run in a desk can use the camera.</string>
   <!-- Where this bundle was built from, so the app can rebuild and update
        itself without the user opening a terminal. Absent in a bundle shipped
        without source, and the app says so rather than guessing. -->
