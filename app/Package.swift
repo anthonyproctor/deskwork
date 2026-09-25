@@ -15,11 +15,20 @@ let package = Package(
         .executable(name: "coldfall-test", targets: ["ColdfallTests"]),
     ],
     dependencies: [
-        // Pinned, not tracking main. CI failed on its first run because main had
-        // moved to a Swift tools version newer than the runner's — a build that
-        // breaks with no change on our side is not a dependency, it is a
-        // liability.
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.5.0")
+        // Pinned to one commit, not tracking main. CI failed on its first run
+        // because main had moved to a Swift tools version newer than the
+        // runner's — a build that breaks with no change on our side is not a
+        // dependency, it is a liability.
+        //
+        // From a fork, for one line: SwiftTerm 1.20 lists its Metal shader as
+        // a processed resource, and Swift 6.4's SwiftPM (macOS 27's Command
+        // Line Tools) compiles that with the Metal toolchain, which CLT does not
+        // include, so a source build failed with "unable to spawn process
+        // metal". The fork is v1.20.0 plus that file moved to the exclude list;
+        // the renderer, which Coldfall never turns on, loads the shader source
+        // at runtime anyway. Upstream did the same after its 2.0 API break, so
+        // this goes away when Coldfall moves to SwiftTerm 2.
+        .package(url: "https://github.com/anthonyproctor/SwiftTerm", revision: "969ef554bc4f3746bbe7385032abacff27c82a3a")
     ],
     targets: [
         // No platform UI dependency of any kind.

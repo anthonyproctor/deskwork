@@ -8,6 +8,15 @@ opens this file.
 
 ## [Unreleased]
 
+### Changed (building from source)
+- The terminal library, SwiftTerm, now comes from a fork pinned to one
+  commit: version 1.20.0 plus one line that stops its Metal shader being
+  compiled as a package resource. Swift 6.4's package manager (the macOS 27
+  Command Line Tools) hands that shader to the Metal compiler, which the
+  Command Line Tools don't include, so a source build failed with "unable
+  to spawn process metal". Nothing in the app changes: the Metal renderer
+  is never turned on, and the library loads the shader at run time anyway.
+
 ### Changed (update server)
 - The update-check server turns away more than 20 requests a minute from
   one address (a real install checks once a day), keeps its daily estimates
